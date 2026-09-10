@@ -50,6 +50,11 @@ PASTE_SETTLE_MS = 60           # focus-steal path: settle after paste
 FOREGROUND_RESTORE_MS = 80     # focus-steal path: delay before restore
 
 # --- Injection ------------------------------------------------------------
+# Settle times for the v0.1.5 mouse-driven flow: pause after clicking the
+# compose field (before posting text), and pause after posting text
+# (before auditing where it landed).
+COMPOSE_CLICK_SETTLE_MS = 150
+AUDIT_SETTLE_MS = 150
 # The aggressive fallback (briefly raising Telegram to the foreground to
 # type the Enter / paste) violates the product's core promise — sending
 # must be invisible. When False, the cascade NEVER touches the foreground

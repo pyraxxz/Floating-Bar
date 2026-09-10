@@ -1,45 +1,43 @@
 """Cascading injection — how text actually reaches Telegram.
 
-Findings from the v0.1.3 trace log (a real user's Telegram Desktop build):
+Findings from real trace logs (v0.1.3 + v0.1.4, a real Telegram build):
 
-* The compose box DOES expose a ValuePattern — but it's broken: SetValue
-  doesn't write (read-back mismatch), and CurrentValue always reports
-  "" even while text is visibly in the field. A pattern that fails the
-  write-verification must not be trusted for read-verification either —
-  its "empty" reads caused every earlier version to declare fake success
-  and stop after a single, dead posted Enter.
-* Every posted ENTER keystroke variant (KEYDOWN/KEYUP, with/without
-  WM_CHAR, both combos) fails to submit on this build. WM_CHAR text
-  landing works; Enter as a key event does nothing.
+* The compose's ValuePattern is broken — SetValue no-ops and reads stay
+  "" even while text is visibly in the field. Its reads must never be
+  trusted after a failed write-verification.
+* The LegacyIAccessible channel also reported "empty" right after the
+  text visibly landed — so read channels on this build either lag or
+  describe a different control entirely.
+* ALL posted Enter keystroke variants fail to submit on this build.
 
-So the submit is now: THE SEND BUTTON, clicked invisibly.
+v0.1.5 therefore stops trusting reads it cannot prove, and drives the
+whole flow through the mouse channel:
 
-  PHASE 1 — land the text in the compose box
-    A    UIA ValuePattern.SetValue — used only if the read-back verifies
-    A2   posted WM_CHAR per UTF-16 code unit (empirically lands)
+  PHASE 0 — click the compose box (posted click at its center) so Qt's
+  keyboard focus is on the real message field before any text is posted.
 
-  PHASE 2 — submit, ALL invisible (no focus steal, no window raise)
-    Verifiable state (trusted channel):
-      post Enter combos, verify, then posted-click the Send button
-    Unverifiable state (broken patterns — typical for this build):
-      posted-click the Send button FIRST (compose verifiably-by-eye holds
-      our text, so the compose button IS the send button), and only fall
-      back to posted Enter combos when no button can be located.
-      A button whose accessible name identifies it as a voice/mic control
-      is never clicked — it means the text never landed.
+  PHASE 1 — land the text: verified ValuePattern.SetValue, else posted
+  WM_CHAR per UTF-16 code unit.
 
-  Posted clicks: WM_LBUTTONDOWN/WM_LBUTTONUP at the button's client
-  coordinates — the background-window equivalent of AutoHotkey's
-  ControlClick. No mouse movement, no activation, no window raise.
+  PHASE 1.5 — AUDIT every Edit control (value LENGTHS only — R10:
+  never content). Three outcomes:
+    * text found in our compose  -> landing confirmed; reads work here
+    * text found in ANOTHER edit -> the compose click didn't take
+      (focus was elsewhere, e.g. the search field); retry the click +
+      text post once, then fail honestly rather than risk the mic button
+    * text found nowhere readable -> "unknown": reads are stale on this
+      build, but the compose click + WM_CHAR empirically work — proceed
 
-  AGGRESSIVE fallback (opt-in): config.ALLOW_FOCUS_STEAL = True re-enables
-  the focus-stealing paths (dual-combo submit with real SendInput, then
-  clipboard paste). Off by default — raising the window violates the
-  product's core promise.
+  PHASE 2 — submit, invisible only (no focus steal, no window raise):
+    * posted click on the Send button (band around the text-holding
+      Edit, window-bottom strip fallback; a voice/mic-named button is
+      NEVER clicked — with an empty compose that slot is the mic button)
+    * if no button can be located: posted Enter combos as last resort
+    * when the audit channel works, the submit is VERIFIED (re-audit:
+      text gone = sent); otherwise optimistic.
 
 R10 note: all read-backs are compared against constants and reduced to
-booleans — never stored, logged, or displayed. The trace log records stage
-labels, channels and results only, never message content.
+lengths and booleans — never stored, logged, or displayed.
 """
 
 import threading
@@ -57,18 +55,13 @@ class InjectionFailed(Exception):
 
 
 def _combo(ctrl_enter: bool) -> str:
-    """pywinauto type_keys sequence for the given send combo."""
     return "^{ENTER}" if ctrl_enter else "{ENTER}"
 
 
 class TelegramInjector:
     def __init__(self, target: TelegramTarget = None):
         self.target = target or TelegramTarget()
-        # Serialize sends: two concurrent focus-steal paths would fight
-        # over the foreground window and double-paste.
         self._lock = threading.Lock()
-        # Whether the compose's ValuePattern can be trusted THIS send:
-        # None = untested, True = verified, False = failed write-verify.
         self._vp_trusted = None
 
     # ------------------------------------------------------------------ API
@@ -87,24 +80,31 @@ class TelegramInjector:
                 raise TelegramNotFound(
                     "Telegram Desktop doesn't seem to be running."
                 )
+            minimized = winapi.is_minimized(hwnd)
             trace.trace(f"telegram window: hwnd={hwnd} "
-                        f"minimized={winapi.is_minimized(hwnd)}")
+                        f"minimized={minimized}")
             box = self.target.compose_box()
-            trace.trace(f"compose box: value_pattern="
-                        f"{self._has_value_pattern(box)} text_pattern="
-                        f"{self._has_text_pattern(box)}")
             primary_ctrl = config.ENTER_SEND_MODE == "ctrl+enter"
             self._vp_trusted = None
+
+            # ---------------- PHASE 0: focus the compose ----------------
+            if not minimized:
+                point = self.target.compose_click_point(box)
+                if point:
+                    trace.trace(f"compose click at {point}")
+                    winapi.post_click(hwnd, point[0], point[1])
+                    time.sleep(config.COMPOSE_CLICK_SETTLE_MS / 1000.0)
+                else:
+                    trace.trace("compose click point: unreadable")
 
             # ---------------- PHASE 1: land the text ----------------
             landed = self._land_text(box, hwnd, text)
             trace.trace(f"phase 1 land text: {landed or 'FAILED'}")
             if not landed:
-                trace.trace("phase 1 failed to land text at all")
                 if not config.ALLOW_FOCUS_STEAL:
                     raise InjectionFailed(
-                        "Text never reached Telegram's compose box, and the "
-                        "clipboard fallback is disabled "
+                        "Text never reached Telegram's compose box, and "
+                        "the clipboard fallback is disabled "
                         "(ALLOW_FOCUS_STEAL=False)."
                     )
                 if self._strategy_b(box, text, primary_ctrl, restore_hwnd):
@@ -113,16 +113,43 @@ class TelegramInjector:
                     "Every injection strategy failed — is a chat open?"
                 )
 
+            # ---------------- PHASE 1.5: audit where it landed ---------
+            time.sleep(config.AUDIT_SETTLE_MS / 1000.0)
+            landing = self._audit_landing(box)
+            if landing == "elsewhere":
+                # The compose click didn't take — Qt focus was on another
+                # Edit (e.g. the search field). One retry: click + re-post.
+                trace.trace("landing elsewhere — retrying compose click "
+                            "+ text post")
+                if not minimized:
+                    point = self.target.compose_click_point(box)
+                    if point:
+                        winapi.post_click(hwnd, point[0], point[1])
+                        time.sleep(config.COMPOSE_CLICK_SETTLE_MS / 1000.0)
+                try:
+                    winapi.post_text(hwnd, text)
+                except Exception:
+                    pass
+                time.sleep(config.AUDIT_SETTLE_MS / 1000.0)
+                landing = self._audit_landing(box)
+            if landing == "elsewhere":
+                trace.trace("text still lands outside the compose — "
+                            "refusing to touch the (mic) button")
+                raise InjectionFailed(
+                    "Telegram's message field could not be focused — "
+                    "click once into the chat's message field, then try "
+                    "again."
+                )
+
             # ---------------- PHASE 2: submit (invisible) ----------------
-            result = self._submit_invisible(box, hwnd, primary_ctrl)
+            result = self._submit_invisible(box, hwnd, primary_ctrl,
+                                            landing)
             if result:
                 trace.trace(f"submitted via: {result}")
                 return result
 
             # ---------------- AGGRESSIVE fallback (opt-in) ----------------
             if not config.ALLOW_FOCUS_STEAL:
-                trace.trace("invisible submit did not verify; "
-                            "focus-steal disabled — stopping")
                 raise InjectionFailed(
                     "Message sits in Telegram's compose box but could not "
                     "be submitted invisibly on this build. Set "
@@ -130,11 +157,11 @@ class TelegramInjector:
                     "aggressive fallback (briefly raises Telegram), and "
                     "share trace.log so the cascade can be tuned."
                 )
-            if self._submit_focus_steal(box, hwnd, primary_ctrl, restore_hwnd):
+            if self._submit_focus_steal(box, hwnd, primary_ctrl,
+                                        restore_hwnd):
                 return "A-focus-enter"
             if self._strategy_b(box, text, primary_ctrl, restore_hwnd):
                 return "B-clipboard-paste"
-            trace.trace("cascade exhausted: all strategies failed")
             raise InjectionFailed(
                 "Text reached the compose box but never submitted — "
                 "check which chat is open and Telegram's Enter settings."
@@ -171,109 +198,115 @@ class TelegramInjector:
                         + ("" if ok else " — pattern UNTRUSTED this send"))
             return ok
         except Exception:
-            self._vp_trusted = True  # can't verify the write — trust reads
+            self._vp_trusted = True
             trace.trace("valuepattern SetValue: unverifiable, trusting")
             return True
 
+    # -------------------------------------------------- Phase 1.5: audit
+
+    def _audit_landing(self, box) -> str:
+        """'compose' | 'elsewhere' | 'unknown'.
+
+        R10: value LENGTHS only — content is never read into Python
+        beyond len(), never stored, logged, or displayed."""
+        try:
+            text_edit, entries = self.target.edit_audit()
+        except Exception as e:
+            trace.trace(f"audit failed: {e}")
+            return "unknown"
+        for _, line in entries:
+            trace.trace(f"audit: {line}")
+        try:
+            compose_rid = box.element_info.runtime_id
+        except Exception:
+            compose_rid = None
+        if text_edit is None:
+            trace.trace("audit: no Edit reports text (stale reads or "
+                        "unreadable) — treating as unknown")
+            return "unknown"
+        try:
+            text_rid = text_edit.element_info.runtime_id
+        except Exception:
+            text_rid = None
+        if compose_rid is not None and text_rid is not None \
+                and tuple(compose_rid) == tuple(text_rid):
+            trace.trace("audit: text is in our compose — LANDING CONFIRMED")
+            return "compose"
+        trace.trace("audit: text landed in a DIFFERENT Edit than our "
+                    "compose selection")
+        return "elsewhere"
+
     # ---------------------------------------------------- Phase 2: submit
 
-    def _submit_invisible(self, box, hwnd: int, primary_ctrl: bool):
-        """The ONLY submit path by default. All posted messages — no focus
-        change, no window raise, no real mouse movement."""
-        state = self._compose_state(box)
-        trace.trace(f"submit: state={state} "
-                    f"(vp_trusted={self._vp_trusted})")
+    def _submit_invisible(self, box, hwnd: int, primary_ctrl: bool,
+                          landing: str):
+        """Posted click on the Send button; posted Enter combos only when
+        no button can be located. All invisible."""
+        info = None
+        if not winapi.is_minimized(hwnd):
+            info = self.target.send_button_click(near_box=box)
+        if info is None:
+            trace.trace("send button: no candidate — posting enter combos")
+            winapi.post_enter(hwnd, ctrl=primary_ctrl)
+            time.sleep(config.POSTED_ENTER_WAIT_MS / 1000.0)
+            winapi.post_enter(hwnd, ctrl=not primary_ctrl)
+            time.sleep(config.POSTED_ENTER_WAIT_MS / 1000.0)
+            if landing == "compose":
+                if self._audit_landing(box) in ("compose", "elsewhere"):
+                    # Reads worked before and the text is still there —
+                    # the Enter posts did not submit. Honest failure.
+                    return None
+            return "posted-enter (unverified)"
 
-        if state == "unknown":
-            return self._submit_unverified(box, hwnd, primary_ctrl)
-
-        if state == "empty":
-            # A trusted channel says the compose is empty even though we
-            # just "landed" text — it went nowhere. Clicking the compose
-            # button now would hit the MIC (voice recording); posting Enter
-            # would send nothing (or a stale draft). Fail honestly.
-            trace.trace("submit: text never landed (trusted empty)")
+        name, cx, cy = info
+        lname = name.lower()
+        if any(k in lname for k in ("voice", "record", "mic", "audio")):
+            if landing == "compose":
+                # Compose verifiably holds text but the best button is the
+                # mic — button identification failed. Fall to Enter posts.
+                trace.trace("button scan returned the mic despite text in "
+                            "compose — posting enter combos instead")
+                winapi.post_enter(hwnd, ctrl=primary_ctrl)
+                time.sleep(config.POSTED_ENTER_WAIT_MS / 1000.0)
+                winapi.post_enter(hwnd, ctrl=not primary_ctrl)
+                time.sleep(config.POSTED_ENTER_WAIT_MS / 1000.0)
+                return None if self._audit_landing(box) in (
+                    "compose", "elsewhere") else "posted-enter (unverified)"
+            # Without landing confirmation, the mic means the compose is
+            # empty — never click it.
+            trace.trace("button is the mic and landing unconfirmed — "
+                        "refusing to click")
             raise InjectionFailed(
-                "Text never reached Telegram's compose box."
+                "Telegram shows the voice button — the text did not land "
+                "in the compose box."
             )
 
-        # Trusted "text": posted Enter combos, verified, then the click.
-        winapi.post_enter(hwnd, ctrl=primary_ctrl)
-        time.sleep(config.POSTED_ENTER_WAIT_MS / 1000.0)
-        state = self._compose_state(box)
-        trace.trace(f"posted combo 1: state={state}")
-        if state == "empty":
-            return "A-posted-enter"
-        winapi.post_enter(hwnd, ctrl=not primary_ctrl)
-        time.sleep(config.POSTED_ENTER_WAIT_MS / 1000.0)
-        state = self._compose_state(box)
-        trace.trace(f"posted combo 2: state={state}")
-        if state == "empty":
-            return "A-posted-enter"
-        # Still verifiably holding text — invisible button click.
-        if self._posted_click_send_button(box, hwnd):
-            time.sleep(config.PASTE_SETTLE_MS / 1000.0)
-            state = self._compose_state(box)
-            trace.trace(f"posted click: state={state}")
-            if state == "empty":
-                return "posted-click"
-        return None  # verified failure — caller escalates
-
-    def _submit_unverified(self, box, hwnd: int, primary_ctrl: bool):
-        """Unverifiable build (broken/unexposed patterns). Empirically the
-        text HAS landed (the user sees it), so the compose-area button IS
-        the send button: click it FIRST — Enter posts would, if they
-        worked, empty the compose and turn that button into the mic."""
-        if winapi.is_minimized(hwnd):
-            trace.trace("telegram is minimized — posted click skipped "
-                        "(client coords are meaningless while minimized)")
-        else:
-            info = self.target.send_button_click(box)
-            if info is None:
-                trace.trace("send button: no candidate found near compose")
-            else:
-                name, cx, cy = info
-                lname = name.lower()
-                if any(k in lname for k in
-                       ("voice", "record", "mic", "audio")):
-                    trace.trace(f"button is the mic ({name!r}) — refusing")
-                    raise InjectionFailed(
-                        "Telegram shows the voice button — the text did "
-                        "not land in the compose box."
-                    )
-                trace.trace(f"posted click at ({cx},{cy}) "
-                            f"name={name!r}")
-                winapi.post_click(hwnd, cx, cy)
-                return "posted-click (unverified)"
-
-        # No button to click — last resort: post both Enter combos.
-        trace.trace("falling back to posted enter combos")
-        winapi.post_enter(hwnd, ctrl=primary_ctrl)
-        time.sleep(config.POSTED_ENTER_WAIT_MS / 1000.0)
-        winapi.post_enter(hwnd, ctrl=not primary_ctrl)
-        time.sleep(config.POSTED_ENTER_WAIT_MS / 1000.0)
-        return "posted-enter (unverified)"
-
-    def _posted_click_send_button(self, box, hwnd: int) -> bool:
-        """Verified-text path: the compose button is definitely Send —
-        posted click, safe to use unconditionally here."""
-        if winapi.is_minimized(hwnd):
-            return False
-        info = self.target.send_button_click(box)
-        if info is None:
-            trace.trace("send button: no candidate found near compose")
-            return False
-        name, cx, cy = info
-        trace.trace(f"posted click at ({cx},{cy}) name={name!r}")
+        trace.trace(f"posted click on send button at ({cx},{cy}) "
+                    f"name={name!r}")
         winapi.post_click(hwnd, cx, cy)
-        return True
+        time.sleep(config.PASTE_SETTLE_MS / 1000.0)
+
+        if landing == "compose":
+            if self._audit_landing(box) in ("compose", "elsewhere"):
+                # Text still there — click didn't submit; try Enter posts
+                # while the text verifiably remains (mic cannot appear).
+                trace.trace("click did not submit — posting enter combos")
+                winapi.post_enter(hwnd, ctrl=primary_ctrl)
+                time.sleep(config.POSTED_ENTER_WAIT_MS / 1000.0)
+                winapi.post_enter(hwnd, ctrl=not primary_ctrl)
+                time.sleep(config.POSTED_ENTER_WAIT_MS / 1000.0)
+                if self._audit_landing(box) in ("compose", "elsewhere"):
+                    return None
+                return "posted-click"
+            trace.trace("audit: text gone after click — VERIFIED SENT")
+            return "posted-click (verified)"
+        return "posted-click (unverified)"
 
     # -------------------------------------------- aggressive focus-steal
 
     def _submit_focus_steal(self, box, hwnd: int, primary_ctrl: bool,
                             restore_hwnd: int) -> bool:
-        """Opt-in only (ALLOW_FOCUS_STEAL): raise Telegram, dual-combo
-        submit with real SendInput keystrokes, then the posted click."""
+        """Opt-in only (ALLOW_FOCUS_STEAL)."""
         prev = restore_hwnd or winapi.get_foreground_window()
         try:
             winapi.ensure_restored(hwnd)
@@ -283,19 +316,18 @@ class TelegramInjector:
             box.set_focus()
             box.type_keys(_combo(primary_ctrl), pause=0.02)
             time.sleep(config.PASTE_SETTLE_MS / 1000.0)
-            if self._compose_state(box) == "empty":
-                return True
-            box.type_keys(_combo(not primary_ctrl), pause=0.02)
-            time.sleep(config.PASTE_SETTLE_MS / 1000.0)
-            state = self._compose_state(box)
-            trace.trace(f"focus-steal combos: state={state}")
-            if state == "empty":
-                return True
-            if state == "text":
-                if self._posted_click_send_button(box, hwnd):
+            if self._audit_landing(box) != "compose":
+                box.type_keys(_combo(not primary_ctrl), pause=0.02)
+                time.sleep(config.PASTE_SETTLE_MS / 1000.0)
+            if self._audit_landing(box) != "compose":
+                info = self.target.send_button_click(near_box=box)
+                if info and not any(k in info[0].lower() for k in
+                                    ("voice", "record", "mic", "audio")):
+                    winapi.post_click(hwnd, info[1], info[2])
                     time.sleep(config.PASTE_SETTLE_MS / 1000.0)
-                    return self._compose_state(box) == "empty"
-            return False
+                    return self._audit_landing(box) != "compose"
+                return False
+            return True
         except Exception as e:
             trace.trace(f"focus-steal submit failed: {e}")
             return False
@@ -306,8 +338,7 @@ class TelegramInjector:
 
     def _strategy_b(self, box, text: str, primary_ctrl: bool,
                     restore_hwnd: int) -> bool:
-        """Opt-in only: focus steal + Ctrl+A/Del clear + clipboard paste +
-        dual-combo + posted click."""
+        """Opt-in only: focus steal + Ctrl+A/Del clear + clipboard paste."""
         prev = restore_hwnd or winapi.get_foreground_window()
         try:
             with clipboard_guard.preserved_clipboard(
@@ -329,83 +360,25 @@ class TelegramInjector:
                 )
                 box.type_keys("^v", pause=0.02)
                 time.sleep(config.PASTE_SETTLE_MS / 1000.0)
-                trace.trace(f"B: pasted, state={self._compose_state(box)}")
 
                 box.type_keys(_combo(primary_ctrl), pause=0.02)
                 time.sleep(config.PASTE_SETTLE_MS / 1000.0)
-                if self._compose_state(box) == "empty":
-                    return True
-                box.type_keys(_combo(not primary_ctrl), pause=0.02)
-                time.sleep(config.PASTE_SETTLE_MS / 1000.0)
-                state = self._compose_state(box)
-                trace.trace(f"B combos: state={state}")
-                if state == "empty":
-                    return True
-                if state == "text" and self._posted_click_send_button(box, hwnd):
+                if self._audit_landing(box) != "compose":
+                    box.type_keys(_combo(not primary_ctrl), pause=0.02)
                     time.sleep(config.PASTE_SETTLE_MS / 1000.0)
-                    return self._compose_state(box) == "empty"
-                return False
+                if self._audit_landing(box) != "compose":
+                    info = self.target.send_button_click(near_box=box)
+                    if info and not any(k in info[0].lower() for k in
+                                        ("voice", "record", "mic", "audio")):
+                        winapi.post_click(hwnd, info[1], info[2])
+                        time.sleep(config.PASTE_SETTLE_MS / 1000.0)
+                        return self._audit_landing(box) != "compose"
+                    return False
+                return True
         except Exception as e:
             trace.trace(f"B failed: {e}")
             return False
         finally:
-            # <- user's clipboard restored (all formats) at context exit
             if prev:
                 time.sleep(config.FOREGROUND_RESTORE_MS / 1000.0)
                 winapi.set_foreground_window(prev)
-
-    # -------------------------------------------------------- verification
-
-    @staticmethod
-    def _has_value_pattern(box) -> bool:
-        try:
-            box.iface_value  # noqa: B018
-            return True
-        except Exception:
-            return False
-
-    @staticmethod
-    def _has_text_pattern(box) -> bool:
-        try:
-            box.iface_text  # noqa: B018
-            return True
-        except Exception:
-            return False
-
-    def _compose_state(self, box) -> str:
-        """'empty' | 'text' | 'unknown'.
-
-        Channel order: ValuePattern (only when it passed the
-        write-verification this send — the v0.1.3 trace showed a build
-        whose pattern always reads "" while the field visibly holds text;
-        an untrusted pattern's reads are lies), then TextPattern, then
-        LegacyIAccessible value. R10: the content read here is reduced to
-        a boolean — never stored, logged, or displayed."""
-        if self._vp_trusted:
-            try:
-                vp = box.iface_value
-                state = "text" if (vp.CurrentValue or "").strip() else "empty"
-                trace.trace(f"state via valuepattern: {state}")
-                return state
-            except Exception:
-                pass
-        try:
-            tp = box.iface_text
-            value = tp.DocumentRange.GetText(-1)
-            if isinstance(value, tuple):  # some comtypes marshaling
-                value = value[0] if value else ""
-            state = "text" if (value or "").strip() else "empty"
-            trace.trace(f"state via textpattern: {state}")
-            return state
-        except Exception:
-            pass
-        try:
-            legacy = box.legacy_properties()
-            value = legacy.get("Value", "") if isinstance(legacy, dict) else ""
-            state = "text" if (value or "").strip() else "empty"
-            trace.trace(f"state via legacy: {state}")
-            return state
-        except Exception:
-            pass
-        trace.trace("state: unknown (no usable channel)")
-        return "unknown"

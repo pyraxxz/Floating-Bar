@@ -74,22 +74,30 @@ Notes:
   Qt compose box implementing `IValueProvider`, which is not guaranteed;
   when absent, A is skipped instantly.
 * **Sending is invisible, always.** By default the app NEVER raises
-  Telegram's window, steals focus, or moves the mouse. The primary submit
-  is a **posted click on Telegram's own Send button**: WM_LBUTTONDOWN /
-  WM_LBUTTONUP at the button's client coordinates — the background-window
-  equivalent of AutoHotkey's ControlClick. The button is located via UI
+  Telegram's window, steals focus, or moves the mouse. The whole flow is
+  mouse-driven and posted as messages: a posted click focuses the message
+  field, WM_CHAR posts the text, and a posted click on Telegram's own Send
+  button (WM_LBUTTONDOWN / WM_LBUTTONUP at its client coordinates — the
+  background-window equivalent of AutoHotkey's ControlClick) submits.
+  A voice/mic-named button is never clicked: with an empty compose that
+  slot is the mic button. The button is located via UI
   Automation (rightmost button in the compose row; a button named as a
   voice/mic control is never clicked, because with an empty compose that
   slot is the mic button). Posted Enter keystrokes are the fallback when
   no button can be located.
 * **A broken ValuePattern is not trusted.** Real-world trace data showed
   a Telegram build whose compose exposes a ValuePattern that never writes
-  (SetValue silently no-ops) and always reads back "" — its "empty"
-  reports caused every earlier version to declare fake success and stop
-  after a single dead posted Enter. A pattern that fails the
-  write-verification is now marked untrusted for the rest of the send,
-  and verification falls back to TextPattern, then LegacyIAccessible,
-  then "unknown" — and "unknown" never claims success.
+  (SetValue silently no-ops) and always reads back "" — and whose
+  LegacyIAccessible value also reports "empty" while text is visibly in
+  the field. A pattern that fails the write-verification is marked
+  untrusted for the rest of the send. After landing the text, an AUDIT
+  re-reads every Edit control (value LENGTHS only — never content):
+  text found in our compose confirms the landing; text found in a
+  different Edit (e.g. the search field) triggers one retry of the
+  compose click + text post and then an honest failure rather than ever
+  risking the mic button; text found nowhere readable means the reads
+  are stale on this build and the mouse flow proceeds on empirical
+  evidence.
 * **The aggressive fallback exists but is off.** `ALLOW_FOCUS_STEAL` in
   config.py (default `False`) gates everything that raises Telegram to the
   foreground: the dual-combo focus-steal submit, the UIA Send-button
