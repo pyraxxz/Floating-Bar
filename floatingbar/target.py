@@ -123,3 +123,62 @@ class TelegramTarget:
             pass  # no ValuePattern — can't tell, don't penalize
 
         return score
+
+    def find_send_button(self, compose_box):
+        """Locate the Send button next to the compose box (UIA).
+
+        With text present, Telegram's compose-area button is the Send
+        button; with an empty compose it is the MIC button. The injector
+        only calls this when the compose verifiably still holds text.
+
+        Scoring: a Button whose accessible name contains "send" wins;
+        otherwise prefer buttons in the right half of/near the compose
+        (the emoji button sits at the LEFT end, the send button at the
+        right), then by distance. Returns None when nothing plausible is
+        found — the caller treats that as a failed attempt, never a
+        blind invoke.
+        """
+        hwnd = self.hwnd
+        if not hwnd:
+            return None
+        try:
+            app = pywinauto.Application(backend="uia").connect(handle=hwnd)
+            window = app.window(handle=hwnd).wrapper_object()
+            buttons = window.descendants(control_type="Button")
+        except Exception:
+            return None
+        if not buttons:
+            return None
+
+        try:
+            c = compose_box.rectangle()
+        except Exception:
+            return None
+        c_cx = (c.left + c.right) / 2.0
+        c_cy = (c.top + c.bottom) / 2.0
+
+        candidates = []
+        for button in buttons:
+            try:
+                r = button.rectangle()
+                name = (button.element_info.name or "").lower()
+            except Exception:
+                continue
+            # Must be horizontally adjacent to / overlapping the compose
+            # area and vertically near it.
+            if r.right < c.left - 20 or r.left > c.right + 240:
+                continue
+            if r.bottom < c.top - 20 or r.top > c.bottom + 20:
+                continue
+            center_x = (r.left + r.right) / 2.0
+            center_y = (r.top + r.bottom) / 2.0
+            distance = abs(center_x - c_cx) + abs(center_y - c_cy)
+            named_send = "send" in name
+            right_half = center_x >= c_cx
+            candidates.append(((0 if named_send else 1,
+                                0 if right_half else 1,
+                                distance), button))
+        if not candidates:
+            return None
+        candidates.sort(key=lambda item: item[0])
+        return candidates[0][1]

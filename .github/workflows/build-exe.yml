@@ -1,0 +1,41 @@
+name: Build Windows exe
+
+# Builds FloatingBar.exe with PyInstaller on every version tag (v*) and
+# attaches it to a GitHub Release, so the app can be installed by simply
+# downloading the exe — no Python, no command line.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Build exe
+        run: pyinstaller --onefile --noconsole --name FloatingBar main.py
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/FloatingBar.exe
+          generate_release_notes: true
+
+      # Safety net: keep the raw exe as a build artifact too
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FloatingBar-win64
+          path: dist/FloatingBar.exe

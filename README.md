@@ -30,7 +30,15 @@ python main.py
 
 A second launch exits silently (single-instance).
 
-### Optional: one-file exe
+### Just want the exe? (no Python, no command line)
+
+Every version tag in this repo triggers an automatic Windows build —
+download **FloatingBar.exe** straight from the Releases page:
+
+https://github.com/AzamanLTD/Floating-Bar/releases
+
+Prefer building it yourself? Right-click `build.ps1` → *Run with
+PowerShell* (or run the equivalent manually):
 
 ```bat
 pip install pyinstaller
@@ -57,6 +65,15 @@ Notes:
 * **A** is the best case — genuinely invisible. It depends on Telegram's
   Qt compose box implementing `IValueProvider`, which is not guaranteed;
   when absent, A is skipped instantly.
+* **Submitting is the hard half.** Telegram frequently ignores *posted*
+  Enter keystrokes, and its "Enter = newline / Ctrl+Enter = send" setting
+  makes a plain Enter do nothing. The cascade therefore never trusts a
+  single submit attempt: it presses the configured combo first, then the
+  alternate combo (pressing both is safe — if the first sent the message,
+  the second lands on an empty compose and Telegram does nothing), and
+  finally invokes the Send button via UIA — but only when the compose
+  verifiably still holds our text, because with an empty compose that
+  button is the mic button.
 * **A2** works when Telegram's compose box is its internally-focused
   widget. Qt exposes one native HWND per top-level window, so the
   characters land wherever Qt's internal focus is — inherently best-effort.
@@ -74,11 +91,11 @@ Notes:
 
 ### Telegram's "Send on Ctrl+Enter" setting
 
-If you use the Ctrl+Enter send mode, set in `config.py`:
-
-```python
-ENTER_SEND_MODE = "ctrl+enter"
-```
+You don't need to configure anything — the app presses the alternate
+combo automatically if the configured one doesn't submit. Setting
+`ENTER_SEND_MODE = "ctrl+enter"` in `config.py` just makes your preferred
+combo the one tried first (marginally less visual churn in the newline
+mode).
 
 ---
 

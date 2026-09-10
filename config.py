@@ -51,7 +51,10 @@ FOREGROUND_RESTORE_MS = 80     # focus-steal path: delay before restore
 
 # --- Injection ------------------------------------------------------------
 # Telegram has a setting: "Send on Enter" vs "Send on Ctrl+Enter".
-# Set to "ctrl+enter" if you use the Ctrl+Enter variant.
+# This picks which combo is pressed FIRST; if it doesn't submit, the app
+# automatically presses the alternate combo too (hitting an already-sent
+# empty compose is a no-op), so sending works under either setting and
+# you normally never need to touch this.
 ENTER_SEND_MODE = "enter"
 
 # --- Misc -----------------------------------------------------------------
