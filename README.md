@@ -60,6 +60,14 @@ previous one did not verifiably work:
 | **A2** | raw `WM_CHAR` / `WM_KEYDOWN` posted into Telegram's HWND | no | no | only if the compose exposes ValuePattern |
 | **B** | focus steal + paste via clipboard + Enter | briefly | yes — **fully preserved** | no signal available |
 
+On top of the keystroke chain there is a **send-button fallback**: when
+the compose verifiably still holds the text, the cascade invokes Telegram's
+Send button via UIA, and if that is unavailable, moves the real mouse
+cursor and physically clicks it. A physical click cannot be ignored the
+way posted keystrokes can. It is never blind: with an empty compose that
+button is the mic button, so the app clicks only when it can prove the
+compose holds text or the button is explicitly named "Send".
+
 Notes:
 
 * **A** is the best case — genuinely invisible. It depends on Telegram's
@@ -111,6 +119,27 @@ mode).
 
 ---
 
+## The right-click menu (and how to quit)
+
+There's no taskbar entry, so the orb has a right-click menu: it shows the
+version you're running, opens the trace folder, and has **Quit** — the
+only correct way to close the app.
+
+## The trace log — what to send when something misbehaves
+
+Every send attempt writes a stage-by-stage trace (strategy labels,
+pattern availability, verification results, button names — **never
+message content**) to:
+
+```
+%APPDATA%\FloatingBar\trace.log
+```
+
+Right-click the orb → **Open trace folder**, and share the log after a
+failed send — it pinpoints exactly which stage of the cascade your
+Telegram build rejects. The log is truncated at every app start, so it
+only ever holds the current session.
+
 ## Diagnostics
 
 A read-only diagnostic that finds the Telegram window and ranks its Edit
@@ -119,6 +148,10 @@ controls (never reading message content):
 ```bat
 python tools/diagnose.py
 ```
+
+It also lists every Button near the compose box with its accessible name
+and InvokePattern availability — exactly what the send-button fallback
+needs to know on your machine.
 
 And a live end-to-end test of the cascade:
 

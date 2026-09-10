@@ -210,10 +210,13 @@ def _key_lparam(vk: int, up: bool) -> int:
 
 def post_enter(hwnd: int, ctrl: bool = False) -> None:
     """Post an Enter keypress (optionally Ctrl+Enter) to a window's message
-    queue WITHOUT changing focus or the foreground window."""
+    queue WITHOUT changing focus or the foreground window. Sends the full
+    WM_KEYDOWN -> WM_CHAR -> WM_KEYUP triple: some Qt builds only act on the
+    WM_CHAR character message, so the key messages alone are not enough."""
     if ctrl:
         user32.PostMessageW(hwnd, WM_KEYDOWN, VK_CONTROL, _key_lparam(VK_CONTROL, False))
     user32.PostMessageW(hwnd, WM_KEYDOWN, VK_RETURN, _key_lparam(VK_RETURN, False))
+    user32.PostMessageW(hwnd, WM_CHAR, 0x0D, _key_lparam(VK_RETURN, False))
     user32.PostMessageW(hwnd, WM_KEYUP, VK_RETURN, _key_lparam(VK_RETURN, True))
     if ctrl:
         user32.PostMessageW(hwnd, WM_KEYUP, VK_CONTROL, _key_lparam(VK_CONTROL, True))

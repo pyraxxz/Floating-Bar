@@ -19,12 +19,15 @@ Improvements over the spec's reference UI:
   found, amber pulse = sending, green/red flash = sent / failed.
 """
 
+import os
 import queue
 import threading
 import tkinter as tk
 
 import config
+from . import trace
 from . import winapi
+from . import __version__
 from .injector import TelegramInjector, InjectionFailed
 from .target import TelegramTarget, TelegramNotFound
 
@@ -104,7 +107,21 @@ class OrbRelayWindow(tk.Tk):
         self.entry.bind("<FocusIn>", lambda e: self._cancel_scheduled_collapse())
         self.entry.bind("<FocusOut>", lambda e: self._schedule_collapse())
 
+        # --- context menu (right-click: version, trace folder, quit) ------
+        # Without this there is no way to close a taskbar-less overlay
+        # except Task Manager.
+        self.menu = tk.Menu(self, tearoff=0)
+        self.menu.add_command(label=f"Floating Bar v{__version__}",
+                              state="disabled")
+        self.menu.add_command(label="Open trace folder",
+                              command=self._open_trace_folder)
+        self.menu.add_separator()
+        self.menu.add_command(label="Quit", command=self.destroy)
+        self.orb.bind("<Button-3>", self._show_menu)
+        self.bar.bind("<Button-3>", self._show_menu)
+
         # --- state --------------------------------------------------------------
+        trace.reset_session(__version__)
         self._show_orb()
         self._poll_results()
 
@@ -269,6 +286,21 @@ class OrbRelayWindow(tk.Tk):
         self._collapse_job = None
         if not self._sending and self._state == "bar":
             self._collapse()
+
+    # ================================================================ menu
+
+    def _show_menu(self, event) -> None:
+        try:
+            self.menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            self.menu.grab_release()
+
+    def _open_trace_folder(self) -> None:
+        try:
+            os.makedirs(trace.dir_path(), exist_ok=True)
+            os.startfile(trace.dir_path())  # Windows-only by design
+        except Exception:
+            pass
 
     # ================================================================ drag
 
