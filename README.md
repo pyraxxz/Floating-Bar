@@ -85,6 +85,19 @@ Notes:
   voice/mic control is never clicked, because with an empty compose that
   slot is the mic button). Posted Enter keystrokes are the fallback when
   no button can be located.
+* **Telegram's compose is two nested Edits.** Real trace data showed the
+  compose is an outer wrapper Edit (broken ValuePattern, always reads "")
+  wrapped around the inner field that actually holds the text. After
+  landing text, the audit re-targets to the text-holding Edit whenever
+  it geometrically overlaps the chosen one (same visual field), giving
+  the injector a REAL verification channel; the confirmed inner field is
+  remembered for the rest of the session. Text landing in a
+  non-overlapping Edit (e.g. the search field) triggers one retry and
+  then an honest failure — never a blind click on the mic button.
+* **Minimized Telegram fails honestly.** Text cannot land while
+  Telegram is minimized (and accessibility reads freeze) — the orb
+  blinks red and says so. Background (behind other windows) is fully
+  supported; minimized is not.
 * **A broken ValuePattern is not trusted.** Real-world trace data showed
   a Telegram build whose compose exposes a ValuePattern that never writes
   (SetValue silently no-ops) and always reads back "" — and whose

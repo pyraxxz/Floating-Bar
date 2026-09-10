@@ -52,6 +52,11 @@ class TelegramTarget:
     def __init__(self):
         self._hwnd = None
         self._pid = None
+        # Runtime id of the CONFIRMED real compose field (v0.1.6: Telegram's
+        # compose is two nested Edits — a wrapper whose reads are always
+        # empty, and the inner field that actually holds the text). Once the
+        # audit confirms the inner one, prefer it on every later send.
+        self._preferred_rid = None
 
     # -- window -------------------------------------------------------------
 
@@ -111,6 +116,15 @@ class TelegramTarget:
                 "No editable control found — is a chat actually open?"
             )
 
+        if self._preferred_rid is not None:
+            for edit in edits:
+                try:
+                    if tuple(edit.element_info.runtime_id) ==                             tuple(self._preferred_rid):
+                        trace.trace("compose: using remembered inner field")
+                        return edit
+                except Exception:
+                    continue
+
         for i, edit in enumerate(edits):
             try:
                 r = edit.rectangle()
@@ -165,6 +179,13 @@ class TelegramTarget:
             pass  # no ValuePattern — can't tell, don't penalize
 
         return score
+
+    def remember_compose(self, edit) -> None:
+        """Cache the confirmed real compose field for this session."""
+        try:
+            self._preferred_rid = tuple(edit.element_info.runtime_id)
+        except Exception:
+            pass
 
     # -- click geometry -------------------------------------------------------
 
