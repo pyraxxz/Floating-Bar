@@ -73,15 +73,21 @@ Notes:
 * **A** is the best case — genuinely invisible. It depends on Telegram's
   Qt compose box implementing `IValueProvider`, which is not guaranteed;
   when absent, A is skipped instantly.
-* **Submitting is the hard half.** Telegram frequently ignores *posted*
-  Enter keystrokes, and its "Enter = newline / Ctrl+Enter = send" setting
-  makes a plain Enter do nothing. The cascade therefore never trusts a
-  single submit attempt: it presses the configured combo first, then the
-  alternate combo (pressing both is safe — if the first sent the message,
-  the second lands on an empty compose and Telegram does nothing), and
-  finally invokes the Send button via UIA — but only when the compose
-  verifiably still holds our text, because with an empty compose that
-  button is the mic button.
+* **Sending is invisible, always.** By default the app NEVER raises
+  Telegram's window or steals focus — every submit is delivered as posted
+  keystrokes into Telegram's message queue (WM_KEYDOWN → WM_CHAR →
+  WM_KEYUP, posted to the focused child HWND). The configured combo is
+  posted, then the alternate combo too: pressing both is safe, because an
+  Enter on an already-sent empty compose is a no-op, and it covers both
+  of Telegram's Enter settings. On unverifiable builds (no ValuePattern /
+  TextPattern — typical for Qt) this optimistic dual post is the only
+  submit path, by design: the invisible promise outranks the verification.
+* **The aggressive fallback exists but is off.** `ALLOW_FOCUS_STEAL` in
+  config.py (default `False`) gates everything that raises Telegram to the
+  foreground: the dual-combo focus-steal submit, the UIA Send-button
+  invoke/physical click, and the clipboard paste. Enable it only if you
+  prefer "maybe sends with a visible window flash" over "never disturbs
+  your screen".
 * **A2** works when Telegram's compose box is its internally-focused
   widget. Qt exposes one native HWND per top-level window, so the
   characters land wherever Qt's internal focus is — inherently best-effort.

@@ -105,6 +105,18 @@ kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
 kernel32.CreateMutexW.argtypes = [wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR]
 kernel32.CreateMutexW.restype = wintypes.HANDLE
 
+class _GUITHREADINFO(ctypes.Structure):
+    _fields_ = [
+        ("cbSize", wintypes.DWORD), ("flags", wintypes.DWORD),
+        ("hwndActive", wintypes.HWND), ("hwndFocus", wintypes.HWND),
+        ("hwndCapture", wintypes.HWND), ("hwndMenuOwner", wintypes.HWND),
+        ("hwndMoveSize", wintypes.HWND), ("hwndCaret", wintypes.HWND),
+        ("rcCaret", wintypes.RECT),
+    ]
+
+user32.GetGUIThreadInfo.argtypes = [wintypes.DWORD, ctypes.POINTER(_GUITHREADINFO)]
+user32.GetGUIThreadInfo.restype = wintypes.BOOL
+
 _WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
 user32.EnumWindows.argtypes = [_WNDENUMPROC, wintypes.LPARAM]
 user32.EnumWindows.restype = wintypes.BOOL
@@ -208,18 +220,42 @@ def _key_lparam(vk: int, up: bool) -> int:
     return lp
 
 
+def get_focused_hwnd(hwnd: int) -> int:
+    """The child HWND that currently holds keyboard focus inside this
+    top-level window. Qt apps are one native HWND per toplevel, so this
+    usually returns `hwnd` itself — but posting to the real focus target
+    costs nothing and is correct for multi-HWND apps."""
+    try:
+        tid = user32.GetWindowThreadProcessId(hwnd, None)
+        info = _GUITHREADINFO()
+        info.cbSize = ctypes.sizeof(_GUITHREADINFO)
+        if tid and user32.GetGUIThreadInfo(tid, ctypes.byref(info)):
+            focused = info.hwndFocus or 0
+            if focused and user32.IsWindow(focused):
+                return focused
+    except Exception:
+        pass
+    return hwnd
+
+
 def post_enter(hwnd: int, ctrl: bool = False) -> None:
-    """Post an Enter keypress (optionally Ctrl+Enter) to a window's message
-    queue WITHOUT changing focus or the foreground window. Sends the full
-    WM_KEYDOWN -> WM_CHAR -> WM_KEYUP triple: some Qt builds only act on the
-    WM_CHAR character message, so the key messages alone are not enough."""
+    """Post an Enter keypress (optionally Ctrl+Enter) into a window's
+    message queue WITHOUT changing focus or the foreground window.
+
+    Targets the currently focused child HWND (see get_focused_hwnd) and
+    sends the full WM_KEYDOWN -> WM_CHAR -> WM_KEYUP triple: some Qt
+    builds act on the character message, some on the key messages.
+    The WM_CHAR code follows Win32 convention: Enter -> 0x0D (CR),
+    Ctrl+Enter -> 0x0A (LF)."""
+    target = get_focused_hwnd(hwnd) or hwnd
+    char_code = 0x0A if ctrl else 0x0D
     if ctrl:
-        user32.PostMessageW(hwnd, WM_KEYDOWN, VK_CONTROL, _key_lparam(VK_CONTROL, False))
-    user32.PostMessageW(hwnd, WM_KEYDOWN, VK_RETURN, _key_lparam(VK_RETURN, False))
-    user32.PostMessageW(hwnd, WM_CHAR, 0x0D, _key_lparam(VK_RETURN, False))
-    user32.PostMessageW(hwnd, WM_KEYUP, VK_RETURN, _key_lparam(VK_RETURN, True))
+        user32.PostMessageW(target, WM_KEYDOWN, VK_CONTROL, _key_lparam(VK_CONTROL, False))
+    user32.PostMessageW(target, WM_KEYDOWN, VK_RETURN, _key_lparam(VK_RETURN, False))
+    user32.PostMessageW(target, WM_CHAR, char_code, _key_lparam(VK_RETURN, False))
+    user32.PostMessageW(target, WM_KEYUP, VK_RETURN, _key_lparam(VK_RETURN, True))
     if ctrl:
-        user32.PostMessageW(hwnd, WM_KEYUP, VK_CONTROL, _key_lparam(VK_CONTROL, True))
+        user32.PostMessageW(target, WM_KEYUP, VK_CONTROL, _key_lparam(VK_CONTROL, True))
 
 
 def post_text(hwnd: int, text: str) -> None:

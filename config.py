@@ -50,6 +50,14 @@ PASTE_SETTLE_MS = 60           # focus-steal path: settle after paste
 FOREGROUND_RESTORE_MS = 80     # focus-steal path: delay before restore
 
 # --- Injection ------------------------------------------------------------
+# The aggressive fallback (briefly raising Telegram to the foreground to
+# type the Enter / paste) violates the product's core promise — sending
+# must be invisible. When False, the cascade NEVER touches the foreground
+# window: it posts keystrokes into Telegram's message queue only.
+# Set True only if you prefer "maybe sends with a window flash" over
+# "never disturbs your screen".
+ALLOW_FOCUS_STEAL = False
+
 # Telegram has a setting: "Send on Enter" vs "Send on Ctrl+Enter".
 # This picks which combo is pressed FIRST; if it doesn't submit, the app
 # automatically presses the alternate combo too (hitting an already-sent
