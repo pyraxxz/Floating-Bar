@@ -1,0 +1,39 @@
+"""Floating Bar — entry point.
+
+Single-instance guarded; on a second launch the process exits silently.
+"""
+
+import sys
+import traceback
+
+
+def main() -> None:
+    import config
+    from floatingbar import winapi  # raises ImportError on non-Windows
+
+    if not winapi.acquire_single_instance(config.SINGLE_INSTANCE_MUTEX):
+        sys.exit(0)  # already running — stay quiet
+
+    from floatingbar.overlay import OrbRelayWindow
+
+    app = OrbRelayWindow()
+    try:
+        app.run()
+    except Exception:
+        # Launched via pythonw.exe there is no console — make a fatal
+        # crash visible instead of dying silently. (Per-message failures
+        # never use popups; this is only for unrecoverable startup/loop
+        # crashes.)
+        err = traceback.format_exc()
+        try:
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(
+                0, "Floating Bar crashed:\n\n" + err[-800:], "Floating Bar", 0x10
+            )
+        except Exception:
+            pass
+        raise
+
+
+if __name__ == "__main__":
+    main()
