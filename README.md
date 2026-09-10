@@ -74,14 +74,22 @@ Notes:
   Qt compose box implementing `IValueProvider`, which is not guaranteed;
   when absent, A is skipped instantly.
 * **Sending is invisible, always.** By default the app NEVER raises
-  Telegram's window or steals focus — every submit is delivered as posted
-  keystrokes into Telegram's message queue (WM_KEYDOWN → WM_CHAR →
-  WM_KEYUP, posted to the focused child HWND). The configured combo is
-  posted, then the alternate combo too: pressing both is safe, because an
-  Enter on an already-sent empty compose is a no-op, and it covers both
-  of Telegram's Enter settings. On unverifiable builds (no ValuePattern /
-  TextPattern — typical for Qt) this optimistic dual post is the only
-  submit path, by design: the invisible promise outranks the verification.
+  Telegram's window, steals focus, or moves the mouse. The primary submit
+  is a **posted click on Telegram's own Send button**: WM_LBUTTONDOWN /
+  WM_LBUTTONUP at the button's client coordinates — the background-window
+  equivalent of AutoHotkey's ControlClick. The button is located via UI
+  Automation (rightmost button in the compose row; a button named as a
+  voice/mic control is never clicked, because with an empty compose that
+  slot is the mic button). Posted Enter keystrokes are the fallback when
+  no button can be located.
+* **A broken ValuePattern is not trusted.** Real-world trace data showed
+  a Telegram build whose compose exposes a ValuePattern that never writes
+  (SetValue silently no-ops) and always reads back "" — its "empty"
+  reports caused every earlier version to declare fake success and stop
+  after a single dead posted Enter. A pattern that fails the
+  write-verification is now marked untrusted for the rest of the send,
+  and verification falls back to TextPattern, then LegacyIAccessible,
+  then "unknown" — and "unknown" never claims success.
 * **The aggressive fallback exists but is off.** `ALLOW_FOCUS_STEAL` in
   config.py (default `False`) gates everything that raises Telegram to the
   foreground: the dual-combo focus-steal submit, the UIA Send-button
@@ -178,6 +186,10 @@ python tools/diagnose.py --send "test 123"
   `PROCESS_NAME_RE` / `TITLE_FALLBACK_RE` in `config.py`.
 * **The orb is blue but sending fails** — most likely UIPI: don't run
   Floating Bar (or Telegram) elevated while the other runs normally.
+* **Telegram must not be minimized.** Background (behind other windows)
+  is fine and fully supported — but posted clicks target client
+  coordinates, which are meaningless while a window is minimized. Keep
+  Telegram open on any monitor.
 
 ## Privacy
 

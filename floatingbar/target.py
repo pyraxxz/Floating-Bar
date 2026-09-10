@@ -124,19 +124,23 @@ class TelegramTarget:
 
         return score
 
-    def find_send_button(self, compose_box):
-        """Locate the Send button next to the compose box (UIA).
+    def send_button_click(self, compose_box):
+        """Locate the Send button and return (name, client_x, client_y).
 
-        With text present, Telegram's compose-area button is the Send
-        button; with an empty compose it is the MIC button. The injector
-        only calls this when the compose verifiably still holds text.
+        Client coordinates are computed from UIA rects (button center minus
+        window origin) so both coordinate figures come from the SAME source
+        and cannot disagree under DPI scaling. Telegram Desktop is a
+        frameless window, so window origin ~ client origin.
 
-        Scoring: a Button whose accessible name contains "send" wins;
-        otherwise prefer buttons in the right half of/near the compose
-        (the emoji button sits at the LEFT end, the send button at the
-        right), then by distance. Returns None when nothing plausible is
-        found — the caller treats that as a failed attempt, never a
-        blind invoke.
+        Layout logic: the compose row is [attach] [field] [emoji] [send |
+        mic] — the rightmost button near the compose is the send button when
+        text is present (and the mic button when it isn't). A button whose
+        accessible name identifies it as a voice/mic control is returned
+        but deprioritized, and the injector refuses to click it.
+
+        Second pass: if no Button-typed control is found at all, look for
+        any control named "*send*" near the compose (some Qt builds expose
+        buttons with different control types).
         """
         hwnd = self.hwnd
         if not hwnd:
@@ -144,12 +148,9 @@ class TelegramTarget:
         try:
             app = pywinauto.Application(backend="uia").connect(handle=hwnd)
             window = app.window(handle=hwnd).wrapper_object()
-            buttons = window.descendants(control_type="Button")
+            wrect = window.rectangle()
         except Exception:
             return None
-        if not buttons:
-            return None
-
         try:
             c = compose_box.rectangle()
         except Exception:
@@ -157,28 +158,62 @@ class TelegramTarget:
         c_cx = (c.left + c.right) / 2.0
         c_cy = (c.top + c.bottom) / 2.0
 
-        candidates = []
+        def in_band(r):
+            if r.right < c.left - 20 or r.left > c.right + 240:
+                return False
+            if r.bottom < c.top - 20 or r.top > c.bottom + 20:
+                return False
+            return True
+
+        best = None  # (key, name, client_x, client_y)
+        try:
+            buttons = window.descendants(control_type="Button")
+        except Exception:
+            buttons = []
         for button in buttons:
             try:
                 r = button.rectangle()
-                name = (button.element_info.name or "").lower()
+                name = (button.element_info.name or "")
             except Exception:
                 continue
-            # Must be horizontally adjacent to / overlapping the compose
-            # area and vertically near it.
-            if r.right < c.left - 20 or r.left > c.right + 240:
-                continue
-            if r.bottom < c.top - 20 or r.top > c.bottom + 20:
+            if not in_band(r):
                 continue
             center_x = (r.left + r.right) / 2.0
             center_y = (r.top + r.bottom) / 2.0
-            distance = abs(center_x - c_cx) + abs(center_y - c_cy)
-            named_send = "send" in name
-            right_half = center_x >= c_cx
-            candidates.append(((0 if named_send else 1,
-                                0 if right_half else 1,
-                                distance), button))
-        if not candidates:
-            return None
-        candidates.sort(key=lambda item: item[0])
-        return candidates[0][1]
+            lname = name.lower()
+            named_send = "send" in lname
+            named_voice = any(k in lname for k in
+                              ("voice", "record", "mic", "audio"))
+            if named_voice:
+                key = (2, 0, 0.0)          # mic — reported, never preferred
+            elif named_send:
+                key = (0, 0, 0.0)          # explicit send — best possible
+            else:
+                # unnamed: rightmost button wins (emoji sits left of send)
+                key = (1, -center_x,
+                       abs(center_x - c_cx) + abs(center_y - c_cy))
+            if best is None or key < best[0]:
+                best = (key, name,
+                        int(center_x - wrect.left),
+                        int(center_y - wrect.top))
+        if best is not None:
+            return best[1], best[2], best[3]
+
+        # Fallback: any control named "*send*" near the compose.
+        try:
+            for el in window.descendants():
+                try:
+                    name = (el.element_info.name or "")
+                except Exception:
+                    continue
+                if "send" not in name.lower():
+                    continue
+                r = el.rectangle()
+                if not in_band(r):
+                    continue
+                cx = int((r.left + r.right) / 2.0 - wrect.left)
+                cy = int((r.top + r.bottom) / 2.0 - wrect.top)
+                return name, cx, cy
+        except Exception:
+            pass
+        return None

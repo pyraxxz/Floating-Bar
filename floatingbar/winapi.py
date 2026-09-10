@@ -32,6 +32,10 @@ kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 WM_KEYDOWN = 0x0100
 WM_KEYUP = 0x0101
 WM_CHAR = 0x0102
+WM_MOUSEMOVE = 0x0200
+WM_LBUTTONDOWN = 0x0201
+WM_LBUTTONUP = 0x0202
+MK_LBUTTON = 0x0001
 
 VK_CONTROL = 0x11
 VK_RETURN = 0x0D
@@ -265,6 +269,21 @@ def post_text(hwnd: int, text: str) -> None:
     for i in range(0, len(data), 2):
         code_unit = data[i] | (data[i + 1] << 8)
         user32.PostMessageW(hwnd, WM_CHAR, code_unit, 0)
+
+
+def post_click(hwnd: int, client_x: int, client_y: int) -> None:
+    """Post a left-button click at CLIENT coordinates WITHOUT moving the
+    real mouse cursor or activating the window — the background-window
+    equivalent of AutoHotkey's ControlClick (PostMessage mode). Qt apps
+    deliver these through their event pump like real clicks."""
+    lparam = (client_y & 0xFFFF) << 16 | (client_x & 0xFFFF)
+    user32.PostMessageW(hwnd, WM_MOUSEMOVE, 0, lparam)
+    user32.PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, lparam)
+    user32.PostMessageW(hwnd, WM_LBUTTONUP, 0, lparam)
+
+
+def is_minimized(hwnd: int) -> bool:
+    return bool(user32.IsWindow(hwnd) and user32.IsIconic(hwnd))
 
 
 # ---------------------------------------------------------------------------
