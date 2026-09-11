@@ -98,12 +98,12 @@ Notes:
   Telegram is minimized (and accessibility reads freeze) — the orb
   blinks red and says so. Background (behind other windows) is fully
   supported; minimized is not.
-* **A broken ValuePattern is not trusted.** Real-world trace data showed
-  a Telegram build whose compose exposes a ValuePattern that never writes
-  (SetValue silently no-ops) and always reads back "" — and whose
-  LegacyIAccessible value also reports "empty" while text is visibly in
-  the field. A pattern that fails the write-verification is marked
-  untrusted for the rest of the send. After landing the text, an AUDIT
+* **No UIA writes, ever.** Text lands exclusively via posted WM_CHAR
+  characters — never through accessibility SetValue. Real trace data
+  showed the compose's ValuePattern silently no-ops on real builds, and
+  worse: Qt FOCUSES the edit when an automation client writes its value,
+  which raised Telegram's window on the first send of every session
+  (v0.1.6). UIA is used for reading only (geometry, value lengths). After landing the text, an AUDIT
   re-reads every Edit control (value LENGTHS only — never content):
   text found in our compose confirms the landing; text found in a
   different Edit (e.g. the search field) triggers one retry of the

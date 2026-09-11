@@ -12,9 +12,11 @@ the audit now proves it.
 
 v0.1.6 flow (all invisible — no focus steal, no window raise):
 
-  PHASE 1 — land the text: ValuePattern.SetValue on the chosen Edit
-  (skipped for the rest of the session once a write-verification fails),
-  else posted WM_CHAR per UTF-16 code unit.
+  PHASE 1 — land the text: posted WM_CHAR per UTF-16 code unit. The old
+  ValuePattern.SetValue path was removed in v0.1.7: Qt focuses the edit
+  when an automation client writes its value, which raised Telegram's
+  window on the first send of every session (and the write never worked
+  on real builds anyway — the wrapper Edit's SetValue silently no-ops).
 
   PHASE 1.5 — AUDIT every Edit (value LENGTHS only — R10: never
   content). If the text is in a DIFFERENT Edit that geometrically
@@ -81,10 +83,6 @@ class TelegramInjector:
     def __init__(self, target: TelegramTarget = None):
         self.target = target or TelegramTarget()
         self._lock = threading.Lock()
-        # Session-level: once a write-verification fails on this build,
-        # never waste another SetValue on it (it also risks focusing
-        # side effects on some builds).
-        self._vp_session_bad = False
 
     # ------------------------------------------------------------------ API
 
@@ -162,38 +160,17 @@ class TelegramInjector:
     # -------------------------------------------------- Phase 1 strategies
 
     def _land_text(self, box, hwnd: int, text: str):
-        """A (verified ValuePattern) then A2 (posted WM_CHAR)."""
-        if not self._vp_session_bad and \
-                self._try_set_text_value_pattern(box, text):
-            return "A"
+        """Text lands via posted WM_CHAR per UTF-16 code unit — invisible
+        and empirically reliable. No UIA writes: Qt focuses the edit when
+        an automation client sets its value, raising Telegram's window
+        (v0.1.6's first-send-only raise), and the write silently no-ops
+        on real Telegram builds anyway."""
         try:
             winapi.post_text(hwnd, text)  # no focus steal; empirically lands
             return "A2"
         except Exception as e:
             trace.trace(f"WM_CHAR post failed: {e}")
             return None
-
-    def _try_set_text_value_pattern(self, box, text: str) -> bool:
-        try:
-            vp = box.iface_value  # raises when the pattern is unsupported
-        except Exception:
-            trace.trace("valuepattern: unsupported by compose box")
-            return False
-        try:
-            vp.SetValue(text)
-        except Exception as e:
-            trace.trace(f"valuepattern SetValue failed: {e}")
-            return False
-        try:
-            ok = vp.CurrentValue == text
-            if not ok:
-                self._vp_session_bad = True
-            trace.trace(f"valuepattern SetValue verified: {ok}"
-                        + ("" if ok else " — disabled for this session"))
-            return ok
-        except Exception:
-            trace.trace("valuepattern SetValue: unverifiable, trusting")
-            return True
 
     # -------------------------------------------------- Phase 1.5: audit
 
