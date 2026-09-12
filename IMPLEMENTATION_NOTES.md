@@ -60,13 +60,17 @@ A genuinely failed send keeps the unsent text as a **session-only retry draft**.
 
 A send path that completed but could not be reliably confirmed is treated differently from a verified send. The orb flashes amber and shows an explicit warning that the message should be checked before retrying. The unverified message is deliberately not re-offered automatically because it may already exist in Telegram and an automatic retry could duplicate it.
 
-The UI classifies injector results into `failed`, `unverified`, `verified`, or `unknown` states. This keeps presentation policy separate from strategy names.
+## v0.1.15 submission evidence
+
+Injector strategy strings are now mapped into a typed `SubmissionEvidence` model before UI presentation. The model distinguishes `failed`, `submitted`, `verified`, `verification-unavailable`, and `unknown` outcomes, with explicit `confirmed`, `uncertain`, and `retryable` properties. UI policy therefore no longer depends on substring parsing such as treating any strategy containing `verified` as confirmed.
+
+A failed result remains retryable and keeps its draft. A submitted-but-uncertain or verification-unavailable result is intentionally not treated as confirmed and is not automatically retried because duplication is possible.
 
 ## Diagnostics and tests
 
 `tools/diagnose.py --send` uses the same `HardenedTelegramInjector` as the production orb. Diagnostic output includes focused HWND, compose click point, runtime IDs, button names, and InvokePattern availability without logging message content.
 
-The regression suite covers nested compose geometry, pre-filled search fields, voice-button rejection, explicit Send selection, ambiguous-button fallback, focused-child routing, delayed compose clearing, clipboard-write failure, stale runtime-ID invalidation, Send-button row filtering, disabled controls, DPI-awareness bootstrap, stale-target scope aborts, multi-window target preference, and send-state classification.
+The regression suite covers nested compose geometry, pre-filled search fields, voice-button rejection, explicit Send selection, ambiguous-button fallback, focused-child routing, delayed compose clearing, clipboard-write failure, stale runtime-ID invalidation, Send-button row filtering, disabled controls, DPI-awareness bootstrap, stale-target scope aborts, multi-window target preference, failed-draft behavior, and typed send-state classification.
 
 ## Release/deployment
 
@@ -76,7 +80,7 @@ Release publishing is serialized by repository/ref concurrency. Before building,
 
 Published EXEs ship with `FloatingBar.exe.sha256`, and the SHA256 is recorded in the release body.
 
-The v0.1.10 deployment incident was traced to a stale tag and a release API failure. The workflow was hardened to repair stale tags before publication and to keep validation ahead of release tagging. Releases v0.1.11 through v0.1.14 have since completed their Windows validation/build/release paths successfully.
+The v0.1.10 deployment incident was traced to a stale tag and a release API failure. The workflow was hardened to repair stale tags before publication and to keep validation ahead of release tagging. Releases v0.1.11 through v0.1.14 completed their Windows validation/build/release paths successfully; v0.1.15 is the next evidence-model release.
 
 ## Validation boundary
 
@@ -86,8 +90,8 @@ The development environment cannot execute the final Windows/Telegram UI integra
 
 ## Next engineering targets
 
-1. Build an explicit submission-evidence model (`landed`, `submitted`, `verified`, `verification-unavailable`) and propagate it through the UI without relying on strategy-string parsing.
-2. Replace remaining Send-button heuristics with an evidence score combining geometry, control patterns, runtime IDs, enabled state, and explicit names.
-3. Add regression coverage around repeated sends, emoji/surrogate-pair text, chat switching during a send, minimized Telegram, and Telegram process restart.
-4. Add a safe retry action for failed drafts while keeping unverified results non-retriable by default.
+1. Replace remaining Send-button heuristics with an evidence score combining geometry, control patterns, runtime IDs, enabled state, and explicit names.
+2. Add regression coverage around repeated sends, emoji/surrogate-pair text, chat switching during a send, minimized Telegram, and Telegram process restart.
+3. Add a safe explicit retry action for failed drafts while keeping unverified results non-retriable by default.
+4. Gather real Windows traces from multiple Telegram versions/builds and compare focused child HWND behavior.
 5. Generalize the target abstraction to other Windows background apps only after Telegram behavior is stable and well-tested.
