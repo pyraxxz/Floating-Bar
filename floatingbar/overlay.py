@@ -37,6 +37,8 @@ class OrbRelayWindow(tk.Tk):
 
         self._state = "orb"
         self._sending = False
+        self._attempt_seq = 0
+        self._active_attempt_id = 0
         self._work_hwnd = 0
         self._retry_draft = None
         self._active_send_text = ""
@@ -334,6 +336,9 @@ class OrbRelayWindow(tk.Tk):
         if not text.strip():
             return "break"
         self._sending = True
+        self._attempt_seq += 1
+        attempt_id = self._attempt_seq
+        self._active_attempt_id = attempt_id
         self._active_send_text = text
         self._retry_draft = None
         work_hwnd = self._work_hwnd
@@ -342,13 +347,13 @@ class OrbRelayWindow(tk.Tk):
         self._blink_sending()
         threading.Thread(
             target=self._send_worker,
-            args=(text, work_hwnd),
+            args=(text, work_hwnd, attempt_id),
             daemon=True,
             name="floatingbar-send",
         ).start()
         return "break"
 
-    def _send_worker(self, text: str, work_hwnd: int) -> None:
+    def _send_worker(self, text: str, work_hwnd: int, attempt_id: int) -> None:
         comtypes = None
         try:
             import comtypes
@@ -372,18 +377,25 @@ class OrbRelayWindow(tk.Tk):
                     comtypes.CoUninitialize()
                 except Exception:
                     pass
-        self._result_q.put((strategy, error))
+        self._result_q.put((attempt_id, strategy, error))
 
     def _poll_results(self) -> None:
         try:
             while True:
-                strategy, error = self._result_q.get_nowait()
-                self._send_finished(strategy, error)
+                attempt_id, strategy, error = self._result_q.get_nowait()
+                self._send_finished(attempt_id, strategy, error)
         except queue.Empty:
             pass
         self.after(80, self._poll_results)
 
-    def _send_finished(self, strategy: str, error) -> None:
+    def _send_finished(self, attempt_id: int, strategy: str, error) -> None:
+        if attempt_id != self._active_attempt_id:
+            trace.trace(
+                f"ignoring stale send result attempt={attempt_id}; "
+                f"active={self._active_attempt_id}"
+            )
+            return
+
         self._sending = False
         if self._blink_job:
             try:
