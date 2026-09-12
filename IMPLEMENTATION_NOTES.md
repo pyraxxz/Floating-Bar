@@ -30,7 +30,7 @@ UIA runtime IDs are session-scoped hints rather than permanent identities. The t
 
 ### Stale-target send guard
 
-Before every critical compose click, retry, Enter, Send click, and clipboard-recovery action in the default path, the injector verifies that the original Telegram top-level `(HWND, PID)` still matches the target scope. If Telegram restarts or the window is replaced mid-send, the operation aborts safely rather than continuing against a stale target.
+Before every critical compose click, retry, Enter, Send click, and clipboard-recovery action, the injector verifies that the original Telegram top-level `(HWND, PID)` still matches the target scope. If Telegram restarts or the window is replaced mid-send, the operation aborts safely rather than continuing against a stale target.
 
 ### Multi-window targeting
 
@@ -68,6 +68,10 @@ A genuinely failed send keeps the unsent text as a **session-only retry draft**.
 
 A send path that completed but could not be reliably confirmed is treated differently from a verified send. The orb flashes amber and shows an explicit warning that the message should be checked before retrying. The unverified message is deliberately not re-offered automatically because it may already exist in Telegram and an automatic retry could duplicate it.
 
+### Explicit retry action
+
+A genuinely failed draft can now be restored through the existing right-click menu using **Retry failed draft**. The action captures the current foreground window before refocusing the orb, restores/selects the draft, and never submits automatically. The command is disabled for verified, uncertain, and idle states. This makes retry deliberate rather than implicit.
+
 ## Submission evidence
 
 Injector strategy strings are mapped into a typed `SubmissionEvidence` model before UI presentation. The model distinguishes `failed`, `submitted`, `verified`, `verification-unavailable`, and `unknown` outcomes, with explicit `confirmed`, `uncertain`, and `retryable` properties. UI policy therefore no longer depends on substring parsing such as treating any strategy containing `verified` as confirmed.
@@ -82,7 +86,7 @@ Injector strategy strings are mapped into a typed `SubmissionEvidence` model bef
 
 `tools/diagnose.py --send` uses the same hardened injector family as the production orb and reports focused HWND, compose click point, runtime IDs, button names, evidence scores, and InvokePattern availability without logging message content.
 
-The regression suite covers nested compose geometry, pre-filled search fields, voice-button rejection, explicit Send selection, ambiguous-button fallback, focused-child routing, delayed compose clearing, clipboard-write failure, stale runtime-ID invalidation, Send-button row filtering, disabled controls, DPI-awareness bootstrap, stale-target scope aborts, multi-window target preference, failed-draft behavior, typed send-state classification, repeated sends, Unicode surrogate-pair handling, and opt-in recovery scope aborts.
+The regression suite covers nested compose geometry, pre-filled search fields, voice-button rejection, explicit Send selection, ambiguous-button fallback, focused-child routing, delayed compose clearing, clipboard-write failure, stale runtime-ID invalidation, Send-button row filtering, disabled controls, DPI-awareness bootstrap, stale-target scope aborts, multi-window target preference, failed-draft behavior, typed send-state classification, repeated sends, Unicode surrogate-pair handling, opt-in recovery scope aborts, and explicit retry-menu behavior.
 
 ## Release/deployment
 
@@ -92,6 +96,8 @@ Release publishing is serialized and superseded runs are cancelled. Before build
 
 Published EXEs ship with `FloatingBar.exe.sha256`, and the SHA256 is recorded in the release body.
 
+The CI workflows now use current Node 24-compatible GitHub Actions lines: `actions/checkout@v6`, `actions/setup-python@v7`, `actions/github-script@v9`, and `softprops/action-gh-release@v3`, while artifact upload remains on `actions/upload-artifact@v4`.
+
 ## Validation boundary
 
 Windows CI compiles the source tree, executes the unittest suite, and builds the PyInstaller executable. The release workflow performs the same validation before publishing the versioned EXE.
@@ -100,11 +106,11 @@ The development environment cannot execute the final Windows/Telegram UI integra
 
 ## Current release
 
-**v0.1.19** is the release candidate containing the guarded opt-in recovery path. It should only be considered downloadable after its Windows validation and release publisher both complete successfully.
+**v0.1.19** is the last published release. It contains the guarded opt-in recovery path. The next release candidate adds the explicit failed-draft retry action and the updated Node 24-compatible CI/release action stack.
 
 ## Next engineering targets
 
 1. Gather real Windows traces from multiple Telegram versions/builds and compare focused child HWND behavior.
-2. Add a safe explicit retry action for genuinely failed drafts while keeping uncertain outcomes non-retriable by default.
-3. Improve chat-switch detection so a target selected at orb-open cannot silently become a different conversation before submission.
+2. Improve chat-switch detection so a target selected at orb-open cannot silently become a different conversation before submission, without introducing message-content logging.
+3. Add a small real-desktop smoke-test checklist for multi-monitor/DPI and Telegram restart scenarios.
 4. Generalize the target abstraction to other Windows background apps only after Telegram behavior is stable and well-tested.
