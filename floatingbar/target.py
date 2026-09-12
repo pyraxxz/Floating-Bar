@@ -6,9 +6,9 @@ usually contains no "Telegram", so title matching alone misses it. A
 strict title fallback ("Telegram" / "Telegram Desktop") covers portable
 installs that rename the exe.
 
-UIA runtime IDs are treated as session-scoped hints, never permanent
-identities. The cache is invalidated when Telegram's top-level HWND/PID
-scope changes, and remembered compose geometry is revalidated before use.
+UIA runtime IDs are session-scoped hints, never permanent identities. The
+cache is invalidated when Telegram's top-level HWND/PID scope changes, and
+remembered compose geometry is revalidated before use.
 """
 
 import re
@@ -22,7 +22,6 @@ from . import winapi
 
 
 class _Band:
-    """Minimal rect-like search band."""
     def __init__(self, left, top, right, bottom):
         self.left, self.top = left, top
         self.right, self.bottom = right, bottom
@@ -64,10 +63,13 @@ class TelegramTarget:
         """True only when the same Telegram top-level window/process is current."""
         current_hwnd, current_pid = self.scope()
         expected_pid = pid or self._pid or 0
-        return bool(hwnd and current_hwnd == hwnd and expected_pid and
-                    current_pid == expected_pid)
+        return bool(
+            hwnd and current_hwnd == hwnd and expected_pid and
+            current_pid == expected_pid
+        )
 
-    def refresh(self) -> None:
+    def refresh(self, preferred_hwnd: int = 0) -> None:
+        """Re-scan Telegram windows, optionally preferring a known foreground HWND."""
         previous_scope = (self._hwnd, self._pid)
         self._hwnd = None
         self._pid = None
@@ -75,8 +77,22 @@ class TelegramTarget:
             config.PROCESS_NAME_RE,
             title_re=config.TITLE_FALLBACK_RE,
         )
-        if matches:
-            self._hwnd, self._pid = matches[0][0], matches[0][1]
+
+        chosen = None
+        if preferred_hwnd:
+            for match in matches:
+                if match[0] == preferred_hwnd:
+                    chosen = match
+                    trace.trace(
+                        f"telegram target: preferring foreground window hwnd={preferred_hwnd}"
+                    )
+                    break
+        if chosen is None and matches:
+            chosen = matches[0]
+
+        if chosen is not None:
+            self._hwnd, self._pid = chosen[0], chosen[1]
+
         current_scope = (self._hwnd, self._pid)
         if self._preferred_scope is not None and current_scope != previous_scope:
             trace.trace(
@@ -85,6 +101,11 @@ class TelegramTarget:
             )
             self._preferred_rid = None
             self._preferred_scope = None
+
+    def select_for_send(self, preferred_hwnd: int = 0) -> int:
+        """Select a Telegram window for a send, preferring a known foreground HWND."""
+        self.refresh(preferred_hwnd=preferred_hwnd)
+        return self.hwnd
 
     def _window(self):
         hwnd = self.hwnd
