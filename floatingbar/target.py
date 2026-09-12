@@ -11,18 +11,10 @@ area with a bottom-half bonus and a read-only penalty. Telegram's search
 box is small and near the top; the compose box is the wide Edit at the
 bottom.
 
-v0.1.5 additions driven by real trace data (a build whose accessibility
-reads never reflect the text that is visibly in the field):
-
-* compose_click_point / control_click_point — posted-click targets in
-  client coordinates (DPI-consistent: both rects from the same source).
-* edit_audit — after landing text, enumerate EVERY Edit control and
-  report value LENGTHS only (never content — R10), so the trace shows
-  where the text actually landed and whether any read channel reflects
-  it.
-* send_button_click — search band around the text-holding Edit, with a
-  window-bottom band fallback (the compose row lives in the bottom
-  strip even when the Edit geometry is unreliable).
+The target layer deliberately treats UIA runtime IDs as session-scoped
+hints, not permanent identities. A Telegram restart invalidates the cached
+compose identity automatically, while the compose geometry is revalidated
+before a remembered runtime ID is reused.
 """
 
 import re
@@ -52,28 +44,22 @@ class TelegramTarget:
     def __init__(self):
         self._hwnd = None
         self._pid = None
-        # Runtime id of the CONFIRMED real compose field (v0.1.6: Telegram's
-        # compose is two nested Edits — a wrapper whose reads are always
-        # empty, and the inner field that actually holds the text). Once the
-        # audit confirms the inner one, prefer it on every later send.
         self._preferred_rid = None
-
-    # -- window -------------------------------------------------------------
+        self._preferred_scope = None
 
     @property
     def hwnd(self) -> int:
-        """A currently-valid Telegram top-level hwnd, or 0. Re-scans when
-        the cached handle dies (Telegram restarted, window closed...)."""
+        """A currently-valid Telegram top-level hwnd, or 0."""
         if self._hwnd and winapi.user32.IsWindow(self._hwnd):
             return self._hwnd
         self.refresh()
         return self._hwnd or 0
 
     def is_available(self) -> bool:
-        """Cheap check for status display (no UIA involved)."""
         return self.hwnd != 0
 
     def refresh(self) -> None:
+        previous_scope = (self._hwnd, self._pid)
         self._hwnd = None
         self._pid = None
         matches = winapi.find_windows(
@@ -82,55 +68,63 @@ class TelegramTarget:
         )
         if matches:
             self._hwnd, self._pid = matches[0][0], matches[0][1]
-
-    # -- window wrapper --------------------------------------------------------
+        current_scope = (self._hwnd, self._pid)
+        if self._preferred_scope is not None and current_scope != previous_scope:
+            trace.trace(
+                "compose cache: Telegram window scope changed; "
+                "discarding remembered runtime id"
+            )
+            self._preferred_rid = None
+            self._preferred_scope = None
 
     def _window(self):
         hwnd = self.hwnd
         if not hwnd:
-            raise TelegramNotFound(
-                "Telegram Desktop doesn't seem to be running."
-            )
+            raise TelegramNotFound("Telegram Desktop doesn't seem to be running.")
         app = pywinauto.Application(backend="uia").connect(handle=hwnd)
         return app.window(handle=hwnd).wrapper_object()
 
-    # -- compose box ----------------------------------------------------------
-
     def compose_box(self):
-        """Return the pywinauto UIA wrapper for Telegram's compose box.
-        Raises TelegramNotFound if the window or a suitable Edit is gone.
-        Traces every Edit candidate's geometry (never content)."""
         try:
             window = self._window()
             edits = window.descendants(control_type="Edit")
         except (ElementNotFoundError, Exception) as e:
-            # ElementNotFoundError: pywinauto couldn't wrap the handle;
-            # bare Exception: comtypes COMError on stale elements.
-            self._hwnd = None  # force a fresh scan next time
+            self._hwnd = None
+            self._pid = None
             raise TelegramNotFound(
                 f"Could not read Telegram's window tree: {e}"
             ) from e
 
         if not edits:
-            raise TelegramNotFound(
-                "No editable control found — is a chat actually open?"
-            )
+            raise TelegramNotFound("No editable control found — is a chat actually open?")
 
-        if self._preferred_rid is not None:
+        scope = (self._hwnd, self._pid)
+        if self._preferred_rid is not None and self._preferred_scope == scope:
             for edit in edits:
                 try:
-                    if tuple(edit.element_info.runtime_id) ==                             tuple(self._preferred_rid):
-                        trace.trace("compose: using remembered inner field")
+                    if tuple(edit.element_info.runtime_id) != tuple(self._preferred_rid):
+                        continue
+                    if self._remembered_compose_is_valid(edit, window):
+                        trace.trace("compose: using validated remembered inner field")
                         return edit
+                    trace.trace(
+                        "compose: remembered field failed validation; discarding cache"
+                    )
                 except Exception:
                     continue
+            self._preferred_rid = None
+            self._preferred_scope = None
+        elif self._preferred_rid is not None:
+            self._preferred_rid = None
+            self._preferred_scope = None
 
         for i, edit in enumerate(edits):
             try:
                 r = edit.rectangle()
-                trace.trace(f"edit[{i}] rect=({r.left},{r.top})-"
-                            f"({r.right},{r.bottom}) "
-                            f"{r.width()}x{r.height()}")
+                trace.trace(
+                    f"edit[{i}] rect=({r.left},{r.top})-"
+                    f"({r.right},{r.bottom}) {r.width()}x{r.height()}"
+                )
             except Exception:
                 trace.trace(f"edit[{i}] rect unreadable")
 
@@ -143,75 +137,84 @@ class TelegramTarget:
             raise TelegramNotFound("No usable compose box found.")
         try:
             r = best.rectangle()
-            trace.trace(f"compose chosen: ({r.left},{r.top})-"
-                        f"({r.right},{r.bottom})")
+            trace.trace(f"compose chosen: ({r.left},{r.top})-({r.right},{r.bottom})")
         except Exception:
             pass
         return best
 
+    @classmethod
+    def _remembered_compose_is_valid(cls, edit, window) -> bool:
+        try:
+            rect = edit.rectangle()
+            if rect.width() <= 20 or rect.height() <= 5:
+                return False
+            win_rect = window.rectangle()
+            win_h = float(win_rect.bottom - win_rect.top)
+            if win_h <= 0:
+                return False
+            if rect.top < win_rect.top + (0.55 * win_h):
+                return False
+        except Exception:
+            return False
+        try:
+            if edit.iface_value.CurrentIsReadOnly:
+                return False
+        except Exception:
+            pass
+        return True
+
     @staticmethod
     def _score_compose_candidate(edit, window):
-        """Bigger Edit wins; bottom-quarter wins harder; read-only loses."""
         try:
             rect = edit.rectangle()
             area = float(rect.width()) * float(rect.height())
             top = float(rect.top)
         except Exception:
             return -1.0
-
+        if area <= 0:
+            return -1.0
         score = area
         try:
             win_rect = window.rectangle()
             win_h = float(win_rect.bottom - win_rect.top)
-            # The compose row lives in the bottom quarter of the window;
-            # the search field lives at the top. Weight accordingly.
             if top >= win_rect.bottom - 0.25 * win_h:
                 score *= 2.0
             elif top >= (win_rect.top + win_rect.bottom) / 2.0:
                 score *= 1.5
         except Exception:
             pass
-
         try:
             if edit.iface_value.CurrentIsReadOnly:
                 return -1.0
         except Exception:
-            pass  # no ValuePattern — can't tell, don't penalize
-
+            pass
         return score
 
     def remember_compose(self, edit) -> None:
-        """Cache the confirmed real compose field for this session."""
         try:
             self._preferred_rid = tuple(edit.element_info.runtime_id)
+            self._preferred_scope = (self._hwnd, self._pid)
         except Exception:
-            pass
-
-    # -- click geometry -------------------------------------------------------
+            self._preferred_rid = None
+            self._preferred_scope = None
 
     def control_click_point(self, control):
-        """(client_x, client_y) for a control's center, computed from UIA
-        rects so button and window coordinates come from the same source
-        (DPI-consistent). Telegram Desktop is frameless: window origin
-        ~ client origin. Returns None when geometry is unreadable."""
         try:
             window = self._window()
             wrect = window.rectangle()
             r = control.rectangle()
-            return (int((r.left + r.right) / 2.0 - wrect.left),
-                    int((r.top + r.bottom) / 2.0 - wrect.top))
+            return (
+                int((r.left + r.right) / 2.0 - wrect.left),
+                int((r.top + r.bottom) / 2.0 - wrect.top),
+            )
         except Exception:
             return None
 
     def compose_click_point(self, compose_box):
         return self.control_click_point(compose_box)
 
-    # -- post-landing audit ---------------------------------------------------
-
     @staticmethod
     def _value_length(edit) -> int:
-        """Content LENGTH only (R10: never the content itself). ValuePattern
-        first, then LegacyIAccessible value."""
         try:
             vp = edit.iface_value
             return len(vp.CurrentValue or "")
@@ -225,13 +228,9 @@ class TelegramTarget:
                 return len(legacy.get("Value") or "")
         except Exception:
             pass
-        return -1  # unreadable — distinct from "verifiably empty"
+        return -1
 
     def edit_audit(self):
-        """Inspect every Edit control and return (text_edit, entries):
-        text_edit is the wrapper whose value length is > 0 (the text
-        demonstrably landed there), or None; entries are trace-ready
-        strings with geometry + value lengths only."""
         try:
             window = self._window()
             edits = window.descendants(control_type="Edit")
@@ -250,27 +249,13 @@ class TelegramTarget:
                 geo = f"({r.left},{r.top}) {r.width()}x{r.height()}"
             except Exception:
                 geo = "rect unreadable"
-            entries.append((edit, f"edit[{i}] at {geo} "
-                            f"value_len={length} rid={rid}"))
+            entries.append((edit, f"edit[{i}] at {geo} value_len={length} rid={rid}"))
             if length > 0 and text_edit is None:
                 text_edit = edit
         return text_edit, entries
 
-    # -- send button ------------------------------------------------------------
-
     def send_button_click(self, near_box=None):
-        """Locate the Send button and return (name, client_x, client_y).
-
-        Search order: the band around the text-holding Edit (`near_box`),
-        then the window's bottom strip (the compose row lives there even
-        when Edit geometry is unreliable). A button whose accessible name
-        identifies a voice/mic control is deprioritized — the injector
-        refuses to click those (with an empty compose that slot is the mic
-        button). Unnamed candidates: rightmost wins (the compose row is
-        [attach] [field] [emoji] [send|mic] — send is the rightmost).
-
-        Final pass: any control named "*send*" near the compose.
-        """
+        """Return a safe Send-button candidate, with row-aligned geometry."""
         hwnd = self.hwnd
         if not hwnd:
             return None
@@ -281,70 +266,92 @@ class TelegramTarget:
         except Exception:
             return None
 
-        bands = []
+        compose_rect = None
         if near_box is not None:
             try:
-                c = near_box.rectangle()
-                bands.append(c)
+                compose_rect = near_box.rectangle()
             except Exception:
                 pass
-        # Window-bottom strip fallback: the compose row occupies the
-        # bottom ~15% of the window.
-        strip_top = max(int(wrect.top),
-                        int(wrect.bottom - 0.15 * (wrect.bottom - wrect.top)))
+
+        bands = []
+        if compose_rect is not None:
+            h = max(1, compose_rect.bottom - compose_rect.top)
+            bands.append(_Band(
+                compose_rect.left - 20,
+                compose_rect.top - max(18, int(1.75 * h)),
+                wrect.right,
+                compose_rect.bottom + max(18, int(1.75 * h)),
+            ))
+        strip_top = max(
+            int(wrect.top),
+            int(wrect.bottom - 0.15 * (wrect.bottom - wrect.top)),
+        )
         bands.append(_Band(wrect.left, strip_top, wrect.right, wrect.bottom))
 
-        best = None  # (key, name, client_x, client_y)
+        explicit = []
+        unnamed = []
         for button in buttons:
             try:
                 r = button.rectangle()
-                name = (button.element_info.name or "")
+                name = (button.element_info.name or "").strip()
             except Exception:
                 continue
             if not any(self._in_band(r, b) for b in bands):
                 continue
+            try:
+                if not button.is_enabled():
+                    continue
+            except Exception:
+                pass
+
             center_x = (r.left + r.right) / 2.0
             center_y = (r.top + r.bottom) / 2.0
             lname = name.lower()
-            named_send = "send" in lname
-            named_voice = any(k in lname for k in
-                              ("voice", "record", "mic", "audio"))
-            if named_voice:
-                key = (2, 0, 0.0)          # mic — reported, never preferred
-            elif named_send:
-                key = (0, 0, 0.0)          # explicit send — best possible
-            else:
-                # unnamed: rightmost wins (emoji sits left of send)
-                key = (1, -center_x, center_y)
-            if best is None or key < best[0]:
-                best = (key, name,
-                        int(center_x - wrect.left),
-                        int(center_y - wrect.top))
-        if best is not None:
-            return best[1], best[2], best[3]
+            if any(k in lname for k in ("voice", "record", "mic", "audio")):
+                continue
 
-        # Final pass: any control named "*send*" in the bands.
-        try:
-            for el in window.descendants():
-                try:
-                    name = (el.element_info.name or "")
-                except Exception:
+            if compose_rect is not None:
+                compose_center_y = (compose_rect.top + compose_rect.bottom) / 2.0
+                compose_h = max(6, compose_rect.bottom - compose_rect.top)
+                row_distance = abs(center_y - compose_center_y)
+                if row_distance > max(18, 1.75 * compose_h):
                     continue
-                if "send" not in name.lower():
-                    continue
-                r = el.rectangle()
-                if not any(self._in_band(r, b) for b in bands):
-                    continue
-                cx = int((r.left + r.right) / 2.0 - wrect.left)
-                cy = int((r.top + r.bottom) / 2.0 - wrect.top)
-                return name, cx, cy
-        except Exception:
-            pass
+            else:
+                row_distance = 0.0
+
+            if "send" in lname:
+                x_distance = abs(center_x - (
+                    compose_rect.right if compose_rect else wrect.right
+                ))
+                explicit.append((row_distance, x_distance, name, r))
+                continue
+
+            if compose_rect is not None and center_x < compose_rect.right - 32:
+                continue
+            unnamed.append((row_distance, -center_x, name, r))
+
+        if explicit:
+            explicit.sort(key=lambda item: (item[0], item[1]))
+            _, _, name, r = explicit[0]
+            return (
+                name,
+                int((r.left + r.right) / 2.0 - wrect.left),
+                int((r.top + r.bottom) / 2.0 - wrect.top),
+            )
+
+        if unnamed:
+            unnamed.sort(key=lambda item: (item[0], item[1]))
+            _, _, name, r = unnamed[0]
+            return (
+                name,
+                int((r.left + r.right) / 2.0 - wrect.left),
+                int((r.top + r.bottom) / 2.0 - wrect.top),
+            )
         return None
 
     @staticmethod
     def _in_band(r, band) -> bool:
-        if r.right < band.left - 20 or r.left > band.right + 240:
+        if r.right < band.left - 20 or r.left > band.right + 40:
             return False
         if r.bottom < band.top - 20 or r.top > band.bottom + 20:
             return False
