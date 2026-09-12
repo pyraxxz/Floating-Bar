@@ -7,12 +7,11 @@ Improvements over the spec's reference UI:
   <ButtonPress-1> (drag start) — the SAME Tk event — so every click also
   armed a drag. Here a press only drags after crossing a pixel threshold,
   and expansion happens on release-without-drag.
-* The bar is draggable only by its grip bands (the padding around the
-  entry). Dragging via the entry itself would fight text selection.
-* Sends run on a worker thread (pywinauto + comtypes CoInitialize), so
-  the Tk event loop and the idle timer never freeze during injection —
-  results come back through a queue polled on the UI thread (after() is
-  not thread-safe).
+* The bar is draggable only by its grip bands (the padding around the entry).
+  Dragging via the entry itself would fight text selection.
+* Sends run on a worker thread (pywinauto + comtypes CoInitialize), so the Tk
+  event loop and the idle timer never freeze during injection — results come
+  back through a queue polled on the UI thread.
 * No blocking MessageBox popups from a topmost transparent app: errors
   surface as a red dot flash + a small label inside the bar.
 * The orb's color is a status channel: blue = ready, gray = Telegram not
@@ -28,7 +27,8 @@ import config
 from . import trace
 from . import winapi
 from . import __version__
-from .injector import TelegramInjector, InjectionFailed
+from .injector import InjectionFailed
+from .hardening import HardenedTelegramInjector
 from .target import TelegramTarget, TelegramNotFound
 
 
@@ -38,7 +38,9 @@ class OrbRelayWindow(tk.Tk):
         self.title("Floating Bar")
 
         self.target = TelegramTarget()
-        self.injector = TelegramInjector(self.target)
+        # v0.1.8 hardening keeps the proven v0.1.7 cascade while adding a
+        # deterministic compose click and safer unverified submission rules.
+        self.injector = HardenedTelegramInjector(self.target)
         self._result_q = queue.Queue()
 
         self._state = "orb"
@@ -54,13 +56,11 @@ class OrbRelayWindow(tk.Tk):
         self._press_xy = (0, 0)
         self._win_off = (0, 0)
 
-        # --- window chrome --------------------------------------------------
-        self.overrideredirect(True)            # borderless
-        self.attributes("-topmost", True)      # always on top
+        self.overrideredirect(True)
+        self.attributes("-topmost", True)
         self.configure(bg=config.TRANSPARENT_KEY_COLOR)
         self.wm_attributes("-transparentcolor", config.TRANSPARENT_KEY_COLOR)
 
-        # --- orb --------------------------------------------------------------
         self.orb = tk.Canvas(
             self,
             width=config.ORB_DIAMETER,
@@ -77,9 +77,6 @@ class OrbRelayWindow(tk.Tk):
         )
         self._bind_drag(self.orb, on_click=self._expand)
 
-        # --- bar --------------------------------------------------------------
-        # The frame's padding doubles as the drag grip; the entry itself
-        # is NOT drag-bound so click-to-position and selection work.
         self.bar = tk.Frame(self, bg=config.TRANSPARENT_KEY_COLOR, bd=0)
         self.entry = tk.Entry(
             self.bar,
@@ -107,40 +104,27 @@ class OrbRelayWindow(tk.Tk):
         self.entry.bind("<FocusIn>", lambda e: self._cancel_scheduled_collapse())
         self.entry.bind("<FocusOut>", lambda e: self._schedule_collapse())
 
-        # --- context menu (right-click: version, trace folder, quit) ------
-        # Without this there is no way to close a taskbar-less overlay
-        # except Task Manager.
         self.menu = tk.Menu(self, tearoff=0)
-        self.menu.add_command(label=f"Floating Bar v{__version__}",
-                              state="disabled")
-        self.menu.add_command(label="Open trace folder",
-                              command=self._open_trace_folder)
+        self.menu.add_command(label=f"Floating Bar v{__version__}", state="disabled")
+        self.menu.add_command(label="Open trace folder", command=self._open_trace_folder)
         self.menu.add_separator()
         self.menu.add_command(label="Quit", command=self.destroy)
         self.orb.bind("<Button-3>", self._show_menu)
         self.bar.bind("<Button-3>", self._show_menu)
 
-        # --- state --------------------------------------------------------------
         trace.reset_session(__version__)
         self._show_orb()
         self._poll_results()
 
-        # Excluded from Alt-Tab (overrideredirect already kills the taskbar
-        # entry); needs a real HWND, so after the first layout pass.
         self.update_idletasks()
         try:
             winapi.hide_from_alt_tab(self.winfo_id())
         except Exception:
             pass
 
-    # ================================================================ geometry
-
     def _apply_alpha(self, alpha: float) -> None:
         if config.USE_WINDOW_ALPHA:
             self.attributes("-alpha", alpha)
-        # Defensive: some Tk builds re-issue SetLayeredWindowAttributes
-        # with LWA_ALPHA only when -alpha changes, which can drop the color
-        # key and show a solid box. Re-asserting keeps both active.
         self.wm_attributes("-transparentcolor", config.TRANSPARENT_KEY_COLOR)
 
     def _set_geometry(self) -> None:
@@ -150,11 +134,7 @@ class OrbRelayWindow(tk.Tk):
         else:
             extra = 16 if self.error_label.winfo_ismapped() else 0
             h = config.BAR_HEIGHT + extra
-            self.geometry(
-                f"{config.BAR_WIDTH}x{h}+{self._pos[0]}+{self._pos[1]}"
-            )
-
-    # ================================================================ states
+            self.geometry(f"{config.BAR_WIDTH}x{h}+{self._pos[0]}+{self._pos[1]}")
 
     def _show_orb(self) -> None:
         self._state = "orb"
@@ -179,9 +159,6 @@ class OrbRelayWindow(tk.Tk):
         self._reset_idle()
 
     def _expand(self) -> None:
-        """Orb click -> bar. Captures the user's current foreground window
-        FIRST, so the focus-stealing fallback can hand control back to it
-        after sending (R8)."""
         if self._sending:
             return
         if self._state != "bar":
@@ -195,23 +172,17 @@ class OrbRelayWindow(tk.Tk):
         self._hide_error()
         self._show_orb()
 
-    # ================================================================ status
-
     def _set_dot_color(self, color: str) -> None:
         self.orb.itemconfig(self.orb_dot, fill=color)
 
     def _update_status(self) -> None:
-        """Cheap availability check (no UIA) — recolors the dot."""
         try:
             available = self.target.is_available()
         except Exception:
             available = False
-        self._set_dot_color(
-            config.ORB_COLOR_READY if available else config.ORB_COLOR_NOT_FOUND
-        )
+        self._set_dot_color(config.ORB_COLOR_READY if available else config.ORB_COLOR_NOT_FOUND)
 
     def _flash_orb(self, color: str) -> None:
-        """Flash a result color on the dot, then revert to the status color."""
         self._set_dot_color(color)
         if self._flash_job:
             try:
@@ -221,25 +192,19 @@ class OrbRelayWindow(tk.Tk):
         self._flash_job = self.after(1400, self._update_status)
 
     def _blink_sending(self, on: bool = True) -> None:
-        """Amber pulse while an injection is in flight."""
         if not self._sending:
             self._update_status()
             return
-        self._set_dot_color(
-            config.ORB_COLOR_SENDING if on else config.ORB_COLOR_READY
-        )
+        self._set_dot_color(config.ORB_COLOR_SENDING if on else config.ORB_COLOR_READY)
         self._blink_job = self.after(280, lambda: self._blink_sending(not on))
-
-    # ================================================================ errors
 
     def _show_error(self, message: str) -> None:
         self._last_error = message
         if self._state != "bar":
             return
         self.error_label.config(text=message)
-        self.error_label.place(
-            x=8, y=config.BAR_HEIGHT - 4, width=config.BAR_WIDTH - 16, height=14
-        )
+        self.error_label.place(x=8, y=config.BAR_HEIGHT - 4,
+                               width=config.BAR_WIDTH - 16, height=14)
         self._set_geometry()
         self.after(4000, self._hide_error)
 
@@ -248,8 +213,6 @@ class OrbRelayWindow(tk.Tk):
         self._last_error = None
         if self._state == "bar":
             self._set_geometry()
-
-    # ================================================================ timers
 
     def _reset_idle(self) -> None:
         self._cancel_idle()
@@ -270,9 +233,7 @@ class OrbRelayWindow(tk.Tk):
 
     def _schedule_collapse(self) -> None:
         self._cancel_scheduled_collapse()
-        self._collapse_job = self.after(
-            config.FOCUS_LOST_COLLAPSE_MS, self._on_focus_lost
-        )
+        self._collapse_job = self.after(config.FOCUS_LOST_COLLAPSE_MS, self._on_focus_lost)
 
     def _cancel_scheduled_collapse(self) -> None:
         if self._collapse_job:
@@ -287,8 +248,6 @@ class OrbRelayWindow(tk.Tk):
         if not self._sending and self._state == "bar":
             self._collapse()
 
-    # ================================================================ menu
-
     def _show_menu(self, event) -> None:
         try:
             self.menu.tk_popup(event.x_root, event.y_root)
@@ -298,37 +257,23 @@ class OrbRelayWindow(tk.Tk):
     def _open_trace_folder(self) -> None:
         try:
             os.makedirs(trace.dir_path(), exist_ok=True)
-            os.startfile(trace.dir_path())  # Windows-only by design
+            os.startfile(trace.dir_path())
         except Exception:
             pass
 
-    # ================================================================ drag
-
     def _bind_drag(self, widget, on_click=None) -> None:
-        """Press + drag with a pixel threshold; on_click fires on a clean
-        release (press+release without crossing the threshold)."""
-
         def press(event):
             self._dragging = False
             self._press_xy = (event.x_root, event.y_root)
-            self._win_off = (
-                event.x_root - self.winfo_x(),
-                event.y_root - self.winfo_y(),
-            )
+            self._win_off = (event.x_root - self.winfo_x(), event.y_root - self.winfo_y())
 
         def motion(event):
             dx = event.x_root - self._press_xy[0]
             dy = event.y_root - self._press_xy[1]
-            if not self._dragging and (
-                abs(dx) > config.DRAG_THRESHOLD_PX
-                or abs(dy) > config.DRAG_THRESHOLD_PX
-            ):
+            if not self._dragging and (abs(dx) > config.DRAG_THRESHOLD_PX or abs(dy) > config.DRAG_THRESHOLD_PX):
                 self._dragging = True
             if self._dragging:
-                self._pos = (
-                    event.x_root - self._win_off[0],
-                    event.y_root - self._win_off[1],
-                )
+                self._pos = (event.x_root - self._win_off[0], event.y_root - self._win_off[1])
                 self._set_geometry()
 
         def release(_event):
@@ -343,8 +288,6 @@ class OrbRelayWindow(tk.Tk):
         widget.bind("<B1-Motion>", motion)
         widget.bind("<ButtonRelease-1>", release)
 
-    # ================================================================ send
-
     def _on_key_typed(self, _event) -> None:
         self._reset_idle()
         if self._last_error:
@@ -356,24 +299,17 @@ class OrbRelayWindow(tk.Tk):
         text = self.entry.get()
         self.entry.delete(0, "end")
         if not text.strip():
-            return "break"  # empty send is a no-op (spec §6)
+            return "break"
         self._sending = True
         work_hwnd = self._work_hwnd
         self._hide_error()
         self._collapse()
         self._blink_sending()
-        threading.Thread(
-            target=self._send_worker,
-            args=(text, work_hwnd),
-            daemon=True,
-            name="floatingbar-send",
-        ).start()
+        threading.Thread(target=self._send_worker, args=(text, work_hwnd),
+                         daemon=True, name="floatingbar-send").start()
         return "break"
 
     def _send_worker(self, text: str, work_hwnd: int) -> None:
-        """Worker thread: pywinauto drives COM, so CoInitialize here.
-        Results are marshalled back through a queue — self.after() is not
-        thread-safe to call from off-thread."""
         comtypes = None
         try:
             import comtypes
@@ -387,7 +323,7 @@ class OrbRelayWindow(tk.Tk):
             strategy = self.injector.send(text, restore_hwnd=work_hwnd)
         except (TelegramNotFound, InjectionFailed) as e:
             error = str(e)
-        except Exception as e:  # never crash the worker silently
+        except Exception as e:
             error = f"Unexpected error: {e}"
         finally:
             if comtypes:
@@ -420,8 +356,6 @@ class OrbRelayWindow(tk.Tk):
         else:
             self._flash_orb(config.ORB_COLOR_OK)
             self._last_error = None
-
-    # ================================================================ run
 
     def run(self) -> None:
         self.update_idletasks()
