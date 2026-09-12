@@ -20,7 +20,7 @@ jobs:
   publish:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Read package version
         id: version
@@ -35,7 +35,7 @@ jobs:
 
       - name: Check release state and current main
         id: release
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
         with:
@@ -72,7 +72,7 @@ jobs:
 
       - name: Set up Python
         if: steps.release.outputs.publish == 'true'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -95,7 +95,7 @@ jobs:
       - name: Reconfirm current main before tag
         if: steps.release.outputs.publish == 'true'
         id: confirm
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const { owner, repo } = context.repo;
@@ -110,7 +110,7 @@ jobs:
 
       - name: Create or repair release tag
         if: steps.release.outputs.publish == 'true' && steps.confirm.outputs.current == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
         with:
@@ -157,7 +157,7 @@ jobs:
 
       - name: Publish GitHub Release
         if: steps.release.outputs.publish == 'true' && steps.confirm.outputs.current == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Floating Bar ${{ steps.version.outputs.tag }}
