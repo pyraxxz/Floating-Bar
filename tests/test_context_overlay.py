@@ -40,28 +40,12 @@ class ContextOverlayTests(unittest.TestCase):
 
     def test_changed_context_is_returned_as_safe_failure(self):
         window = OrbRelayWindow.__new__(OrbRelayWindow)
-        window.target = Mock()
-        window.target.select_for_send.return_value = 500
         context = Mock()
         context.matches.return_value = False
         window._attempt_context = context
         window._result_q = queue.Queue()
 
-        ready = SimpleNamespace(
-            ready=True,
-            status="ready",
-            submission_path="send-button",
-            context_guard_available=True,
-            reasons=(),
-        )
-        with patch("floatingbar.context_overlay.run_preflight", return_value=ready), patch(
-            "floatingbar.context_overlay.winapi.get_window_pid", return_value=900
-        ), patch(
-            "floatingbar.context_overlay.winapi.get_window_title", return_value="Chat A - Telegram"
-        ), patch(
-            "floatingbar.context_overlay.winapi.get_process_image_name", return_value=r"C:\\Telegram Desktop\\Telegram.exe"
-        ):
-            window._send_worker("hello", 500, 3)
+        window._send_worker("hello", 500, 3)
 
         attempt_id, strategy, error = window._result_q.get_nowait()
         self.assertEqual(attempt_id, 3)
@@ -92,6 +76,34 @@ class ContextOverlayTests(unittest.TestCase):
         self.assertIsNone(strategy)
         self.assertIn("minimized", error)
         window.injector.send.assert_not_called()
+
+    def test_send_binds_to_exact_preflight_window(self):
+        window = OrbRelayWindow.__new__(OrbRelayWindow)
+        window.target = Mock()
+        window.injector = Mock()
+        window._result_q = queue.Queue()
+        window._attempt_context = Mock()
+        window._attempt_context.matches.return_value = True
+        window._work_hwnd = 111
+
+        preflight = SimpleNamespace(
+            ready=True,
+            status="ready-with-degraded-context",
+            hwnd=700,
+            submission_path="enter-fallback",
+            context_guard_available=False,
+            reasons=("generic title",),
+        )
+        with patch(
+            "floatingbar.context_overlay.run_preflight",
+            return_value=preflight,
+        ), patch.object(window, "_capture_target_context"), patch(
+            "floatingbar.recovery_overlay.OrbRelayWindow._send_worker"
+        ) as base_worker:
+            window._send_worker("hello", 111, 9)
+
+        self.assertEqual(window._work_hwnd, 700)
+        base_worker.assert_called_once_with("hello", 700, 9)
 
 
 if __name__ == "__main__":
