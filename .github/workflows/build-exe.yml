@@ -1,13 +1,18 @@
 name: Publish Windows release
 
-# A new package version on main is validated, built, tagged, and published.
-# Existing releases are never rebuilt. A queued job also refuses to publish
-# if main has moved on, so a stale build cannot become the current release.
+# Milestone releases only. The normal Windows CI runs on main; this workflow
+# publishes a downloadable EXE only when an explicit v* tag is pushed.
 
 on:
   push:
-    branches: ["main"]
+    tags:
+      - "v*"
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing version tag to publish (for example v0.2.0)"
+        required: true
+        type: string
 
 concurrency:
   group: floatingbar-release-${{ github.repository }}-${{ github.ref_name }}
@@ -21,54 +26,68 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
-      - name: Read package version
-        id: version
+      - name: Resolve release tag
+        id: tag
         shell: pwsh
         run: |
-          $match = Select-String -Path floatingbar/__init__.py -Pattern '__version__\s*=\s*"([^"]+)"'
-          if (-not $match) { throw "Could not determine Floating Bar version." }
-          $version = $match.Matches[0].Groups[1].Value
-          "version=$version" >> $env:GITHUB_OUTPUT
-          "tag=v$version" >> $env:GITHUB_OUTPUT
-          Write-Host "Floating Bar version: $version"
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            $tag = '${{ inputs.tag }}'
+          } else {
+            $tag = '${{ github.ref_name }}'
+          }
+          if ($tag -notmatch '^v\d+\.\d+\.\d+$') {
+            throw "Release tag must match vMAJOR.MINOR.PATCH; got '$tag'."
+          }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          Write-Host "Release tag: $tag"
 
-      - name: Check release state and current main
+      - name: Check tag and source version
         id: release
         uses: actions/github-script@v9
         env:
-          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_TAG: ${{ steps.tag.outputs.tag }}
         with:
           script: |
             const tag = process.env.RELEASE_TAG;
             const { owner, repo } = context.repo;
 
-            try {
-              await github.rest.repos.getReleaseByTag({ owner, repo, tag });
-              core.info(`Release ${tag} already exists; skipping rebuild.`);
-              core.setOutput('publish', 'false');
-              return;
-            } catch (error) {
-              if (error.status !== 404) throw error;
-            }
-
-            const branch = await github.rest.repos.getBranch({
+            const tagRef = await github.rest.git.getRef({
               owner,
               repo,
-              branch: 'main',
+              ref: `tags/${tag}`,
             });
-            const mainSha = branch.data.commit.sha;
-            if (mainSha !== context.sha) {
-              core.info(
-                `main moved to ${mainSha} while this run targets ${context.sha}; ` +
-                `skipping this stale queued release job.`
-              );
-              core.setOutput('publish', 'false');
-              return;
+            const tagSha = tagRef.data.object.sha;
+
+            const packageFile = await github.rest.repos.getContent({
+              owner,
+              repo,
+              path: 'floatingbar/__init__.py',
+              ref: tag,
+            });
+            const decoded = Buffer.from(packageFile.data.content, 'base64').toString('utf8');
+            const match = decoded.match(/__version__\s*=\s*"([^"]+)"/);
+            if (!match) throw new Error(`Could not determine package version from ${tag}.`);
+            const version = match[1];
+            if (`v${version}` !== tag) {
+              throw new Error(`Tag ${tag} does not match package version ${version}.`);
             }
 
-            core.info(`Release ${tag} does not exist and ${context.sha} is current main.`);
-            core.setOutput('publish', 'true');
+            core.setOutput('sha', tagSha);
+            core.setOutput('version', version);
+            core.info(`Publishing ${tag} from ${tagSha}.`);
+
+            try {
+              const release = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+              core.info(`Release ${tag} already exists (${release.data.id}); skipping rebuild.`);
+              core.setOutput('publish', 'false');
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              core.setOutput('publish', 'true');
+            }
 
       - name: Set up Python
         if: steps.release.outputs.publish == 'true'
@@ -92,58 +111,23 @@ jobs:
         if: steps.release.outputs.publish == 'true'
         run: pyinstaller --onefile --noconsole --name FloatingBar main.py
 
-      - name: Reconfirm current main before tag
+      - name: Confirm tag source before publication
         if: steps.release.outputs.publish == 'true'
         id: confirm
         uses: actions/github-script@v9
-        with:
-          script: |
-            const { owner, repo } = context.repo;
-            const branch = await github.rest.repos.getBranch({ owner, repo, branch: 'main' });
-            const mainSha = branch.data.commit.sha;
-            if (mainSha !== context.sha) {
-              core.info(`main moved to ${mainSha} during build; refusing to tag stale commit ${context.sha}.`);
-              core.setOutput('current', 'false');
-              return;
-            }
-            core.setOutput('current', 'true');
-
-      - name: Create or repair release tag
-        if: steps.release.outputs.publish == 'true' && steps.confirm.outputs.current == 'true'
-        uses: actions/github-script@v9
         env:
-          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_TAG: ${{ steps.tag.outputs.tag }}
+          EXPECTED_SHA: ${{ steps.release.outputs.sha }}
         with:
           script: |
             const tag = process.env.RELEASE_TAG;
+            const expected = process.env.EXPECTED_SHA;
             const { owner, repo } = context.repo;
-            let tagSha = null;
-            try {
-              const ref = await github.rest.git.getRef({ owner, repo, ref: `tags/${tag}` });
-              tagSha = ref.data.object.sha;
-            } catch (error) {
-              if (error.status !== 404) throw error;
+            const ref = await github.rest.git.getRef({ owner, repo, ref: `tags/${tag}` });
+            if (ref.data.object.sha !== expected) {
+              throw new Error(`Release tag ${tag} moved during build from ${expected} to ${ref.data.object.sha}.`);
             }
-            if (tagSha && tagSha !== context.sha) {
-              await github.rest.git.updateRef({
-                owner,
-                repo,
-                ref: `tags/${tag}`,
-                sha: context.sha,
-                force: true,
-              });
-              core.info(`Repointed ${tag} to validated commit ${context.sha}.`);
-            } else if (!tagSha) {
-              await github.rest.git.createRef({
-                owner,
-                repo,
-                ref: `refs/tags/${tag}`,
-                sha: context.sha,
-              });
-              core.info(`Created ${tag} at validated commit ${context.sha}.`);
-            } else {
-              core.info(`Tag ${tag} already points to validated commit ${context.sha}.`);
-            }
+            core.setOutput('current', 'true');
 
       - name: Calculate SHA256
         if: steps.release.outputs.publish == 'true' && steps.confirm.outputs.current == 'true'
@@ -159,19 +143,19 @@ jobs:
         if: steps.release.outputs.publish == 'true' && steps.confirm.outputs.current == 'true'
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: Floating Bar ${{ steps.version.outputs.tag }}
-          body: "Automated Windows build for Floating Bar ${{ steps.version.outputs.tag }}. SHA256: ${{ steps.sha256.outputs.hash }}. Source validated by the Windows CI suite before publication."
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: Floating Bar ${{ steps.tag.outputs.tag }}
+          body: "Milestone Windows build for Floating Bar ${{ steps.tag.outputs.tag }}. SHA256: ${{ steps.sha256.outputs.hash }}. Source validated by the Windows CI suite before publication."
           files: |
             dist/FloatingBar.exe
             dist/FloatingBar.exe.sha256
-          generate_release_notes: false
+          generate_release_notes: true
 
       - name: Upload build artifact
         if: steps.release.outputs.publish == 'true' && steps.confirm.outputs.current == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: FloatingBar-win64-${{ steps.version.outputs.version }}
+          name: FloatingBar-win64-${{ steps.release.outputs.version }}
           path: |
             dist/FloatingBar.exe
             dist/FloatingBar.exe.sha256
