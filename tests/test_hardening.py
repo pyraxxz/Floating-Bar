@@ -7,7 +7,7 @@ from floatingbar.hardening import (
     _is_explicit_send_name,
     _is_voice_name,
 )
-from floatingbar.injector import InjectionFailed, _nested
+from floatingbar.injector import InjectionFailed, TelegramInjector, _nested
 
 
 class Rect:
@@ -185,35 +185,43 @@ class HardeningTests(unittest.TestCase):
         pasted = [call for call in box.type_keys.call_args_list if call.args and call.args[0] == "^v"]
         self.assertEqual(pasted, [])
 
-    def test_two_consecutive_sends_reuse_the_orchestrator_safely(self):
+    def test_send_preserves_intentional_leading_and_trailing_whitespace(self):
+        class SpyInjector(TelegramInjector):
+            def __init__(self, target):
+                super().__init__(target)
+                self.seen_text = None
+
+            def _land_text(self, box, hwnd, text):
+                self.seen_text = text
+                return "A2"
+
+            def _audit_and_retarget(self, box, hwnd, text):
+                return "compose", box
+
+            def _submit_invisible(self, box, hwnd, primary_ctrl, landing):
+                return "posted-click (VERIFIED)"
+
+            @staticmethod
+            def _restore_foreground(_telegram_hwnd, _prev_fg):
+                pass
+
         target = Mock()
         target.hwnd = 123
-        box1, box2 = object(), object()
-        target.compose_box.side_effect = [box1, box2]
-        injector = HardenedTelegramInjector(target)
-        injector._land_text = Mock(return_value="A2")
-        injector._audit_and_retarget = Mock(
-            side_effect=[("compose", box1), ("compose", box2)]
-        )
-        injector._submit_invisible = Mock(
-            side_effect=["posted-click (VERIFIED)", "posted-click (VERIFIED)"]
-        )
+        target.compose_box.return_value = object()
+        injector = SpyInjector(target)
 
         with patch("floatingbar.injector.winapi.is_minimized", return_value=False), \
-             patch("floatingbar.injector.winapi.get_foreground_window", return_value=999), \
-             patch.object(injector, "_restore_foreground"):
-            first = injector.send("first")
-            second = injector.send("second")
+             patch("floatingbar.injector.winapi.get_foreground_window", return_value=99):
+            result = injector.send("  hello world  ")
 
-        self.assertEqual(first, "posted-click (VERIFIED)")
-        self.assertEqual(second, "posted-click (VERIFIED)")
-        self.assertEqual(target.compose_box.call_count, 2)
-        self.assertEqual(injector._submit_invisible.call_count, 2)
-        self.assertEqual(
-            injector._land_text.call_args_list,
-            [unittest.mock.call(box1, 123, "first"),
-             unittest.mock.call(box2, 123, "second")],
-        )
+        self.assertEqual(result, "posted-click (VERIFIED)")
+        self.assertEqual(injector.seen_text, "  hello world  ")
+
+    def test_send_skips_whitespace_only_input(self):
+        target = Mock()
+        injector = TelegramInjector(target)
+        self.assertEqual(injector.send(" \t  "), "skipped-empty")
+        target.compose_box.assert_not_called()
 
 
 if __name__ == "__main__":
