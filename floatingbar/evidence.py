@@ -54,15 +54,23 @@ def from_result(strategy: Optional[str], error: Optional[str] = None) -> Submiss
         return SubmissionEvidence(EvidenceState.UNKNOWN, retryable=False)
 
     normalized = strategy.lower()
-    if "verified" in normalized:
-        return SubmissionEvidence(
-            EvidenceState.VERIFIED,
-            strategy=strategy,
-            retryable=False,
-        )
+    # Check the longer/negative forms first: "unverified" contains the
+    # substring "verified", so the broad positive check must come last.
     if "verification-unavailable" in normalized:
         return SubmissionEvidence(
             EvidenceState.UNAVAILABLE,
+            strategy=strategy,
+            retryable=False,
+        )
+    if "unverified" in normalized:
+        return SubmissionEvidence(
+            EvidenceState.SUBMITTED,
+            strategy=strategy,
+            retryable=False,
+        )
+    if "verified" in normalized:
+        return SubmissionEvidence(
+            EvidenceState.VERIFIED,
             strategy=strategy,
             retryable=False,
         )
