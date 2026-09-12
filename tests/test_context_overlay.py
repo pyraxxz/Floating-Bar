@@ -40,12 +40,28 @@ class ContextOverlayTests(unittest.TestCase):
 
     def test_changed_context_is_returned_as_safe_failure(self):
         window = OrbRelayWindow.__new__(OrbRelayWindow)
+        window.target = Mock()
+        window.target.select_for_send.return_value = 500
         context = Mock()
         context.matches.return_value = False
         window._attempt_context = context
         window._result_q = queue.Queue()
 
-        window._send_worker("hello", 500, 3)
+        ready = SimpleNamespace(
+            ready=True,
+            status="ready",
+            submission_path="send-button",
+            context_guard_available=True,
+            reasons=(),
+        )
+        with patch("floatingbar.context_overlay.run_preflight", return_value=ready), patch(
+            "floatingbar.context_overlay.winapi.get_window_pid", return_value=900
+        ), patch(
+            "floatingbar.context_overlay.winapi.get_window_title", return_value="Chat A - Telegram"
+        ), patch(
+            "floatingbar.context_overlay.winapi.get_process_image_name", return_value=r"C:\\Telegram Desktop\\Telegram.exe"
+        ):
+            window._send_worker("hello", 500, 3)
 
         attempt_id, strategy, error = window._result_q.get_nowait()
         self.assertEqual(attempt_id, 3)
