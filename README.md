@@ -32,13 +32,12 @@ A second launch exits silently (single-instance).
 
 ### Just want the exe? (no Python, no command line)
 
-The repository publishes a Windows executable for each unreleased package
-version when that version lands on `main` and passes the Windows CI gates.
-Download **FloatingBar.exe** from the project's Releases page:
+Each unreleased package version on `main` is automatically validated on
+Windows and published as a GitHub Release with **FloatingBar.exe**.
 
 https://github.com/pyraxxz/Floating-Bar/releases
 
-Current release: **v0.1.9**.
+Current release: **v0.1.10**.
 
 Prefer building it yourself? Right-click `build.ps1` → *Run with
 PowerShell* (or run the equivalent manually):
@@ -50,10 +49,10 @@ pyinstaller --onefile --noconsole --name FloatingBar main.py
 
 ---
 
-## How sending works (v0.1.9)
+## How sending works (v0.1.10)
 
 Sending is designed to avoid bringing Telegram to the foreground. The
-production path is now a hardened cascade:
+production path is a hardened cascade:
 
 1. Locate Telegram by process image name and choose the most likely compose
    Edit by geometry.
@@ -62,16 +61,20 @@ production path is now a hardened cascade:
    Telegram, post UTF-16 `WM_CHAR` units directly to that child. Fall back to
    the top-level Telegram window only when necessary.
 4. Audit the Edit controls using **value lengths only**. If another Edit is
-   already non-empty (for example, the search field), the audit prefers the
-   positive-value Edit that geometrically overlaps the selected compose.
-5. When the compose is verifiably holding the text, use the existing safe
-   Send-button cascade. Voice/mic/record/audio controls are never clicked.
-6. When the landing cannot be verified, only an explicitly named `Send`
+   already non-empty (for example, the search field), prefer the positive-value
+   Edit that geometrically overlaps the selected compose.
+5. When the compose is verifiably holding the text, submit through the
+   Send-button/Enter cascade with strict voice/mic rejection.
+6. Submission verification is bounded and asynchronous: a send click is
+   allowed time to clear the compose before it is classified as a failure,
+   reducing false failures and avoiding unnecessary duplicate fallback sends.
+7. When the landing cannot be verified, only an explicitly named `Send`
    button can be clicked. Ambiguous controls are rejected; posted Enter
    combinations are the fallback.
 
 The aggressive focus-stealing/clipboard recovery remains opt-in through
-`ALLOW_FOCUS_STEAL = False`.
+`ALLOW_FOCUS_STEAL = False`. Clipboard recovery refuses to paste when setting
+the relay text on the clipboard fails.
 
 ### Why the implementation avoids UIA `SetValue`
 
