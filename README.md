@@ -38,7 +38,7 @@ SHA-256 checksum file.
 
 https://github.com/pyraxxz/Floating-Bar/releases
 
-Current release: **v0.1.14**.
+Current release: **v0.1.15**.
 
 Prefer building it yourself? Right-click `build.ps1` → *Run with
 PowerShell* (or run the equivalent manually):
@@ -50,7 +50,7 @@ pyinstaller --onefile --noconsole --name FloatingBar main.py
 
 ---
 
-## How sending works (v0.1.14)
+## How sending works (v0.1.15)
 
 Sending is designed to avoid bringing Telegram to the foreground. The
 production path is a hardened cascade:
@@ -85,6 +85,10 @@ production path is a hardened cascade:
 11. When the landing cannot be verified, only an explicitly named `Send`
     button can be clicked. Ambiguous controls are rejected; posted Enter
     combinations are the fallback.
+12. The injector result is converted to a typed `SubmissionEvidence` state
+    (`failed`, `submitted`, `verified`, `verification-unavailable`, or
+    `unknown`) before UI presentation. The UI does not infer confirmation by
+    parsing strategy-name substrings.
 
 ### Failure recovery and status feedback
 
@@ -97,6 +101,10 @@ A path that completes without a reliable read-back confirmation is deliberately
 **amber**, not green. The message is not automatically offered as a retry,
 because it may already have reached Telegram and an automatic retry could
 create a duplicate.
+
+Internally, the send result distinguishes confirmed sends from submitted-but-
+uncertain and verification-unavailable outcomes. This prevents an optimistic
+strategy label from being presented as proof that Telegram accepted the message.
 
 The process is initialized as **per-monitor DPI aware** before Tk creates its
 first window. This keeps Tk/UIA geometry and posted client coordinates more
@@ -193,7 +201,8 @@ python tools/diagnose.py --send "test 123"
   itself was active, v0.1.13+ preserves that exact Telegram window. When the
   orb was opened from another application, normal Telegram discovery is used.
 * **Send could not be confirmed** — do not immediately retry unless you have
-  checked the chat. v0.1.14 deliberately marks this amber to avoid duplicates.
+  checked the chat. v0.1.15 deliberately keeps uncertain outcomes amber to
+  avoid duplicate sends.
 * **A previous send failed** — open the orb to recover the previous text as a
   selected draft. Typing anything new replaces that draft.
 * **The orb is blue but sending fails** — most likely UIPI: don't run
