@@ -1,0 +1,82 @@
+import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
+
+from floatingbar.preflight import run
+
+
+class PreflightTests(unittest.TestCase):
+    def _target(self, hwnd=100, pid=200, compose_point=(20, 30), send=("Send", 80, 30)):
+        target = SimpleNamespace()
+        target.select_for_send = lambda preferred_hwnd=0: hwnd
+        target.hwnd = hwnd
+        target.scope = lambda: (hwnd, pid)
+        box = SimpleNamespace()
+        box.rectangle = lambda: SimpleNamespace(left=10, top=20, right=220, bottom=60)
+        target.compose_box = lambda: box
+        target.compose_click_point = lambda value: compose_point
+        target.send_button_click = lambda near_box=None: send
+        return target
+
+    def test_ready_preflight_requires_compose_scope_and_non_minimized(self):
+        target = self._target()
+        with patch("floatingbar.preflight.winapi.is_minimized", return_value=False), patch(
+            "floatingbar.preflight.winapi.get_focused_hwnd", return_value=101
+        ), patch("floatingbar.preflight.winapi.get_window_pid", return_value=200):
+            result = run(target)
+
+        self.assertTrue(result.ready)
+        self.assertEqual(result.hwnd, 100)
+        self.assertEqual(result.pid, 200)
+        self.assertEqual(result.compose_click, (20, 30))
+        self.assertTrue(result.button_available)
+        self.assertTrue(result.scope_stable)
+
+    def test_minimized_preflight_is_not_ready(self):
+        target = self._target()
+        with patch("floatingbar.preflight.winapi.is_minimized", return_value=True), patch(
+            "floatingbar.preflight.winapi.get_focused_hwnd", return_value=101
+        ), patch("floatingbar.preflight.winapi.get_window_pid", return_value=200):
+            result = run(target)
+
+        self.assertFalse(result.ready)
+        self.assertTrue(any("minimized" in reason for reason in result.reasons))
+
+    def test_missing_send_button_is_warning_but_not_hard_failure(self):
+        target = self._target(send=None)
+        with patch("floatingbar.preflight.winapi.is_minimized", return_value=False), patch(
+            "floatingbar.preflight.winapi.get_focused_hwnd", return_value=101
+        ), patch("floatingbar.preflight.winapi.get_window_pid", return_value=200):
+            result = run(target)
+
+        self.assertTrue(result.ready)
+        self.assertFalse(result.button_available)
+        self.assertTrue(any("Enter fallback" in reason for reason in result.reasons))
+
+    def test_scope_change_makes_preflight_not_ready(self):
+        target = self._target()
+        calls = [(100, 200), (101, 200)]
+        target.scope = lambda: calls.pop(0)
+        with patch("floatingbar.preflight.winapi.is_minimized", return_value=False), patch(
+            "floatingbar.preflight.winapi.get_focused_hwnd", return_value=101
+        ), patch("floatingbar.preflight.winapi.get_window_pid", return_value=200):
+            result = run(target)
+
+        self.assertFalse(result.ready)
+        self.assertFalse(result.scope_stable)
+        self.assertTrue(any("scope changed" in reason for reason in result.reasons))
+
+    def test_missing_telegram_is_not_ready(self):
+        target = self._target(hwnd=0)
+        target.scope = lambda: (0, 0)
+        with patch("floatingbar.preflight.winapi.is_minimized", return_value=False), patch(
+            "floatingbar.preflight.winapi.get_focused_hwnd", return_value=0
+        ):
+            result = run(target)
+
+        self.assertFalse(result.ready)
+        self.assertEqual(result.reasons, ("Telegram Desktop was not found.",))
+
+
+if __name__ == "__main__":
+    unittest.main()
