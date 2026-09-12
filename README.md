@@ -38,7 +38,7 @@ SHA-256 checksum file.
 
 https://github.com/pyraxxz/Floating-Bar/releases
 
-Current release: **v0.1.15**.
+Current release: **v0.1.16**.
 
 Prefer building it yourself? Right-click `build.ps1` → *Run with
 PowerShell* (or run the equivalent manually):
@@ -50,7 +50,7 @@ pyinstaller --onefile --noconsole --name FloatingBar main.py
 
 ---
 
-## How sending works (v0.1.15)
+## How sending works (v0.1.16)
 
 Sending is designed to avoid bringing Telegram to the foreground. The
 production path is a hardened cascade:
@@ -75,10 +75,12 @@ production path is a hardened cascade:
    top-level HWND/PID is still the target. A restart or window replacement
    aborts the current send safely instead of risking delivery into a changed
    target.
-9. When the compose is verifiably holding the text, submit through the
-   Send-button/Enter cascade with strict voice/mic rejection. Unnamed button
-   candidates must remain in the compose row and to its right; unrelated
-   lower-window controls are ignored.
+9. When the compose is verifiably holding the text, submit through a scored
+   Send-button/Enter cascade with strict voice/mic rejection. Candidate
+   evidence combines explicit `Send` naming, automation IDs, InvokePattern
+   availability, compose-row alignment, position relative to the compose,
+   and reasonable button geometry. Weak unnamed candidates are rejected and
+   the flow falls back to posted Enter combinations.
 10. Submission verification is bounded and asynchronous: a send click is
     allowed time to clear the compose before it is classified as a failure,
     reducing false failures and avoiding unnecessary duplicate fallback sends.
@@ -89,6 +91,8 @@ production path is a hardened cascade:
     (`failed`, `submitted`, `verified`, `verification-unavailable`, or
     `unknown`) before UI presentation. The UI does not infer confirmation by
     parsing strategy-name substrings.
+13. Text is converted into UTF-16LE code units before posting `WM_CHAR`,
+    preserving surrogate pairs for emoji and other astral Unicode characters.
 
 ### Failure recovery and status feedback
 
@@ -153,8 +157,8 @@ only correct way to close the app.
 
 Every send attempt writes a stage-by-stage trace (strategy labels,
 pattern availability, verification results, button names, geometry,
-focused-HWND decisions, target-scope decisions — **never message content**)
-to:
+focused-HWND decisions, target-scope decisions, candidate evidence scores —
+**never message content**) to:
 
 ```
 %APPDATA%\FloatingBar\trace.log
@@ -212,6 +216,9 @@ python tools/diagnose.py --send "test 123"
   display scaling.
 * **Telegram restarts during a send** — v0.1.12+ aborts that send safely and
   asks you to try again rather than continuing against a stale HWND.
+* **Unicode/emoji appears corrupted** — v0.1.16 posts UTF-16LE code units,
+  including surrogate pairs for astral Unicode. If a specific Telegram build
+  still rejects a character, share the trace without message content.
 * **Telegram must not be minimized.** Background (behind other windows)
   is supported — minimized windows cannot reliably receive the posted
   client-coordinate clicks.
