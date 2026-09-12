@@ -6,15 +6,9 @@ usually contains no "Telegram", so title matching alone misses it. A
 strict title fallback ("Telegram" / "Telegram Desktop") covers portable
 installs that rename the exe.
 
-Compose box: UI Automation descendants(control_type="Edit"), scored by
-area with a bottom-half bonus and a read-only penalty. Telegram's search
-box is small and near the top; the compose box is the wide Edit at the
-bottom.
-
-The target layer deliberately treats UIA runtime IDs as session-scoped
-hints, not permanent identities. A Telegram restart invalidates the cached
-compose identity automatically, while the compose geometry is revalidated
-before a remembered runtime ID is reused.
+UIA runtime IDs are treated as session-scoped hints, never permanent
+identities. The cache is invalidated when Telegram's top-level HWND/PID
+scope changes, and remembered compose geometry is revalidated before use.
 """
 
 import re
@@ -57,6 +51,21 @@ class TelegramTarget:
 
     def is_available(self) -> bool:
         return self.hwnd != 0
+
+    def scope(self):
+        """Return the currently discovered `(hwnd, pid)` target scope."""
+        hwnd = self.hwnd
+        if not hwnd:
+            return 0, 0
+        pid = self._pid or winapi.get_window_pid(hwnd)
+        return hwnd, pid
+
+    def scope_matches(self, hwnd: int, pid: int = 0) -> bool:
+        """True only when the same Telegram top-level window/process is current."""
+        current_hwnd, current_pid = self.scope()
+        expected_pid = pid or self._pid or 0
+        return bool(hwnd and current_hwnd == hwnd and expected_pid and
+                    current_pid == expected_pid)
 
     def refresh(self) -> None:
         previous_scope = (self._hwnd, self._pid)
@@ -255,7 +264,7 @@ class TelegramTarget:
         return text_edit, entries
 
     def send_button_click(self, near_box=None):
-        """Return a safe Send-button candidate, with row-aligned geometry."""
+        """Locate a safe Send-button candidate, with compose-row geometry."""
         hwnd = self.hwnd
         if not hwnd:
             return None
