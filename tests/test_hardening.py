@@ -18,6 +18,20 @@ class Rect:
         self.bottom = bottom
 
 
+class FakeEdit:
+    def __init__(self, rect, length):
+        self._rect = rect
+        self.length = length
+        self.element_info = SimpleNamespace(runtime_id=(1, 2, length))
+
+    def rectangle(self):
+        return self._rect
+
+    @property
+    def iface_value(self):
+        return SimpleNamespace(CurrentValue="x" * self.length)
+
+
 class HardeningTests(unittest.TestCase):
     def test_nested_rects_detect_same_visual_field(self):
         outer = Rect(100, 200, 500, 260)
@@ -37,7 +51,7 @@ class HardeningTests(unittest.TestCase):
         self.assertFalse(_is_explicit_send_name(""))
         self.assertFalse(_is_explicit_send_name("Emoji"))
 
-    def test_land_clicks_compose_before_posting_text(self):
+    def test_land_clicks_compose_before_posting_text_and_uses_focused_child(self):
         events = []
         target = Mock()
         target.compose_click_point.return_value = (77, 88)
@@ -47,29 +61,33 @@ class HardeningTests(unittest.TestCase):
             events.append("click")
 
         def text(*args):
-            events.append("text")
+            events.append(("text", args[0]))
 
         with patch("floatingbar.hardening.winapi.post_click", side_effect=click), \
-             patch("floatingbar.hardening.time.sleep"), \
-             patch("floatingbar.hardening.TelegramInjector._land_text", side_effect=text):
+             patch("floatingbar.hardening.winapi.get_focused_hwnd", return_value=456), \
+             patch("floatingbar.hardening.winapi.get_window_pid", side_effect=[10, 10]), \
+             patch("floatingbar.hardening.winapi.post_text", side_effect=text), \
+             patch("floatingbar.hardening.time.sleep"):
             result = injector._land_text(SimpleNamespace(), 123, "ignored")
 
-        self.assertEqual(result, None)
-        self.assertEqual(events, ["click", "text"])
+        self.assertEqual(result, "A2-child")
+        self.assertEqual(events, ["click", ("text", 456)])
 
     def test_unverified_ambiguous_button_falls_back_to_enter_without_click(self):
         target = Mock()
         target.send_button_click.return_value = ("Emoji", 20, 30)
         injector = HardenedTelegramInjector(target)
         posted = Mock()
+        enter = Mock()
 
         with patch("floatingbar.hardening.winapi.post_click", posted), \
-             patch("floatingbar.hardening.winapi.post_enter", Mock()), \
+             patch("floatingbar.hardening.winapi.post_enter", enter), \
              patch("floatingbar.hardening.time.sleep"):
             result = injector._submit_invisible(object(), 123, False, "unknown")
 
         self.assertEqual(result, "posted-enter (unverified)")
         posted.assert_not_called()
+        self.assertEqual(enter.call_count, 2)
 
     def test_unverified_explicit_send_button_is_clicked(self):
         target = Mock()
@@ -95,6 +113,19 @@ class HardeningTests(unittest.TestCase):
                 injector._submit_invisible(object(), 123, False, "unknown")
 
         posted.assert_not_called()
+
+    def test_audit_prefers_compose_over_prefilled_search_field(self):
+        compose = FakeEdit(Rect(100, 700, 700, 760), 12)
+        search = FakeEdit(Rect(100, 80, 500, 120), 6)
+        target = Mock()
+        target.edit_audit.return_value = (search, [(search, "search"), (compose, "compose")])
+        injector = HardenedTelegramInjector(target)
+
+        with patch("floatingbar.hardening.time.sleep"):
+            result, edit = injector._audit(compose)
+
+        self.assertEqual(result, "found")
+        self.assertIs(edit, compose)
 
 
 if __name__ == "__main__":
