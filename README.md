@@ -38,7 +38,7 @@ SHA-256 checksum file.
 
 https://github.com/pyraxxz/Floating-Bar/releases
 
-Current release: **v0.1.17**.
+Current release: **v0.1.18**.
 
 Prefer building it yourself? Right-click `build.ps1` → *Run with
 PowerShell* (or run the equivalent manually):
@@ -50,7 +50,7 @@ pyinstaller --onefile --noconsole --name FloatingBar main.py
 
 ---
 
-## How sending works (v0.1.17)
+## How sending works (v0.1.18)
 
 Sending is designed to avoid bringing Telegram to the foreground. The
 production path is a hardened cascade:
@@ -96,6 +96,9 @@ production path is a hardened cascade:
 14. Each UI send attempt carries a monotonic attempt ID. A result from an
     older worker is ignored if a newer attempt is already active, preventing
     delayed background results from clearing or replacing current UI state.
+15. Message text is not trimmed before injection. Intentional leading or
+    trailing whitespace is preserved; only whitespace-only submissions are
+    treated as empty and skipped.
 
 ### Failure recovery and status feedback
 
@@ -224,6 +227,8 @@ python tools/diagnose.py --send "test 123"
   still rejects a character, share the trace without message content.
 * **A delayed result appears to affect a newer send** — v0.1.17 attaches an
   attempt ID to worker results and ignores stale completions.
+* **Leading/trailing spaces disappear** — v0.1.18 preserves intentional
+  whitespace. Only whitespace-only submissions are skipped.
 * **Telegram must not be minimized.** Background (behind other windows)
   is supported — minimized windows cannot reliably receive the posted
   client-coordinate clicks.
