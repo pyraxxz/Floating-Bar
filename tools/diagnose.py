@@ -3,12 +3,12 @@
 Run from the repo root:
 
     python tools/diagnose.py                     # window + compose + buttons
-    python tools/diagnose.py --send "test 123"   # run the real cascade
+    python tools/diagnose.py --send "test 123"   # run the hardened live send
 
 The first form is completely read-only (it inspects window geometry, control
 identifiers and names — never message content). The second form actually
-sends text to the currently open Telegram chat, exactly like the app does on
-Enter, and prints which submit stage succeeded.
+sends text to the currently open Telegram chat using the same hardened
+injector as the production orb.
 Everything it reports is also written to the app's trace log:
 
     %APPDATA%\\FloatingBar\\trace.log
@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 from floatingbar import trace
 from floatingbar import winapi
-from floatingbar.injector import TelegramInjector
+from floatingbar.hardening import HardenedTelegramInjector
 from floatingbar.target import TelegramTarget, TelegramNotFound
 
 
@@ -101,6 +101,8 @@ def main() -> None:
             f"  (compose rect: left={rect.left} top={rect.top} "
             f"right={rect.right} bottom={rect.bottom})"
         )
+        point = target.compose_click_point(box)
+        print(f"  posted compose click point={point}")
         try:
             compose_rid = tuple(box.element_info.runtime_id)
         except Exception:
@@ -154,11 +156,10 @@ def main() -> None:
     )
 
     if args.send:
-        print(f"\nSending: {args.send!r}")
-        injector = TelegramInjector(target)
+        injector = HardenedTelegramInjector(target)
         try:
             result = injector.send(args.send)
-            print(f"  -> OK, strategy used: {result}")
+            print(f"  -> OK, hardened strategy used: {result}")
         except Exception as e:
             print(f"  -> FAILED: {e}")
             print(f"  (full stage-by-stage detail in {trace.path()})")
