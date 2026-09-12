@@ -3,17 +3,13 @@
 
 Improvements over the spec's reference UI:
 
-* Click vs drag disambiguation: the spec bound <Button-1> (expand) and
-  <ButtonPress-1> (drag start) — the SAME Tk event — so every click also
-  armed a drag. Here a press only drags after crossing a pixel threshold,
-  and expansion happens on release-without-drag.
+* Click vs drag disambiguation: a press only drags after crossing a pixel
+  threshold, and expansion happens on release-without-drag.
 * The bar is draggable only by its grip bands (the padding around the entry).
   Dragging via the entry itself would fight text selection.
 * Sends run on a worker thread (pywinauto + comtypes CoInitialize), so the Tk
-  event loop and the idle timer never freeze during injection — results come
-  back through a queue polled on the UI thread.
-* No blocking MessageBox popups from a topmost transparent app: errors
-  surface as a red dot flash + a small label inside the bar.
+  event loop and idle timer never freeze during injection — results come back
+  through a queue polled on the UI thread.
 * The orb's color is a status channel: blue = ready, gray = Telegram not
   found, amber pulse = sending, green/red flash = sent / failed.
 """
@@ -38,8 +34,6 @@ class OrbRelayWindow(tk.Tk):
         self.title("Floating Bar")
 
         self.target = TelegramTarget()
-        # v0.1.8 hardening keeps the proven v0.1.7 cascade while adding a
-        # deterministic compose click and safer unverified submission rules.
         self.injector = HardenedTelegramInjector(self.target)
         self._result_q = queue.Queue()
 
@@ -162,6 +156,9 @@ class OrbRelayWindow(tk.Tk):
         if self._sending:
             return
         if self._state != "bar":
+            # Capture the window that owns focus BEFORE focus_force() moves
+            # focus to our entry. When that window is Telegram, the sender can
+            # preserve that exact Telegram window in multi-window setups.
             self._work_hwnd = winapi.get_foreground_window()
             self._update_status()
             self._show_bar()
@@ -180,7 +177,9 @@ class OrbRelayWindow(tk.Tk):
             available = self.target.is_available()
         except Exception:
             available = False
-        self._set_dot_color(config.ORB_COLOR_READY if available else config.ORB_COLOR_NOT_FOUND)
+        self._set_dot_color(
+            config.ORB_COLOR_READY if available else config.ORB_COLOR_NOT_FOUND
+        )
 
     def _flash_orb(self, color: str) -> None:
         self._set_dot_color(color)
@@ -195,7 +194,9 @@ class OrbRelayWindow(tk.Tk):
         if not self._sending:
             self._update_status()
             return
-        self._set_dot_color(config.ORB_COLOR_SENDING if on else config.ORB_COLOR_READY)
+        self._set_dot_color(
+            config.ORB_COLOR_SENDING if on else config.ORB_COLOR_READY
+        )
         self._blink_job = self.after(280, lambda: self._blink_sending(not on))
 
     def _show_error(self, message: str) -> None:
@@ -203,8 +204,12 @@ class OrbRelayWindow(tk.Tk):
         if self._state != "bar":
             return
         self.error_label.config(text=message)
-        self.error_label.place(x=8, y=config.BAR_HEIGHT - 4,
-                               width=config.BAR_WIDTH - 16, height=14)
+        self.error_label.place(
+            x=8,
+            y=config.BAR_HEIGHT - 4,
+            width=config.BAR_WIDTH - 16,
+            height=14,
+        )
         self._set_geometry()
         self.after(4000, self._hide_error)
 
@@ -233,7 +238,10 @@ class OrbRelayWindow(tk.Tk):
 
     def _schedule_collapse(self) -> None:
         self._cancel_scheduled_collapse()
-        self._collapse_job = self.after(config.FOCUS_LOST_COLLAPSE_MS, self._on_focus_lost)
+        self._collapse_job = self.after(
+            config.FOCUS_LOST_COLLAPSE_MS,
+            self._on_focus_lost,
+        )
 
     def _cancel_scheduled_collapse(self) -> None:
         if self._collapse_job:
@@ -265,15 +273,24 @@ class OrbRelayWindow(tk.Tk):
         def press(event):
             self._dragging = False
             self._press_xy = (event.x_root, event.y_root)
-            self._win_off = (event.x_root - self.winfo_x(), event.y_root - self.winfo_y())
+            self._win_off = (
+                event.x_root - self.winfo_x(),
+                event.y_root - self.winfo_y(),
+            )
 
         def motion(event):
             dx = event.x_root - self._press_xy[0]
             dy = event.y_root - self._press_xy[1]
-            if not self._dragging and (abs(dx) > config.DRAG_THRESHOLD_PX or abs(dy) > config.DRAG_THRESHOLD_PX):
+            if not self._dragging and (
+                abs(dx) > config.DRAG_THRESHOLD_PX or
+                abs(dy) > config.DRAG_THRESHOLD_PX
+            ):
                 self._dragging = True
             if self._dragging:
-                self._pos = (event.x_root - self._win_off[0], event.y_root - self._win_off[1])
+                self._pos = (
+                    event.x_root - self._win_off[0],
+                    event.y_root - self._win_off[1],
+                )
                 self._set_geometry()
 
         def release(_event):
@@ -305,8 +322,12 @@ class OrbRelayWindow(tk.Tk):
         self._hide_error()
         self._collapse()
         self._blink_sending()
-        threading.Thread(target=self._send_worker, args=(text, work_hwnd),
-                         daemon=True, name="floatingbar-send").start()
+        threading.Thread(
+            target=self._send_worker,
+            args=(text, work_hwnd),
+            daemon=True,
+            name="floatingbar-send",
+        ).start()
         return "break"
 
     def _send_worker(self, text: str, work_hwnd: int) -> None:
@@ -320,6 +341,11 @@ class OrbRelayWindow(tk.Tk):
         strategy = None
         error = None
         try:
+            # Re-scan the Telegram target at send time. If the pre-orb
+            # foreground window was a Telegram window, prefer that exact HWND
+            # rather than whichever Telegram window happens to be largest.
+            if work_hwnd:
+                self.target.select_for_send(preferred_hwnd=work_hwnd)
             strategy = self.injector.send(text, restore_hwnd=work_hwnd)
         except (TelegramNotFound, InjectionFailed) as e:
             error = str(e)
