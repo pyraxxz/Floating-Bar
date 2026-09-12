@@ -339,6 +339,18 @@ class TelegramTarget:
             score += 5.0
         return score
 
+    @staticmethod
+    def _button_has_explicit_send_semantics(button, name) -> bool:
+        """True only when accessible text or automation metadata says "Send"."""
+        lname = (name or "").strip().lower()
+        if "send" in lname:
+            return True
+        try:
+            automation_id = (button.element_info.automation_id or "").strip().lower()
+        except Exception:
+            automation_id = ""
+        return "send" in automation_id
+
     def send_button_click(self, near_box=None):
         """Locate a safe Send-button candidate, with compose-row evidence."""
         hwnd = self.hwnd
@@ -401,23 +413,25 @@ class TelegramTarget:
                 f"button candidate: score={score:.1f} name={name!r} "
                 f"rect=({r.left},{r.top})-({r.right},{r.bottom})"
             )
-            candidates.append((score, name, r))
+            candidates.append((score, name, r, button))
 
         if not candidates:
             return None
 
-        # Unnamed icon candidates must clear a modest evidence threshold. A
-        # weakly-supported icon should fall through to Enter rather than risk
-        # clicking a different toolbar control.
+        # A named control must identify itself as Send. This prevents unrelated
+        # compose-row controls such as Attach/Emoji from being clicked merely
+        # because they happen to score well geometrically. Unnamed icons may
+        # still qualify through the evidence threshold below.
         candidates = [
             item for item in candidates
-            if item[1] or item[0] >= 35.0
+            if self._button_has_explicit_send_semantics(item[3], item[1])
+            or (not item[1] and item[0] >= 35.0)
         ]
         if not candidates:
             return None
 
         candidates.sort(key=lambda item: (-item[0], item[2].left, item[2].top))
-        _, name, r = candidates[0]
+        _, name, r, _button = candidates[0]
         return (
             name,
             int((r.left + r.right) / 2.0 - wrect.left),
