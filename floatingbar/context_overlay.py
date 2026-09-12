@@ -54,12 +54,24 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
                 config.ERROR_COLOR,
             )
             self._set_retry_menu_enabled(True)
+            # Keep the invalid context attached so an accidental Enter cannot
+            # silently retarget the message. Editing the draft below starts a
+            # fresh compose attempt and clears this guard.
             self.injector.set_window_context(self._retry_context)
             return
 
         super()._retry_failed_draft()
         self._attempt_context = self._retry_context
         self.injector.set_window_context(self._attempt_context)
+
+    def _on_key_typed(self, _event) -> None:
+        was_retry_draft = self._retry_draft is not None
+        super()._on_key_typed(_event)
+        if was_retry_draft and self._retry_draft is None:
+            self._retry_context = None
+            self._attempt_context = None
+            self.injector.set_window_context(None)
+            trace.trace("window context: failed-draft retry converted to new compose attempt")
 
     def _on_enter_key(self, _event=None) -> str:
         self.injector.set_window_context(self._attempt_context)
