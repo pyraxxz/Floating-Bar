@@ -16,7 +16,7 @@ Important established behavior:
 
 ## v0.1.8 hardening
 
-The next layer is deliberately additive: `floatingbar/hardening.py` subclasses the established `TelegramInjector` instead of replacing it.
+`floatingbar/hardening.py` subclasses the established `TelegramInjector` and is wired directly into `overlay.py`, so the hardened path is the path used by the application.
 
 ### Phase 0 — deterministic compose targeting
 
@@ -35,27 +35,37 @@ When the audit cannot verify the landing location:
 - an unnamed or otherwise ambiguous button is not clicked blindly;
 - the code falls back to posted Enter combinations instead.
 
-This keeps the core product invariant: do not turn an uncertain state into a potentially dangerous microphone click.
+This preserves the core safety invariant: uncertain state must not become a potentially dangerous microphone click.
 
-## Testing status
+### Win32 post reliability
 
-The GitHub connector has confirmed write access and the hardening changes are committed directly to `main`.
+`floatingbar/winapi.py` now checks the return value of every safety-critical `PostMessageW` call. Invalid or rejected target windows raise an error instead of being reported as a successful injection stage. UTF-16 `WM_CHAR` behavior is retained.
 
-The current environment cannot execute the Windows UI integration itself: Telegram Desktop, Win32 message queues, UI Automation, and the Windows Tk environment are not available here. Therefore the important remaining validation is a real Windows run against the user's Telegram build.
+### Clipboard failure semantics
 
-Use the existing diagnostic tool after pulling the latest `main`:
+The clipboard guard now distinguishes `snapshot() == []` (a successfully opened empty/unsupported clipboard) from `snapshot() is None` (clipboard could not be opened). Recovery therefore never converts a failed snapshot into an instruction to clear the clipboard.
+
+## Regression tests and CI
+
+`tests/test_hardening.py` covers nested-field geometry, voice-button rejection, explicit Send detection, deterministic compose-targeting order, and the unverified submission state machine.
+
+`.github/workflows/ci.yml` runs on Windows, compiles the source tree, executes the unittest suite, and builds `FloatingBar.exe` with PyInstaller. The existing release workflow remains responsible for tag-based release builds.
+
+The current environment still cannot execute the Windows/Telegram integration itself. The important remaining validation is a real Windows run against the user's Telegram build.
+
+Use the diagnostic tool after pulling the latest `main`:
 
 ```bat
 python tools/diagnose.py
 python tools/diagnose.py --send "test 123"
 ```
 
-For a failure, the trace file is still the primary diagnostic artifact and intentionally records lengths/geometry/stage information rather than message content.
+For a failure, the trace file remains the primary diagnostic artifact and intentionally records lengths/geometry/stage information rather than message content.
 
 ## Next engineering targets
 
-1. Run v0.1.8 against the user's real Telegram build and inspect the trace.
-2. If the initial posted compose click does not establish Qt's internal target, investigate the exact child/focus HWND exposed by `GetGUIThreadInfo` without introducing a foreground activation.
-3. Improve Send-button identification using stable geometry/runtime IDs learned from the trace rather than relying increasingly on accessible names.
-4. Add unit tests for the geometry scoring, nested-field detection, voice-button rejection, and unverified submission state machine so future changes do not regress the hard-won Telegram-specific behavior.
-5. Add a Windows CI smoke-test layer that at minimum imports/compiles the package and builds the PyInstaller executable; UI automation remains a manual/integration test because it requires Telegram.
+1. Run v0.1.8 against the real Telegram build and inspect the trace.
+2. If the initial posted compose click does not establish Qt's internal target, investigate the exact child/focus HWND exposed by `GetGUIThreadInfo` without introducing foreground activation.
+3. Replace heuristic Send-button selection with stable geometry/runtime-ID evidence gathered from real traces where possible.
+4. Extend regression coverage around stale UIA elements, repeated sends, emoji/surrogate-pair text, minimized Telegram, and window-restart behavior.
+5. Keep UI integration as a manual test because it requires an actual Windows desktop and Telegram instance.
