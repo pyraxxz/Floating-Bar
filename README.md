@@ -32,13 +32,13 @@ A second launch exits silently (single-instance).
 
 ### Just want the exe? (no Python, no command line)
 
-Each unreleased package version on `main` is automatically validated on
-Windows and published as a GitHub Release with **FloatingBar.exe** plus a
-SHA-256 checksum file.
+Each package version on `main` is automatically validated on Windows and
+published as a GitHub Release with **FloatingBar.exe** plus a SHA-256
+checksum file.
 
 https://github.com/pyraxxz/Floating-Bar/releases
 
-Current release: **v0.1.19**.
+Current release: **v0.1.20**.
 
 Prefer building it yourself? Right-click `build.ps1` → *Run with
 PowerShell* (or run the equivalent manually):
@@ -50,7 +50,7 @@ pyinstaller --onefile --noconsole --name FloatingBar main.py
 
 ---
 
-## How sending works (v0.1.19)
+## How sending works (v0.1.20)
 
 Sending is designed to avoid bringing Telegram to the foreground. The
 production path is a hardened cascade:
@@ -100,44 +100,21 @@ production path is a hardened cascade:
     trailing whitespace is preserved; only whitespace-only submissions are
     treated as empty and skipped.
 
-### Failure recovery and status feedback
+### Failure recovery and retry
 
 A genuinely failed send keeps the unsent text as a **session-only retry draft**.
 The next time you open the orb, the draft is restored and selected so you can
-retry or replace it quickly. The draft is held only in process memory and is
-cleared when you begin typing a new message or after a successful send.
+replace it or send it again.
 
-A path that completes without a reliable read-back confirmation is deliberately
-**amber**, not green. The message is not automatically offered as a retry,
-because it may already have reached Telegram and an automatic retry could
-create a duplicate.
+There is also an explicit **Retry failed draft** command in the existing
+right-click menu. It is enabled only after a genuinely failed, retryable send.
+Selecting it restores the draft and focuses the input, but **does not send
+anything automatically**. The current foreground window is captured before
+the orb takes focus, preserving multi-window Telegram targeting.
 
-Internally, the send result distinguishes confirmed sends from submitted-but-
-uncertain and verification-unavailable outcomes. This prevents an optimistic
-strategy label from being presented as proof that Telegram accepted the message.
-
-The process is initialized as **per-monitor DPI aware** before Tk creates its
-first window. This keeps Tk/UIA geometry and posted client coordinates more
-consistent when Windows uses different scaling factors on different monitors.
-
-The aggressive focus-stealing/clipboard recovery remains opt-in through
-`ALLOW_FOCUS_STEAL = False`. In v0.1.19, that recovery path also checks the
-same Telegram `(HWND, PID)` scope before each focus, key, clipboard, and Send
-operation, and aborts safely if Telegram changes underneath it.
-
-### Why the implementation avoids UIA `SetValue`
-
-Telegram's Qt accessibility tree can expose a wrapper Edit whose
-`ValuePattern` does not write correctly. Earlier real traces also showed
-that automation writes could change focus and bring Telegram forward. The
-production injector therefore uses UI Automation for discovery, geometry,
-value-length auditing, and button identification — but not for writing the
-message text through `ValuePattern.SetValue`.
-
-### Telegram's "Send on Ctrl+Enter" setting
-
-The app presses the configured combo first and the alternate combo as a
-fallback. `ENTER_SEND_MODE = "ctrl+enter"` changes which is tried first.
+A path that completes without reliable read-back confirmation is deliberately
+**amber**, not green, and is never offered as an automatic retry because the
+message may already exist in Telegram.
 
 ---
 
@@ -157,8 +134,9 @@ fallback. `ENTER_SEND_MODE = "ctrl+enter"` changes which is tried first.
 ## The right-click menu (and how to quit)
 
 There's no taskbar entry, so the orb has a right-click menu: it shows the
-version you're running, opens the trace folder, and has **Quit** — the
-only correct way to close the app.
+version you're running, opens the trace folder, provides **Retry failed draft**
+when a failed draft exists, and has **Quit** — the only correct way to close
+the app.
 
 ## The trace log — what to send when something misbehaves
 
@@ -189,7 +167,7 @@ It lists the focused HWND, chosen compose click point, Edit runtime IDs,
 and every Button near the compose with its accessible name, evidence score,
 and InvokePattern availability.
 
-A live end-to-end test uses the **same hardened injector as the app**:
+A live end-to-end test uses the **same hardened injector family as the app**:
 
 ```bat
 python tools/diagnose.py --send "test 123"
@@ -212,10 +190,11 @@ python tools/diagnose.py --send "test 123"
   itself was active, v0.1.13+ preserves that exact Telegram window. When the
   orb was opened from another application, normal Telegram discovery is used.
 * **Send could not be confirmed** — do not immediately retry unless you have
-  checked the chat. v0.1.15 deliberately keeps uncertain outcomes amber to
-  avoid duplicate sends.
-* **A previous send failed** — open the orb to recover the previous text as a
-  selected draft. Typing anything new replaces that draft.
+  checked the chat. Uncertain outcomes are deliberately amber to avoid
+  duplicate sends.
+* **A previous send failed** — right-click the orb and choose **Retry failed
+  draft**, or open the orb normally to recover the selected draft. Typing
+  anything new replaces the draft.
 * **The orb is blue but sending fails** — most likely UIPI: don't run
   Floating Bar (or Telegram) elevated while the other runs normally.
 * **Mixed-DPI/multi-monitor setup** — v0.1.11+ enables per-monitor DPI
@@ -230,9 +209,8 @@ python tools/diagnose.py --send "test 123"
   attempt ID to worker results and ignores stale completions.
 * **Leading/trailing spaces disappear** — v0.1.18 preserves intentional
   whitespace. Only whitespace-only submissions are skipped.
-* **Opt-in focus/clipboard recovery stops unexpectedly** — v0.1.19 deliberately
-  aborts if the Telegram window/process changes during recovery; retry after
-  reopening or selecting the intended Telegram window.
+* **Opt-in recovery is enabled** — v0.1.19 guards every recovery interaction
+  with the same Telegram `(HWND, PID)` scope checks as the default path.
 * **Telegram must not be minimized.** Background (behind other windows)
   is supported — minimized windows cannot reliably receive the posted
   client-coordinate clicks.
@@ -251,6 +229,10 @@ workflow cancels superseded main-branch release work, refuses to publish if
 `main` moved on during a queued/building run, and publishes
 `FloatingBar.exe.sha256` alongside the EXE so the downloaded binary can be
 integrity-checked independently.
+
+The CI workflow uses current Node 24-compatible GitHub Actions lines for
+checkout, Python setup, GitHub Script, and release publication; artifact
+uploads remain on `actions/upload-artifact@v4`.
 
 ## Limitations (accepted, by design)
 
