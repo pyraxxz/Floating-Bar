@@ -20,7 +20,9 @@ def main() -> None:
     # mixed-DPI monitors. Failure is non-fatal for restricted environments.
     dpi.enable_per_monitor_awareness()
 
-    from floatingbar.recovery_overlay import OrbRelayWindow
+    # Production overlay: hardened invisible injection, guarded opt-in
+    # recovery, explicit retry UX, and non-content Telegram context checks.
+    from floatingbar.context_overlay import OrbRelayWindow
 
     app = OrbRelayWindow()
     try:
