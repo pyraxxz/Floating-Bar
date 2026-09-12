@@ -36,26 +36,11 @@ class ContextGuardedRecoveryInjector(ScopeGuardedRecoveryInjector):
                 "return to the intended chat and try again."
             )
 
+    def _assert_target_scope(self, hwnd: int, stage: str) -> None:
+        """Extend the existing per-action HWND/PID guard with title context."""
+        super()._assert_target_scope(hwnd, stage)
+        self._assert_window_context(stage)
+
     def _land_text(self, box, hwnd: int, text: str):
         self._assert_window_context("before compose landing")
-        result = super()._land_text(box, hwnd, text)
-        self._assert_window_context("after compose landing")
-        return result
-
-    def _submit_invisible(self, box, hwnd: int, primary_ctrl: bool, landing: str):
-        self._assert_window_context("before invisible submission")
-        result = super()._submit_invisible(box, hwnd, primary_ctrl, landing)
-        self._assert_window_context("after invisible submission")
-        return result
-
-    def _submit_focus_steal(self, box, hwnd: int, primary_ctrl: bool, restore_hwnd: int) -> bool:
-        self._assert_window_context("before focus-steal recovery")
-        result = super()._submit_focus_steal(box, hwnd, primary_ctrl, restore_hwnd)
-        self._assert_window_context("after focus-steal recovery")
-        return result
-
-    def _strategy_b(self, box, text: str, primary_ctrl: bool, restore_hwnd: int) -> bool:
-        self._assert_window_context("before clipboard recovery")
-        result = super()._strategy_b(box, text, primary_ctrl, restore_hwnd)
-        self._assert_window_context("after clipboard recovery")
-        return result
+        return super()._land_text(box, hwnd, text)
