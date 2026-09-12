@@ -1,11 +1,11 @@
 """Safety hardening layered on top of the established Telegram injector.
 
-The hardened path keeps the proven injector implementation intact while
-making the target/focus decisions more deterministic and keeping unsafe
-submission guesses out of the default path.
+This module keeps the proven injector implementation intact while making
+focus targeting, audit selection, and submission verification safer.
 """
 
 import time
+from typing import Optional
 
 import config
 from . import clipboard_guard
@@ -30,17 +30,22 @@ def _is_explicit_send_name(name: str) -> bool:
 
 
 class HardenedTelegramInjector(TelegramInjector):
-    """v0.1.10 reliability layer over the established cascade."""
+    """Production reliability layer over the established cascade."""
 
-    @staticmethod
-    def _pick_compose_text_edit(box, fallback, entries):
-        """Prefer a positive-value Edit that overlaps the chosen compose."""
+    def _pick_compose_text_edit(self, box, fallback, entries):
+        """Prefer a positive-value Edit that overlaps the chosen compose.
+
+        Telegram may already have non-empty text in another Edit, such as the
+        search field. Among overlapping positive-value controls, the smaller
+        control is preferred because the real inner compose Edit observed in
+        earlier traces is slightly smaller than its wrapper.
+        """
         overlapping = []
         for edit, _line in entries:
             try:
-                if not self_same_field(edit, box):
+                if edit is not box and not self._same_field(edit, box):
                     continue
-                length = TelegramInjector._value_length(edit)
+                length = self._value_length(edit)
                 if length <= 0:
                     continue
                 try:
@@ -102,41 +107,6 @@ class HardenedTelegramInjector(TelegramInjector):
                     trace.trace(f"top-level WM_CHAR retry failed: {retry_exc}")
             return None
 
-    def _same_field_safe(self, a, b) -> bool:
-        try:
-            return self._same_field(a, b)
-        except Exception:
-            return False
-
-    def _pick_compose_text_edit(self, box, fallback, entries):
-        """Prefer a positive-value Edit that overlaps the chosen compose.
-
-        A search field may already contain text, so selecting the first
-        positive-value Edit is insufficient. Among overlapping candidates,
-        prefer the smallest control because Telegram's real inner Edit has
-        historically been slightly smaller than its wrapper.
-        """
-        overlapping = []
-        for edit, _line in entries:
-            try:
-                if edit is not box and not self._same_field_safe(edit, box):
-                    continue
-                length = self._value_length(edit)
-                if length <= 0:
-                    continue
-                try:
-                    r = edit.rectangle()
-                    area = max(1, (r.right - r.left) * (r.bottom - r.top))
-                except Exception:
-                    area = 2**63 - 1
-                overlapping.append((area, edit))
-            except Exception:
-                continue
-        if overlapping:
-            overlapping.sort(key=lambda item: item[0])
-            return overlapping[0][1]
-        return fallback
-
     def _audit(self, box):
         """Audit all Edits, preferring the text-holding compose control."""
         try:
@@ -187,10 +157,12 @@ class HardenedTelegramInjector(TelegramInjector):
                 time.sleep(config.COMPOSE_CLICK_SETTLE_MS / 1000.0)
             except Exception as exc:
                 trace.trace(f"compose retry click failed: {exc}")
+
         focused = winapi.get_focused_hwnd(hwnd)
         target_hwnd = hwnd
         try:
-            if focused and winapi.get_window_pid(focused) == winapi.get_window_pid(hwnd):
+            telegram_pid = winapi.get_window_pid(hwnd)
+            if focused and winapi.get_window_pid(focused) == telegram_pid:
                 target_hwnd = focused
         except Exception:
             pass
@@ -206,19 +178,17 @@ class HardenedTelegramInjector(TelegramInjector):
         return "elsewhere", box
 
     @staticmethod
-    def _poll_compose_clear(value_reader) -> bool | None:
+    def _poll_compose_clear(value_reader) -> Optional[bool]:
         """Return True when clear is observed, False on timeout, None unreadable."""
-        saw_unreadable = False
         for attempt in range(VERIFY_ATTEMPTS):
             length = value_reader()
             if length == 0:
                 return True
             if length < 0:
-                saw_unreadable = True
-                break
+                return None
             if attempt < VERIFY_ATTEMPTS - 1:
                 time.sleep(VERIFY_INTERVAL_MS / 1000.0)
-        return None if saw_unreadable else False
+        return False
 
     def _submit_invisible(self, box, hwnd: int, primary_ctrl: bool,
                           landing: str):
@@ -283,7 +253,9 @@ class HardenedTelegramInjector(TelegramInjector):
                 if verified is True:
                     return "posted-enter (VERIFIED)"
             if verified is None:
-                trace.trace("enter submission succeeded empirically but read-back became unavailable")
+                trace.trace(
+                    "enter submission succeeded empirically but read-back became unavailable"
+                )
                 return "posted-enter (verification-unavailable)"
             raise InjectionFailed(
                 "Message sits in Telegram's compose box but could not be submitted."
@@ -291,9 +263,12 @@ class HardenedTelegramInjector(TelegramInjector):
 
         name, cx, cy = info
         if _is_voice_name(name):
-            trace.trace(f"button scan returned the mic ({name!r}) — refusing to click")
+            trace.trace(
+                f"button scan returned the mic ({name!r}) — refusing to click"
+            )
             raise InjectionFailed(
-                "Telegram's voice button is showing — the compose is empty, so the text did not land."
+                "Telegram's voice button is showing — the compose is empty, "
+                "so the text did not land."
             )
 
         trace.trace(f"posted click on send button at ({cx},{cy}) name={name!r}")
