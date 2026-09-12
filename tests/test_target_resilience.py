@@ -77,6 +77,30 @@ class TargetResilienceTests(unittest.TestCase):
         self.assertIsNone(target._preferred_rid)
         self.assertIsNone(target._preferred_scope)
 
+    def test_preferred_foreground_telegram_window_is_selected(self):
+        target = TelegramTarget()
+        matches = [
+            (100, 10, 900000, "Telegram", "Telegram.exe"),
+            (200, 20, 500000, "Telegram", "Telegram.exe"),
+        ]
+        with patch("floatingbar.target.winapi.find_windows", return_value=matches):
+            selected = target.select_for_send(preferred_hwnd=200)
+
+        self.assertEqual(selected, 200)
+        self.assertEqual(target._pid, 20)
+
+    def test_non_telegram_preferred_hwnd_falls_back_to_largest_match(self):
+        target = TelegramTarget()
+        matches = [
+            (100, 10, 900000, "Telegram", "Telegram.exe"),
+            (200, 20, 500000, "Telegram", "Telegram.exe"),
+        ]
+        with patch("floatingbar.target.winapi.find_windows", return_value=matches):
+            selected = target.select_for_send(preferred_hwnd=999)
+
+        self.assertEqual(selected, 100)
+        self.assertEqual(target._pid, 10)
+
     def test_remembered_compose_must_stay_in_lower_part_of_window(self):
         window = FakeWindow(Rect(0, 0, 1000, 1000), [])
         valid = FakeEdit(Rect(100, 700, 700, 760))
