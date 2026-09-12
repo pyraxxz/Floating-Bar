@@ -2,70 +2,50 @@
 
 ## Current baseline
 
-The repository's v0.1.7 baseline came from the real Telegram traces collected during the earlier implementation work.
+The repository evolved from the real Telegram traces collected during the earlier implementation work. The production orb uses the hardened injector path rather than the original injector directly.
 
-Important established behavior:
+Established behavior:
 
 - Telegram is located primarily by process image name rather than window title.
 - Text injection uses posted `WM_CHAR` UTF-16 code units; UIA `ValuePattern.SetValue` is deliberately not used.
-- The compose can expose nested `Edit` controls. The injector audits value lengths and can remember the inner text-holding field for the session.
+- The compose can expose nested `Edit` controls. The injector audits value lengths and remembers the inner text-holding field for the session.
 - Submission prefers an invisible posted click on Telegram's Send button and falls back to posted Enter combinations when a button cannot be located.
 - Minimized Telegram is rejected rather than pretending the send succeeded.
 - Focus-stealing and clipboard-based recovery remain opt-in through `ALLOW_FOCUS_STEAL=False`.
-- Clipboard recovery preserves HGLOBAL-backed formats rather than performing a text-only clipboard round trip.
+- Clipboard recovery preserves HGLOBAL-backed formats and distinguishes clipboard-open failure from an actually empty clipboard.
 
-## v0.1.8 hardening
+## v0.1.9 hardening
 
-`floatingbar/hardening.py` subclasses the established `TelegramInjector` and is wired directly into `overlay.py`, so the hardened path is the path used by the application.
+### Focused-child injection
 
-### Phase 0 — deterministic compose targeting
+After the hardened injector posts its deterministic compose click, it asks `GetGUIThreadInfo` for Telegram's focused child HWND. When that HWND belongs to Telegram's process, `WM_CHAR` is posted directly to it. If that route is rejected, the injector falls back to the top-level Telegram HWND.
 
-Before posting text, the hardened injector computes the selected compose control's client-space center and posts a mouse click there. This addresses a weakness in v0.1.7: the code documented a compose-click step but the primary landing path posted `WM_CHAR` directly without actually performing that initial click.
+This narrows dependence on Qt's top-level event routing while retaining invisible background behavior.
 
-The real mouse is not moved. No UIA write is performed. If geometry cannot be obtained, the original injector's audit/retry path remains available.
+### Compose-aware audit selection
 
-### Safer unverified submission
+The audit considers all Edit controls but prefers positive-value controls that geometrically overlap the compose selected for the send. This prevents a pre-filled search field from winning merely because it appears first in the UI Automation tree.
 
-The original verified path is retained unchanged. When the audit confirms that the text is in the compose, the existing rightmost-button heuristic is still used because the compose channel provides the safety signal.
+Among overlapping positive-value controls, the smaller control is preferred because the real inner compose Edit observed in earlier traces is slightly smaller than its wrapper.
 
-When the audit cannot verify the landing location:
+### Diagnostics parity
 
-- a button explicitly named `Send` may be clicked;
-- voice/record/mic/audio controls are always rejected;
-- an unnamed or otherwise ambiguous button is not clicked blindly;
-- the code falls back to posted Enter combinations instead.
+`tools/diagnose.py --send` uses the same `HardenedTelegramInjector` as the production overlay. Diagnostic output includes the focused HWND, compose click point, runtime IDs, and whether nearby buttons expose InvokePattern.
 
-This preserves the core safety invariant: uncertain state must not become a potentially dangerous microphone click.
+### Release/deployment
 
-### Win32 post reliability
+Every push to `main` checks `floatingbar.__version__`. When that version has not been released yet, the release workflow creates the matching `vX.Y.Z` tag, runs Windows compile/tests/build, and publishes `FloatingBar.exe`. Existing released versions are not rebuilt on ordinary maintenance commits.
 
-`floatingbar/winapi.py` now checks the return value of every safety-critical `PostMessageW` call. Invalid or rejected target windows raise an error instead of being reported as a successful injection stage. UTF-16 `WM_CHAR` behavior is retained.
+## Validation
 
-### Clipboard failure semantics
+Windows CI compiles the source tree, runs the unittest suite, and builds the PyInstaller executable. The release pipeline performs the same validation before publishing a versioned EXE.
 
-The clipboard guard now distinguishes `snapshot() == []` (a successfully opened empty/unsupported clipboard) from `snapshot() is None` (clipboard could not be opened). Recovery therefore never converts a failed snapshot into an instruction to clear the clipboard.
+The current development environment cannot execute the final Windows/Telegram UI integration itself. The trace log intentionally records lengths, geometry, runtime IDs, stages, and booleans — never message content.
 
-## Regression tests and CI
+## Next targets
 
-`tests/test_hardening.py` covers nested-field geometry, voice-button rejection, explicit Send detection, deterministic compose-targeting order, and the unverified submission state machine.
-
-`.github/workflows/ci.yml` runs on Windows, compiles the source tree, executes the unittest suite, and builds `FloatingBar.exe` with PyInstaller. The existing release workflow remains responsible for tag-based release builds.
-
-The current environment still cannot execute the Windows/Telegram integration itself. The important remaining validation is a real Windows run against the user's Telegram build.
-
-Use the diagnostic tool after pulling the latest `main`:
-
-```bat
-python tools/diagnose.py
-python tools/diagnose.py --send "test 123"
-```
-
-For a failure, the trace file remains the primary diagnostic artifact and intentionally records lengths/geometry/stage information rather than message content.
-
-## Next engineering targets
-
-1. Run v0.1.8 against the real Telegram build and inspect the trace.
-2. If the initial posted compose click does not establish Qt's internal target, investigate the exact child/focus HWND exposed by `GetGUIThreadInfo` without introducing foreground activation.
-3. Replace heuristic Send-button selection with stable geometry/runtime-ID evidence gathered from real traces where possible.
-4. Extend regression coverage around stale UIA elements, repeated sends, emoji/surrogate-pair text, minimized Telegram, and window-restart behavior.
-5. Keep UI integration as a manual test because it requires an actual Windows desktop and Telegram instance.
+1. Validate focused-child routing against multiple Telegram window states and versions.
+2. Replace increasingly heuristic Send-button selection with a scored evidence model using geometry, runtime IDs, control patterns, and explicit names.
+3. Add a bounded submission state machine that distinguishes posted, observed, and verified outcomes without false-positive success.
+4. Extend regression coverage around runtime-ID churn, stale UIA elements, repeated sends, emoji/surrogate-pair text, minimized Telegram, and Telegram restarts.
+5. Generalize the target abstraction to other Windows background apps after Telegram behavior is stable.
