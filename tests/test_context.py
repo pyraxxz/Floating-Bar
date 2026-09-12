@@ -22,6 +22,10 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(title_fingerprint(""), "")
         self.assertEqual(title_fingerprint("   "), "")
 
+    def test_generic_telegram_title_has_no_fingerprint(self):
+        self.assertEqual(title_fingerprint("Telegram"), "")
+        self.assertEqual(title_fingerprint("Telegram Desktop"), "")
+
     def test_window_context_matches_same_hwnd_pid_and_title(self):
         context = WindowContext(100, 200, title_fingerprint("Chat A"))
         with patch("floatingbar.context.winapi.get_window_pid", return_value=200), patch(
