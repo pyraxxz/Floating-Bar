@@ -1,8 +1,8 @@
 name: Publish Windows release
 
 # A new package version on main is validated, built, tagged, and published.
-# Existing releases are never rebuilt. The tag is created/repointed only after
-# validation and the Windows executable build succeed.
+# Existing releases are never rebuilt. A queued job also refuses to publish
+# if main has moved on, so a stale build cannot become the current release.
 
 on:
   push:
@@ -33,7 +33,7 @@ jobs:
           "tag=v$version" >> $env:GITHUB_OUTPUT
           Write-Host "Floating Bar version: $version"
 
-      - name: Check release state
+      - name: Check release state and current main
         id: release
         uses: actions/github-script@v7
         env:
@@ -42,6 +42,7 @@ jobs:
           script: |
             const tag = process.env.RELEASE_TAG;
             const { owner, repo } = context.repo;
+
             try {
               await github.rest.repos.getReleaseByTag({ owner, repo, tag });
               core.info(`Release ${tag} already exists; skipping rebuild.`);
@@ -50,7 +51,23 @@ jobs:
             } catch (error) {
               if (error.status !== 404) throw error;
             }
-            core.info(`Release ${tag} does not exist; validation/build required.`);
+
+            const branch = await github.rest.repos.getBranch({
+              owner,
+              repo,
+              branch: 'main',
+            });
+            const mainSha = branch.data.commit.sha;
+            if (mainSha !== context.sha) {
+              core.info(
+                `main moved to ${mainSha} while this run targets ${context.sha}; ` +
+                `skipping this stale queued release job.`
+              );
+              core.setOutput('publish', 'false');
+              return;
+            }
+
+            core.info(`Release ${tag} does not exist and ${context.sha} is current main.`);
             core.setOutput('publish', 'true');
 
       - name: Set up Python
@@ -75,8 +92,24 @@ jobs:
         if: steps.release.outputs.publish == 'true'
         run: pyinstaller --onefile --noconsole --name FloatingBar main.py
 
-      - name: Create or repair release tag
+      - name: Reconfirm current main before tag
         if: steps.release.outputs.publish == 'true'
+        id: confirm
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const branch = await github.rest.repos.getBranch({ owner, repo, branch: 'main' });
+            const mainSha = branch.data.commit.sha;
+            if (mainSha !== context.sha) {
+              core.info(`main moved to ${mainSha} during build; refusing to tag stale commit ${context.sha}.`);
+              core.setOutput('current', 'false');
+              return;
+            }
+            core.setOutput('current', 'true');
+
+      - name: Create or repair release tag
+        if: steps.release.outputs.publish == 'true' && steps.confirm.outputs.current == 'true'
         uses: actions/github-script@v7
         env:
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
@@ -88,7 +121,6 @@ jobs:
             try {
               const ref = await github.rest.git.getRef({ owner, repo, ref: `tags/${tag}` });
               tagSha = ref.data.object.sha;
-              core.info(`Tag ${tag} currently points to ${tagSha}.`);
             } catch (error) {
               if (error.status !== 404) throw error;
             }
@@ -113,19 +145,33 @@ jobs:
               core.info(`Tag ${tag} already points to validated commit ${context.sha}.`);
             }
 
+      - name: Calculate SHA256
+        if: steps.release.outputs.publish == 'true' && steps.confirm.outputs.current == 'true'
+        id: sha256
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash dist/FloatingBar.exe -Algorithm SHA256).Hash
+          "$hash  FloatingBar.exe" | Out-File dist/FloatingBar.exe.sha256 -Encoding ascii
+          "hash=$hash" >> $env:GITHUB_OUTPUT
+          Write-Host "FloatingBar.exe SHA256: $hash"
+
       - name: Publish GitHub Release
-        if: steps.release.outputs.publish == 'true'
+        if: steps.release.outputs.publish == 'true' && steps.confirm.outputs.current == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Floating Bar ${{ steps.version.outputs.tag }}
-          body: "Automated Windows build for Floating Bar ${{ steps.version.outputs.tag }}. Source validated by the Windows CI suite before publication."
-          files: dist/FloatingBar.exe
+          body: "Automated Windows build for Floating Bar ${{ steps.version.outputs.tag }}. SHA256: ${{ steps.sha256.outputs.hash }}. Source validated by the Windows CI suite before publication."
+          files: |
+            dist/FloatingBar.exe
+            dist/FloatingBar.exe.sha256
           generate_release_notes: false
 
       - name: Upload build artifact
-        if: steps.release.outputs.publish == 'true'
+        if: steps.release.outputs.publish == 'true' && steps.confirm.outputs.current == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: FloatingBar-win64-${{ steps.version.outputs.version }}
-          path: dist/FloatingBar.exe
+          path: |
+            dist/FloatingBar.exe
+            dist/FloatingBar.exe.sha256
