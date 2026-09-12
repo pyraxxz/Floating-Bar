@@ -4,16 +4,13 @@ Run from the repo root:
 
     python tools/diagnose.py                         # window + compose + buttons
     python tools/diagnose.py --preflight             # read-only send readiness
-    python tools/diagnose.py --send "test 123"       # run the hardened live send
+    python tools/diagnose.py --send "test 123"       # guarded live send test
 
 The default and --preflight forms are completely read-only: they inspect
 window geometry, control identifiers, focus ownership, and safety evidence —
-never message content. The --send form actually sends text to the currently
-open Telegram chat using the same hardened injector family as the production
-orb.
-Everything it reports is also written to the app's trace log:
-
-    %APPDATA%\\FloatingBar\\trace.log
+never message content. The --send form performs the same read-only preflight
+used by the production orb, then sends text with the same context-aware,
+scope-guarded injector family.
 """
 
 import argparse
@@ -24,6 +21,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from floatingbar import trace
 from floatingbar import winapi
+from floatingbar.context import capture
+from floatingbar.context_injector import ContextGuardedRecoveryInjector
 from floatingbar.hardening import HardenedTelegramInjector
 from floatingbar.preflight import run as run_preflight
 from floatingbar.target import TelegramTarget, TelegramNotFound
@@ -192,7 +191,29 @@ def _run_full_diagnostic(target: TelegramTarget, hwnd: int) -> int:
     return 0
 
 
-def main() -> None:
+def _run_guarded_send(target: TelegramTarget, text: str, preferred_hwnd: int) -> int:
+    """Run the production-equivalent read-only gate, then guarded injection."""
+    preflight = run_preflight(target, preferred_hwnd=preferred_hwnd)
+    _print_preflight(preflight)
+    if not preflight.ready:
+        print("\n  -> SEND REFUSED: preflight is blocked.")
+        return 3
+
+    hwnd = preflight.hwnd
+    context = capture(hwnd)
+    injector = ContextGuardedRecoveryInjector(target)
+    injector.set_window_context(context)
+    try:
+        result = injector.send(text, restore_hwnd=preferred_hwnd)
+        print(f"  -> OK, context-guarded strategy used: {result}")
+        return 0
+    except Exception as e:
+        print(f"  -> FAILED: {e}")
+        print(f"  (full stage-by-stage detail in {trace.path()})")
+        return 4
+
+
+def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     actions = parser.add_mutually_exclusive_group()
     actions.add_argument(
@@ -200,7 +221,7 @@ def main() -> None:
         action="store_true",
         help="run a read-only safe-send readiness check",
     )
-    actions.add_argument("--send", metavar="TEXT", help="run a live send test")
+    actions.add_argument("--send", metavar="TEXT", help="run a guarded live send test")
     args = parser.parse_args()
 
     preferred_hwnd = winapi.get_foreground_window()
@@ -220,29 +241,21 @@ def main() -> None:
         print("  Is Telegram Desktop installed and running?")
         return 1
 
+    if args.send:
+        return _run_guarded_send(target, args.send, preferred_hwnd)
+
     status = _run_full_diagnostic(target, hwnd)
     if status != 0:
         return status
 
-    if args.send:
-        injector = HardenedTelegramInjector(target)
-        try:
-            result = injector.send(args.send, restore_hwnd=preferred_hwnd)
-            print(f"  -> OK, hardened strategy used: {result}")
-        except Exception as e:
-            print(f"  -> FAILED: {e}")
-            print(f"  (full stage-by-stage detail in {trace.path()})")
-            return 4
-    else:
-        print(
-            '\nAll good. Run a read-only readiness check with:  '
-            'python tools/diagnose.py --preflight'
-        )
-        print(
-            'Or test a live send with:  '
-            'python tools/diagnose.py --send "test 123"'
-        )
-
+    print(
+        '\nAll good. Run a read-only readiness check with:  '
+        'python tools/diagnose.py --preflight'
+    )
+    print(
+        'Or test a guarded live send with:  '
+        'python tools/diagnose.py --send "test 123"'
+    )
     return 0
 
 
