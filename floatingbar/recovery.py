@@ -19,6 +19,16 @@ from .injector import InjectionFailed, _combo
 class ScopeGuardedRecoveryInjector(HardenedTelegramInjector):
     """Hardened injector with per-action guards in opt-in recovery."""
 
+    def send(self, text: str, restore_hwnd: int = 0) -> str:
+        """Capture one immutable Telegram scope for the whole send transaction."""
+        hwnd = self.target.hwnd or 0
+        pid = winapi.get_window_pid(hwnd) if hwnd else 0
+        self._recovery_scope = (hwnd, pid)
+        try:
+            return super().send(text, restore_hwnd=restore_hwnd)
+        finally:
+            self._recovery_scope = None
+
     def _submit_focus_steal(self, box, hwnd: int, primary_ctrl: bool,
                             restore_hwnd: int) -> bool:
         """Opt-in foreground recovery with a guard before every target action."""
@@ -69,14 +79,20 @@ class ScopeGuardedRecoveryInjector(HardenedTelegramInjector):
 
     def _strategy_b(self, box, text: str, primary_ctrl: bool,
                     restore_hwnd: int) -> bool:
-        """Opt-in clipboard recovery with per-action target-scope checks."""
+        """Opt-in clipboard recovery with a fixed send-transaction scope."""
         prev = restore_hwnd or winapi.get_foreground_window()
         try:
             with clipboard_guard.preserved_clipboard(
                 retries=config.CLIPBOARD_RETRIES,
                 delay=config.CLIPBOARD_RETRY_DELAY_S,
             ):
-                hwnd = self.target.hwnd or 0
+                fixed_scope = getattr(self, "_recovery_scope", None)
+                if fixed_scope and fixed_scope[0] and fixed_scope[1]:
+                    hwnd, pid = fixed_scope
+                else:
+                    hwnd = self.target.hwnd or 0
+                    pid = winapi.get_window_pid(hwnd) if hwnd else 0
+
                 self._assert_target_scope(hwnd, "before clipboard recovery")
                 winapi.ensure_restored(hwnd)
 
