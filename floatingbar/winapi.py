@@ -3,20 +3,14 @@
 Only what this app needs:
 
 * locate the Telegram Desktop top-level window by PROCESS IMAGE NAME
-  (title regexes are fragile — Telegram's title is the open chat's name
-  and usually contains no "Telegram" at all)
-* post WM_KEYDOWN / WM_KEYUP / WM_CHAR without stealing focus, with a
-  properly constructed LPARAM (repeat count, scan code in bits 16-23,
-  previous-state and transition bits for KEYUP). Zero-LPARAM key posts
-  are known to be ignored by some Qt builds — Telegram is Qt.
-* foreground-window capture / restore for the focus-stealing fallback
-* hide the overlay from Alt-Tab (WS_EX_TOOLWINDOW)
+* post keyboard/mouse messages without changing foreground focus
+* foreground-window capture / restore for the opt-in fallback
+* hide the overlay from Alt-Tab
 * single-instance mutex
 """
 
 import ctypes
 import sys
-import threading
 
 if sys.platform != "win32":
     raise ImportError("floatingbar is Windows-only")
@@ -26,9 +20,6 @@ import ctypes.wintypes as wintypes
 user32 = ctypes.WinDLL("user32", use_last_error=True)
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
 WM_KEYDOWN = 0x0100
 WM_KEYUP = 0x0101
 WM_CHAR = 0x0102
@@ -39,7 +30,6 @@ MK_LBUTTON = 0x0001
 
 VK_CONTROL = 0x11
 VK_RETURN = 0x0D
-
 MAPVK_VK_TO_VSC = 0
 
 GWL_EXSTYLE = -20
@@ -50,84 +40,82 @@ SW_RESTORE = 9
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 ERROR_ALREADY_EXISTS = 183
 
-# ---------------------------------------------------------------------------
-# Signatures
-# ---------------------------------------------------------------------------
-user32.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+user32.PostMessageW.argtypes = [
+    wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM
+]
 user32.PostMessageW.restype = wintypes.BOOL
-
 user32.MapVirtualKeyW.argtypes = [wintypes.UINT, wintypes.UINT]
 user32.MapVirtualKeyW.restype = wintypes.UINT
-
 user32.GetForegroundWindow.argtypes = []
 user32.GetForegroundWindow.restype = wintypes.HWND
-
 user32.SetForegroundWindow.argtypes = [wintypes.HWND]
 user32.SetForegroundWindow.restype = wintypes.BOOL
-
 user32.IsWindow.argtypes = [wintypes.HWND]
 user32.IsWindow.restype = wintypes.BOOL
-
 user32.IsWindowVisible.argtypes = [wintypes.HWND]
 user32.IsWindowVisible.restype = wintypes.BOOL
-
 user32.IsIconic.argtypes = [wintypes.HWND]
 user32.IsIconic.restype = wintypes.BOOL
-
 user32.ShowWindow.argtypes = [wintypes.HWND, wintypes.INT]
 user32.ShowWindow.restype = wintypes.BOOL
-
 user32.GetWindowLongW.argtypes = [wintypes.HWND, wintypes.INT]
 user32.GetWindowLongW.restype = wintypes.LONG
-
 user32.SetWindowLongW.argtypes = [wintypes.HWND, wintypes.INT, wintypes.LONG]
 user32.SetWindowLongW.restype = wintypes.LONG
-
 user32.GetAncestor.argtypes = [wintypes.HWND, wintypes.UINT]
 user32.GetAncestor.restype = wintypes.HWND
-
-user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+user32.GetWindowThreadProcessId.argtypes = [
+    wintypes.HWND, ctypes.POINTER(wintypes.DWORD)
+]
 user32.GetWindowThreadProcessId.restype = wintypes.DWORD
-
-user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, wintypes.INT]
+user32.GetWindowTextW.argtypes = [
+    wintypes.HWND, wintypes.LPWSTR, wintypes.INT
+]
 user32.GetWindowTextW.restype = wintypes.INT
-
-user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+user32.GetWindowRect.argtypes = [
+    wintypes.HWND, ctypes.POINTER(wintypes.RECT)
+]
 user32.GetWindowRect.restype = wintypes.BOOL
 
-kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+kernel32.OpenProcess.argtypes = [
+    wintypes.DWORD, wintypes.BOOL, wintypes.DWORD
+]
 kernel32.OpenProcess.restype = wintypes.HANDLE
-
 kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
 kernel32.CloseHandle.restype = wintypes.BOOL
-
 kernel32.QueryFullProcessImageNameW.argtypes = [
-    wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)
+    wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR,
+    ctypes.POINTER(wintypes.DWORD)
 ]
 kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
-
-kernel32.CreateMutexW.argtypes = [wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR]
+kernel32.CreateMutexW.argtypes = [
+    wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR
+]
 kernel32.CreateMutexW.restype = wintypes.HANDLE
+
 
 class _GUITHREADINFO(ctypes.Structure):
     _fields_ = [
-        ("cbSize", wintypes.DWORD), ("flags", wintypes.DWORD),
-        ("hwndActive", wintypes.HWND), ("hwndFocus", wintypes.HWND),
-        ("hwndCapture", wintypes.HWND), ("hwndMenuOwner", wintypes.HWND),
-        ("hwndMoveSize", wintypes.HWND), ("hwndCaret", wintypes.HWND),
+        ("cbSize", wintypes.DWORD),
+        ("flags", wintypes.DWORD),
+        ("hwndActive", wintypes.HWND),
+        ("hwndFocus", wintypes.HWND),
+        ("hwndCapture", wintypes.HWND),
+        ("hwndMenuOwner", wintypes.HWND),
+        ("hwndMoveSize", wintypes.HWND),
+        ("hwndCaret", wintypes.HWND),
         ("rcCaret", wintypes.RECT),
     ]
 
-user32.GetGUIThreadInfo.argtypes = [wintypes.DWORD, ctypes.POINTER(_GUITHREADINFO)]
-user32.GetGUIThreadInfo.restype = wintypes.BOOL
 
+user32.GetGUIThreadInfo.argtypes = [
+    wintypes.DWORD, ctypes.POINTER(_GUITHREADINFO)
+]
+user32.GetGUIThreadInfo.restype = wintypes.BOOL
 _WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
 user32.EnumWindows.argtypes = [_WNDENUMPROC, wintypes.LPARAM]
 user32.EnumWindows.restype = wintypes.BOOL
 
-# ---------------------------------------------------------------------------
-# Window enumeration + process-name matching
-# ---------------------------------------------------------------------------
 
 def get_window_title(hwnd: int) -> str:
     buf = ctypes.create_unicode_buffer(512)
@@ -149,7 +137,9 @@ def get_process_image_name(pid: int) -> str:
     try:
         buf = ctypes.create_unicode_buffer(1024)
         size = wintypes.DWORD(1024)
-        if kernel32.QueryFullProcessImageNameW(handle, 0, buf, ctypes.byref(size)):
+        if kernel32.QueryFullProcessImageNameW(
+            handle, 0, buf, ctypes.byref(size)
+        ):
             return buf.value
         return ""
     finally:
@@ -170,9 +160,7 @@ def _is_candidate_window(hwnd: int) -> bool:
     if not get_window_title(hwnd):
         return False
     exstyle = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-    if exstyle & WS_EX_TOOLWINDOW:
-        return False
-    return True
+    return not (exstyle & WS_EX_TOOLWINDOW)
 
 
 def _enum_windows() -> list:
@@ -188,9 +176,7 @@ def _enum_windows() -> list:
 
 
 def find_windows(process_re, title_re=None):
-    """Return [(hwnd, pid, area, title, image_name)] for top-level windows whose
-    process image matches `process_re`, or (if none matched and `title_re`
-    is given) whose title matches `title_re`. Largest area first."""
+    """Return matching top-level windows, largest first."""
     by_process = []
     by_title = []
     for hwnd in _enum_windows():
@@ -201,22 +187,20 @@ def find_windows(process_re, title_re=None):
         base = image.rsplit("\\", 1)[-1] if image else ""
         title = get_window_title(hwnd)
         if process_re.search(base):
-            by_process.append((hwnd, pid, get_window_rect_area(hwnd), title, base))
+            by_process.append(
+                (hwnd, pid, get_window_rect_area(hwnd), title, base)
+            )
         elif title_re is not None and title_re.search(title):
-            by_title.append((hwnd, pid, get_window_rect_area(hwnd), title, base))
+            by_title.append(
+                (hwnd, pid, get_window_rect_area(hwnd), title, base)
+            )
     matches = by_process or by_title
     matches.sort(key=lambda m: m[2], reverse=True)
     return matches
 
 
-# ---------------------------------------------------------------------------
-# Focus-free message posting
-# ---------------------------------------------------------------------------
-
 def _key_lparam(vk: int, up: bool) -> int:
-    """WM_KEYDOWN/WM_KEYUP LPARAM per the Win32 contract:
-    bits 0-15 repeat count (1), bits 16-23 scan code, bit 30 previous state,
-    bit 31 transition state. A zero LPARAM is ignored by some Qt builds."""
+    """WM_KEYDOWN/WM_KEYUP LPARAM per the Win32 contract."""
     scan = user32.MapVirtualKeyW(vk, MAPVK_VK_TO_VSC)
     lp = 1 | (scan << 16)
     if up:
@@ -224,11 +208,19 @@ def _key_lparam(vk: int, up: bool) -> int:
     return lp
 
 
+def _post(hwnd: int, message: int, wparam: int, lparam: int, label: str) -> None:
+    """Post one message and fail loudly when Windows rejects it."""
+    if not hwnd or not user32.IsWindow(hwnd):
+        raise RuntimeError(f"{label}: target window is invalid")
+    if not user32.PostMessageW(hwnd, message, wparam, lparam):
+        error = ctypes.get_last_error()
+        raise RuntimeError(
+            f"{label}: PostMessageW failed (last_error={error})"
+        )
+
+
 def get_focused_hwnd(hwnd: int) -> int:
-    """The child HWND that currently holds keyboard focus inside this
-    top-level window. Qt apps are one native HWND per toplevel, so this
-    usually returns `hwnd` itself — but posting to the real focus target
-    costs nothing and is correct for multi-HWND apps."""
+    """Return the child HWND currently holding focus, when available."""
     try:
         tid = user32.GetWindowThreadProcessId(hwnd, None)
         info = _GUITHREADINFO()
@@ -243,52 +235,56 @@ def get_focused_hwnd(hwnd: int) -> int:
 
 
 def post_enter(hwnd: int, ctrl: bool = False) -> None:
-    """Post an Enter keypress (optionally Ctrl+Enter) into a window's
-    message queue WITHOUT changing focus or the foreground window.
-
-    Targets the currently focused child HWND (see get_focused_hwnd) and
-    sends the full WM_KEYDOWN -> WM_CHAR -> WM_KEYUP triple: some Qt
-    builds act on the character message, some on the key messages.
-    The WM_CHAR code follows Win32 convention: Enter -> 0x0D (CR),
-    Ctrl+Enter -> 0x0A (LF)."""
+    """Post an Enter keypress without changing foreground focus."""
     target = get_focused_hwnd(hwnd) or hwnd
     char_code = 0x0A if ctrl else 0x0D
     if ctrl:
-        user32.PostMessageW(target, WM_KEYDOWN, VK_CONTROL, _key_lparam(VK_CONTROL, False))
-    user32.PostMessageW(target, WM_KEYDOWN, VK_RETURN, _key_lparam(VK_RETURN, False))
-    user32.PostMessageW(target, WM_CHAR, char_code, _key_lparam(VK_RETURN, False))
-    user32.PostMessageW(target, WM_KEYUP, VK_RETURN, _key_lparam(VK_RETURN, True))
+        _post(
+            target, WM_KEYDOWN, VK_CONTROL,
+            _key_lparam(VK_CONTROL, False), "Ctrl keydown"
+        )
+    _post(
+        target, WM_KEYDOWN, VK_RETURN,
+        _key_lparam(VK_RETURN, False), "Enter keydown"
+    )
+    _post(
+        target, WM_CHAR, char_code,
+        _key_lparam(VK_RETURN, False), "Enter char"
+    )
+    _post(
+        target, WM_KEYUP, VK_RETURN,
+        _key_lparam(VK_RETURN, True), "Enter keyup"
+    )
     if ctrl:
-        user32.PostMessageW(target, WM_KEYUP, VK_CONTROL, _key_lparam(VK_CONTROL, True))
+        _post(
+            target, WM_KEYUP, VK_CONTROL,
+            _key_lparam(VK_CONTROL, True), "Ctrl keyup"
+        )
 
 
 def post_text(hwnd: int, text: str) -> None:
-    """Post WM_CHAR for every UTF-16 code unit — surrogate-pair safe, so
-    emoji and other astral characters survive injection."""
+    """Post UTF-16 code units and fail if any message is rejected."""
+    if not hwnd or not user32.IsWindow(hwnd):
+        raise RuntimeError("WM_CHAR text post: target window is invalid")
     data = text.encode("utf-16-le")
     for i in range(0, len(data), 2):
         code_unit = data[i] | (data[i + 1] << 8)
-        user32.PostMessageW(hwnd, WM_CHAR, code_unit, 0)
+        _post(hwnd, WM_CHAR, code_unit, 0, "WM_CHAR text post")
 
 
 def post_click(hwnd: int, client_x: int, client_y: int) -> None:
-    """Post a left-button click at CLIENT coordinates WITHOUT moving the
-    real mouse cursor or activating the window — the background-window
-    equivalent of AutoHotkey's ControlClick (PostMessage mode). Qt apps
-    deliver these through their event pump like real clicks."""
-    lparam = (client_y & 0xFFFF) << 16 | (client_x & 0xFFFF)
-    user32.PostMessageW(hwnd, WM_MOUSEMOVE, 0, lparam)
-    user32.PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, lparam)
-    user32.PostMessageW(hwnd, WM_LBUTTONUP, 0, lparam)
+    """Post a background left click without moving the real mouse."""
+    if not hwnd or not user32.IsWindow(hwnd):
+        raise RuntimeError("mouse click post: target window is invalid")
+    lparam = ((client_y & 0xFFFF) << 16) | (client_x & 0xFFFF)
+    _post(hwnd, WM_MOUSEMOVE, 0, lparam, "mouse move")
+    _post(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, lparam, "mouse down")
+    _post(hwnd, WM_LBUTTONUP, 0, lparam, "mouse up")
 
 
 def is_minimized(hwnd: int) -> bool:
     return bool(user32.IsWindow(hwnd) and user32.IsIconic(hwnd))
 
-
-# ---------------------------------------------------------------------------
-# Foreground helpers (focus-steal fallback path only)
-# ---------------------------------------------------------------------------
 
 def get_foreground_window() -> int:
     return user32.GetForegroundWindow() or 0
@@ -305,31 +301,20 @@ def ensure_restored(hwnd: int) -> None:
         user32.ShowWindow(hwnd, SW_RESTORE)
 
 
-# ---------------------------------------------------------------------------
-# Overlay window tweaks
-# ---------------------------------------------------------------------------
-
 def hide_from_alt_tab(tk_child_hwnd: int) -> None:
-    """Add WS_EX_TOOLWINDOW to the real top-level window so it never shows
-    up in Alt-Tab (overrideredirect already removes the taskbar entry)."""
-    root = user32.GetAncestor(tk_child_hwnd, GA_ROOT)
-    if not root:
-        root = tk_child_hwnd
+    """Add WS_EX_TOOLWINDOW to the real top-level window."""
+    root = user32.GetAncestor(tk_child_hwnd, GA_ROOT) or tk_child_hwnd
     exstyle = user32.GetWindowLongW(root, GWL_EXSTYLE)
     user32.SetWindowLongW(root, GWL_EXSTYLE, exstyle | WS_EX_TOOLWINDOW)
 
 
-# ---------------------------------------------------------------------------
-# Single instance
-# ---------------------------------------------------------------------------
 _mutex_handle = None
 
 
 def acquire_single_instance(name: str) -> bool:
-    """True if we are the first instance; False if one is already running
-    (we keep a module-level reference so the mutex stays alive)."""
+    """True if this is the first instance; False if one already exists."""
     global _mutex_handle
     _mutex_handle = kernel32.CreateMutexW(None, False, "Local\\" + name)
     if not _mutex_handle:
-        return True  # can't tell — rather run than refuse
+        return True
     return ctypes.get_last_error() != ERROR_ALREADY_EXISTS
