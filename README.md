@@ -33,11 +33,12 @@ A second launch exits silently (single-instance).
 ### Just want the exe? (no Python, no command line)
 
 Each unreleased package version on `main` is automatically validated on
-Windows and published as a GitHub Release with **FloatingBar.exe**.
+Windows and published as a GitHub Release with **FloatingBar.exe** plus a
+SHA-256 checksum file.
 
 https://github.com/pyraxxz/Floating-Bar/releases
 
-Current release: **v0.1.12**.
+Current release: **v0.1.13**.
 
 Prefer building it yourself? Right-click `build.ps1` → *Run with
 PowerShell* (or run the equivalent manually):
@@ -49,37 +50,39 @@ pyinstaller --onefile --noconsole --name FloatingBar main.py
 
 ---
 
-## How sending works (v0.1.12)
+## How sending works (v0.1.13)
 
 Sending is designed to avoid bringing Telegram to the foreground. The
 production path is a hardened cascade:
 
-1. Locate Telegram by process image name and choose the most likely compose
-   Edit by geometry.
-2. Capture the Telegram top-level window/process scope for this send.
-3. Post an invisible click into that compose field.
-4. Ask Windows which child HWND currently owns focus and, when it belongs to
+1. Capture the window that owned focus when the orb was opened.
+2. Locate Telegram by process image name. If the captured foreground HWND
+   is a Telegram window, prefer that exact window; otherwise fall back to
+   the normal Telegram discovery order.
+3. Capture the Telegram top-level `(HWND, PID)` scope for the send.
+4. Post an invisible click into the chosen compose field.
+5. Ask Windows which child HWND currently owns focus and, when it belongs to
    Telegram, post UTF-16 `WM_CHAR` units directly to that child. Fall back to
    the top-level Telegram window only when necessary.
-5. Audit the Edit controls using **value lengths only**. If another Edit is
+6. Audit the Edit controls using **value lengths only**. If another Edit is
    already non-empty (for example, the search field), prefer the positive-value
    Edit that geometrically overlaps the selected compose.
-6. Remember the confirmed inner compose runtime ID only for the current
+7. Remember the confirmed inner compose runtime ID only for the current
    Telegram window/process. After Telegram restarts, or when the remembered
    control no longer has valid lower-window compose geometry, the cache is
    discarded and the compose is rediscovered.
-7. Before every critical click/keypress, verify that the same Telegram
-   top-level HWND/PID is still the active target. A restart or window swap
+8. Before every critical click/keypress, verify that the same Telegram
+   top-level HWND/PID is still the target. A restart or window replacement
    aborts the current send safely instead of risking delivery into a changed
    target.
-8. When the compose is verifiably holding the text, submit through the
+9. When the compose is verifiably holding the text, submit through the
    Send-button/Enter cascade with strict voice/mic rejection. Unnamed button
    candidates must remain in the compose row and to its right; unrelated
    lower-window controls are ignored.
-9. Submission verification is bounded and asynchronous: a send click is
+10. Submission verification is bounded and asynchronous: a send click is
    allowed time to clear the compose before it is classified as a failure,
    reducing false failures and avoiding unnecessary duplicate fallback sends.
-10. When the landing cannot be verified, only an explicitly named `Send`
+11. When the landing cannot be verified, only an explicitly named `Send`
    button can be clicked. Ambiguous controls are rejected; posted Enter
    combinations are the fallback.
 
@@ -173,12 +176,15 @@ python tools/diagnose.py --send "test 123"
 * **"Telegram Desktop doesn't seem to be running"** while it is — a
   portable/repackaged Telegram may rename the exe. Edit
   `PROCESS_NAME_RE` / `TITLE_FALLBACK_RE` in `config.py`.
+* **Multiple Telegram windows** — when the orb was opened while Telegram
+  itself was active, v0.1.13 preserves that exact Telegram window. When the
+  orb was opened from another application, normal Telegram discovery is used.
 * **The orb is blue but sending fails** — most likely UIPI: don't run
   Floating Bar (or Telegram) elevated while the other runs normally.
 * **Mixed-DPI/multi-monitor setup** — v0.1.11+ enables per-monitor DPI
   awareness before creating the UI. Restart the app after changing Windows
   display scaling.
-* **Telegram restarts during a send** — v0.1.12 aborts that send safely and
+* **Telegram restarts during a send** — v0.1.12+ aborts that send safely and
   asks you to try again rather than continuing against a stale HWND.
 * **Telegram must not be minimized.** Background (behind other windows)
   is supported — minimized windows cannot reliably receive the posted
@@ -191,14 +197,21 @@ the typed text in memory only until it is injected. Verification uses
 lengths/booleans and never records message content. No telemetry. No
 network. No Telegram credentials.
 
+## Release integrity
+
+Release builds are validated on Windows before publication. The release
+workflow avoids publishing a queued build if `main` has moved on, serializes
+versioned releases, and publishes `FloatingBar.exe.sha256` alongside the EXE
+so the downloaded binary can be integrity-checked independently.
+
 ## Limitations (accepted, by design)
 
 * Telegram Desktop on Windows only (v1).
 * The compose box is located heuristically and then refined using real
   runtime geometry and current-window confirmation.
-* Injection targets **whatever chat is currently open** — that's the
-  feature, and also the footprint: if you send while the wrong chat is
-  focused, the text goes there.
+* Injection targets **whatever chat is currently open** in the selected
+  Telegram window — that's the feature, and also the footprint: if you send
+  while the wrong chat is focused, the text goes there.
 * If the opt-in clipboard strategy runs while another app is actively
   changing the clipboard, there is a small race window during restore;
   the guard retries and preserves all captured HGLOBAL-backed formats.
