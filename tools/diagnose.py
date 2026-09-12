@@ -3,12 +3,12 @@
 Run from the repo root:
 
     python tools/diagnose.py                     # window + compose + buttons
-    python tools/diagnose.py --send "test 123"   # run the real cascade once
+    python tools/diagnose.py --send "test 123"   # run the real cascade
 
-The first form is completely read-only (it inspects window geometry,
-control types and names — never message content). The second form
-actually sends text to the currently open Telegram chat, exactly like
-the app does on Enter, and prints which submit stage succeeded.
+The first form is completely read-only (it inspects window geometry, control
+identifiers and names — never message content). The second form actually
+sends text to the currently open Telegram chat, exactly like the app does on
+Enter, and prints which submit stage succeeded.
 Everything it reports is also written to the app's trace log:
 
     %APPDATA%\\FloatingBar\\trace.log
@@ -43,7 +43,12 @@ def main() -> None:
 
     title = winapi.get_window_title(hwnd)
     pid = winapi.get_window_pid(hwnd)
+    focused = winapi.get_focused_hwnd(hwnd)
+    focused_pid = winapi.get_window_pid(focused) if focused else 0
     print(f"  hwnd={hwnd}  pid={pid}  title={title!r}")
+    print(f"  focused_hwnd={focused}  focused_pid={focused_pid}")
+    if focused and focused_pid != pid:
+        print("  WARNING: focus is currently owned by another process.")
 
     print("\nScanning UIA tree for Edit controls ...")
     import pywinauto
@@ -76,7 +81,14 @@ def main() -> None:
             edit.iface_text
         except Exception:
             has_tp = "no"
-        print(f"  Edit[{i}]: {size}  value_pattern={has_vp} text_pattern={has_tp}")
+        try:
+            rid = tuple(edit.element_info.runtime_id)
+        except Exception:
+            rid = ()
+        print(
+            f"  Edit[{i}]: {size}  value_pattern={has_vp} "
+            f"text_pattern={has_tp}  runtime_id={rid}"
+        )
 
     try:
         box = target.compose_box()
@@ -85,8 +97,15 @@ def main() -> None:
             f"\nChosen compose box: {rect.width()}x{rect.height()} "
             f"at ({rect.left},{rect.top})"
         )
-        print(f"  (compose rect: left={rect.left} top={rect.top} "
-              f"right={rect.right} bottom={rect.bottom})")
+        print(
+            f"  (compose rect: left={rect.left} top={rect.top} "
+            f"right={rect.right} bottom={rect.bottom})"
+        )
+        try:
+            compose_rid = tuple(box.element_info.runtime_id)
+        except Exception:
+            compose_rid = ()
+        print(f"  compose runtime_id={compose_rid}")
     except TelegramNotFound as e:
         print(f"\nCompose box selection failed: {e}")
         sys.exit(3)
@@ -104,7 +123,6 @@ def main() -> None:
             name = (b.element_info.name or "")
         except Exception:
             continue
-        # within/near the compose area's right end
         if r.right < rect.left - 60 or r.left > rect.right + 240:
             continue
         if r.bottom < rect.top - 40 or r.top > rect.bottom + 40:
@@ -114,16 +132,26 @@ def main() -> None:
             b.iface_invoke
         except Exception:
             has_invoke = "no"
-        print(f"  Button: name={name!r} at ({r.left},{r.top})-({r.right},{r.bottom})"
-              f"  invoke_pattern={has_invoke}")
+        try:
+            rid = tuple(b.element_info.runtime_id)
+        except Exception:
+            rid = ()
+        print(
+            f"  Button: name={name!r} at ({r.left},{r.top})-({r.right},{r.bottom}) "
+            f"invoke_pattern={has_invoke} runtime_id={rid}"
+        )
         near += 1
     if not near:
-        print("  (no buttons near the compose — the send button may not "
-              "be exposed as a Button control on this build)")
+        print(
+            "  (no buttons near the compose — the send button may not "
+            "be exposed as a Button control on this build)"
+        )
 
     print(f"\nTrace log location: {trace.path()}")
-    print("(if a send fails in the app, open the trace folder from the "
-          "orb's right-click menu and share the log)")
+    print(
+        "(if a send fails in the app, open the trace folder from the "
+        "orb's right-click menu and share the log)"
+    )
 
     if args.send:
         print(f"\nSending: {args.send!r}")
@@ -136,7 +164,10 @@ def main() -> None:
             print(f"  (full stage-by-stage detail in {trace.path()})")
             sys.exit(4)
     else:
-        print('\nAll good. Test a live send with:  python tools/diagnose.py --send "test 123"')
+        print(
+            '\nAll good. Test a live send with:  '
+            'python tools/diagnose.py --send "test 123"'
+        )
 
 
 if __name__ == "__main__":
