@@ -1,0 +1,105 @@
+"""Read-only safety preflight for the Telegram send path.
+
+The preflight deliberately performs discovery and validation only. It never
+posts mouse/keyboard messages, changes foreground focus, reads message text,
+or touches the clipboard. Its purpose is to explain whether the current
+Telegram window is a viable target before a live send is attempted.
+"""
+
+from dataclasses import dataclass
+from typing import Optional, Tuple
+
+from . import winapi
+from .target import TelegramNotFound, TelegramTarget
+
+
+@dataclass(frozen=True)
+class PreflightResult:
+    ready: bool
+    reasons: Tuple[str, ...]
+    hwnd: int = 0
+    pid: int = 0
+    focused_hwnd: int = 0
+    focused_pid: int = 0
+    minimized: bool = False
+    compose_click: Optional[Tuple[int, int]] = None
+    send_name: str = ""
+    send_point: Optional[Tuple[int, int]] = None
+    scope_stable: bool = False
+
+    @property
+    def button_available(self) -> bool:
+        return bool(self.send_name or self.send_point)
+
+
+def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
+    """Perform a non-invasive readiness check for a Telegram send."""
+    reasons = []
+
+    hwnd = target.select_for_send(preferred_hwnd=preferred_hwnd)
+    if not hwnd:
+        return PreflightResult(
+            ready=False,
+            reasons=("Telegram Desktop was not found.",),
+        )
+
+    pid = target.scope()[1]
+    minimized = winapi.is_minimized(hwnd)
+    if minimized:
+        reasons.append("Telegram is minimized; background client clicks are unsafe.")
+
+    focused_hwnd = winapi.get_focused_hwnd(hwnd)
+    focused_pid = winapi.get_window_pid(focused_hwnd) if focused_hwnd else 0
+    if focused_hwnd and focused_pid and focused_pid != pid:
+        reasons.append("Telegram does not currently own the focused child HWND.")
+
+    compose_click = None
+    send_name = ""
+    send_point = None
+
+    try:
+        box = target.compose_box()
+        compose_click = target.compose_click_point(box)
+        if compose_click is None:
+            reasons.append("The compose control has no usable click geometry.")
+        else:
+            info = target.send_button_click(near_box=box)
+            if info is not None:
+                send_name = info[0] or ""
+                send_point = (info[1], info[2])
+            else:
+                reasons.append(
+                    "No safe Send button candidate was exposed; Enter fallback is required."
+                )
+    except TelegramNotFound as exc:
+        reasons.append(str(exc))
+
+    current_hwnd, current_pid = target.scope()
+    scope_stable = (
+        current_hwnd == hwnd and
+        current_pid == pid and
+        bool(current_hwnd and current_pid)
+    )
+    if not scope_stable:
+        reasons.append("Telegram target scope changed during preflight.")
+
+    ready = bool(
+        hwnd and
+        pid and
+        not minimized and
+        compose_click is not None and
+        scope_stable
+    )
+    return PreflightResult(
+        ready=ready,
+        reasons=tuple(reasons),
+        hwnd=hwnd,
+        pid=pid,
+        focused_hwnd=focused_hwnd,
+        focused_pid=focused_pid,
+        minimized=minimized,
+        compose_click=compose_click,
+        send_name=send_name,
+        send_point=send_point,
+        scope_stable=scope_stable,
+    )
