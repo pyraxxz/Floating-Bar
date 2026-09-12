@@ -11,4 +11,4 @@ Package layout:
     overlay         the Tk orb/bar UI
 """
 
-__version__ = "0.1.19"
+__version__ = "0.1.20"
