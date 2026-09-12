@@ -1,7 +1,7 @@
 import unittest
 
 from floatingbar.evidence import EvidenceState, from_result
-from floatingbar.overlay import _classify_send_result
+from floatingbar.overlay import OrbRelayWindow, _classify_send_result
 
 
 class OverlayStateTests(unittest.TestCase):
@@ -48,6 +48,18 @@ class OverlayStateTests(unittest.TestCase):
             _classify_send_result(strategy, None),
             from_result(strategy, None),
         )
+
+    def test_stale_send_result_is_ignored(self):
+        window = OrbRelayWindow.__new__(OrbRelayWindow)
+        window._active_attempt_id = 2
+        window._sending = True
+        window._active_send_text = "new message"
+        window._blink_job = None
+
+        window._send_finished(1, "posted-click (VERIFIED)", None)
+
+        self.assertTrue(window._sending)
+        self.assertEqual(window._active_send_text, "new message")
 
 
 if __name__ == "__main__":
