@@ -14,7 +14,7 @@ Established behavior:
 - Focus-stealing and clipboard-based recovery remain opt-in through `ALLOW_FOCUS_STEAL=False`.
 - Clipboard recovery preserves HGLOBAL-backed formats and distinguishes clipboard-open failure from an actually empty clipboard.
 
-## v0.1.9 hardening
+## v0.1.10 hardening
 
 ### Focused-child injection
 
@@ -28,6 +28,14 @@ The audit considers all Edit controls but prefers positive-value controls that g
 
 Among overlapping positive-value controls, the smaller control is preferred because the real inner compose Edit observed in earlier traces is slightly smaller than its wrapper.
 
+### Delayed-clear verification
+
+A successful Send-button click does not necessarily clear the compose instantly. The hardened injector now polls for up to roughly one second before classifying the submission as failed. This reduces false errors and prevents an unnecessary focus-stealing fallback from duplicating a message that was already accepted by Telegram.
+
+### Clipboard write safety
+
+The opt-in clipboard strategy now checks the return value from `clipboard_guard.set_text()` before issuing `Ctrl+V`. If Windows refuses the clipboard write, paste recovery is refused rather than risking insertion of unrelated clipboard contents.
+
 ### Diagnostics parity
 
 `tools/diagnose.py --send` uses the same `HardenedTelegramInjector` as the production overlay. Diagnostic output includes the focused HWND, compose click point, runtime IDs, and whether nearby buttons expose InvokePattern.
@@ -40,12 +48,12 @@ Every push to `main` checks `floatingbar.__version__`. When that version has not
 
 Windows CI compiles the source tree, runs the unittest suite, and builds the PyInstaller executable. The release pipeline performs the same validation before publishing a versioned EXE.
 
-The current development environment cannot execute the final Windows/Telegram UI integration itself. The trace log intentionally records lengths, geometry, runtime IDs, stages, and booleans — never message content.
+The development environment cannot execute the final Windows/Telegram UI integration itself. The trace log intentionally records lengths, geometry, runtime IDs, stages, and booleans — never message content.
 
 ## Next targets
 
 1. Validate focused-child routing against multiple Telegram window states and versions.
 2. Replace increasingly heuristic Send-button selection with a scored evidence model using geometry, runtime IDs, control patterns, and explicit names.
-3. Add a bounded submission state machine that distinguishes posted, observed, and verified outcomes without false-positive success.
+3. Add an explicit submission evidence model that distinguishes `landed`, `submitted`, and `verified` without presenting optimistic states as fully verified.
 4. Extend regression coverage around runtime-ID churn, stale UIA elements, repeated sends, emoji/surrogate-pair text, minimized Telegram, and Telegram restarts.
 5. Generalize the target abstraction to other Windows background apps after Telegram behavior is stable.
