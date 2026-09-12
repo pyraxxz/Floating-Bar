@@ -1,9 +1,10 @@
 import queue
 import unittest
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from floatingbar.context_overlay import OrbRelayWindow
-from floatingbar.context import WindowContext, title_fingerprint
+from floatingbar.context import title_fingerprint
 
 
 class ContextOverlayTests(unittest.TestCase):
@@ -21,6 +22,15 @@ class ContextOverlayTests(unittest.TestCase):
             "floatingbar.context_overlay.winapi.get_window_pid", return_value=900
         ), patch(
             "floatingbar.context_overlay.winapi.get_window_title", return_value="Chat A - Telegram"
+        ), patch(
+            "floatingbar.context_overlay.run_preflight",
+            return_value=SimpleNamespace(
+                ready=True,
+                status="ready",
+                submission_path="send-button",
+                context_guard_available=True,
+                reasons=(),
+            ),
         ):
             window._send_worker("hello", 0, 1)
 
@@ -41,6 +51,31 @@ class ContextOverlayTests(unittest.TestCase):
         self.assertEqual(attempt_id, 3)
         self.assertIsNone(strategy)
         self.assertIn("changed", error)
+
+    def test_blocked_preflight_stops_before_injector(self):
+        window = OrbRelayWindow.__new__(OrbRelayWindow)
+        window.target = Mock()
+        window.injector = Mock()
+        window._attempt_context = None
+        window._result_q = queue.Queue()
+
+        blocked = SimpleNamespace(
+            ready=False,
+            status="blocked",
+            submission_path="unavailable",
+            context_guard_available=False,
+            reasons=("Telegram is minimized; text cannot be safely targeted.",),
+        )
+        with patch("floatingbar.context_overlay.run_preflight", return_value=blocked), patch(
+            "floatingbar.context_overlay.winapi.get_window_pid", return_value=0
+        ):
+            window._send_worker("hello", 0, 7)
+
+        attempt_id, strategy, error = window._result_q.get_nowait()
+        self.assertEqual(attempt_id, 7)
+        self.assertIsNone(strategy)
+        self.assertIn("minimized", error)
+        window.injector.send.assert_not_called()
 
 
 if __name__ == "__main__":
