@@ -1,17 +1,21 @@
 """Non-content Telegram window context used to detect conversation switches.
 
-The title is read only to derive a one-way SHA-256 fingerprint. The raw title
-is never logged, stored on disk, or exposed in diagnostics. The fingerprint is
-kept only for the lifetime of a send attempt and is an additional guard on top
-of the authoritative Telegram `(HWND, PID)` scope.
+The title is read only to derive a one-way, per-process HMAC fingerprint. The
+raw title and the HMAC key are never logged, stored on disk, or exposed in
+diagnostics. The fingerprint is kept only for the lifetime of a send attempt
+and is an additional guard on top of the authoritative Telegram `(HWND, PID)`
+scope.
 """
 
 from dataclasses import dataclass
 from hashlib import sha256
+import hmac
+import secrets
 
 from . import winapi
 
 
+_SESSION_KEY = secrets.token_bytes(32)
 _GENERIC_TITLES = {
     "telegram",
     "telegram desktop",
@@ -19,11 +23,15 @@ _GENERIC_TITLES = {
 
 
 def title_fingerprint(title: str) -> str:
-    """Return a stable in-memory fingerprint without retaining generic titles."""
+    """Return a stable per-process HMAC without retaining generic titles."""
     normalized = (title or "").strip().casefold()
     if not normalized or normalized in _GENERIC_TITLES:
         return ""
-    return sha256(normalized.encode("utf-8", "surrogatepass")).hexdigest()
+    return hmac.new(
+        _SESSION_KEY,
+        normalized.encode("utf-8", "surrogatepass"),
+        sha256,
+    ).hexdigest()
 
 
 @dataclass(frozen=True)
