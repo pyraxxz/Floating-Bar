@@ -193,6 +193,29 @@ class TargetResilienceTests(unittest.TestCase):
         self.assertEqual(result[0], "Send message")
         self.assertEqual(result[1:], (740, 785))
 
+    def test_named_unrelated_button_is_rejected_even_when_geometrically_plausible(self):
+        target = TelegramTarget()
+        target._hwnd = 100
+        target._pid = 10
+        window = FakeWindow(
+            Rect(0, 0, 1000, 1000),
+            [
+                FakeButton(
+                    Rect(720, 710, 760, 750),
+                    "Attach",
+                    True,
+                    invoke=True,
+                ),
+            ],
+        )
+        box = FakeEdit(Rect(100, 700, 700, 760))
+
+        with patch("floatingbar.target.winapi.user32.IsWindow", return_value=True), \
+             patch.object(target, "_window", return_value=window):
+            result = target.send_button_click(near_box=box)
+
+        self.assertIsNone(result)
+
     def test_weak_unnamed_button_is_rejected(self):
         target = TelegramTarget()
         target._hwnd = 100
