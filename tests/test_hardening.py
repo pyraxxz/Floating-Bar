@@ -118,7 +118,10 @@ class HardeningTests(unittest.TestCase):
         compose = FakeEdit(Rect(100, 700, 700, 760), 12)
         search = FakeEdit(Rect(100, 80, 500, 120), 6)
         target = Mock()
-        target.edit_audit.return_value = (search, [(search, "search"), (compose, "compose")])
+        target.edit_audit.return_value = (
+            search,
+            [(search, "search"), (compose, "compose")],
+        )
         injector = HardenedTelegramInjector(target)
 
         with patch("floatingbar.hardening.time.sleep"):
@@ -126,6 +129,50 @@ class HardeningTests(unittest.TestCase):
 
         self.assertEqual(result, "found")
         self.assertIs(edit, compose)
+
+    def test_submit_verification_accepts_delayed_compose_clear(self):
+        box = Mock()
+        target = Mock()
+        target.send_button_click.return_value = ("Send", 20, 30)
+        injector = HardenedTelegramInjector(target)
+        injector._value_length = Mock(side_effect=[12, 12, 0])
+
+        with patch("floatingbar.hardening.winapi.post_click") as posted, \
+             patch("floatingbar.hardening.time.sleep") as sleeping:
+            result = injector._submit_invisible(box, 123, False, "compose")
+
+        self.assertEqual(result, "posted-click (VERIFIED)")
+        posted.assert_called_once_with(123, 20, 30)
+        self.assertGreaterEqual(sleeping.call_count, 1)
+
+    def test_poll_compose_clear_returns_none_when_readback_is_unavailable(self):
+        with patch("floatingbar.hardening.time.sleep"):
+            result = HardenedTelegramInjector._poll_compose_clear(lambda: -1)
+        self.assertIsNone(result)
+
+    def test_strategy_b_refuses_failed_clipboard_write(self):
+        target = Mock()
+        target.hwnd = 123
+        injector = HardenedTelegramInjector(target)
+        box = Mock()
+        guard = Mock()
+        guard.__enter__ = Mock(return_value=guard)
+        guard.__exit__ = Mock(return_value=False)
+
+        with patch(
+            "floatingbar.hardening.clipboard_guard.preserved_clipboard",
+            return_value=guard,
+        ), patch(
+            "floatingbar.hardening.clipboard_guard.set_text",
+            return_value=False,
+        ), patch("floatingbar.hardening.winapi.get_foreground_window", return_value=999), \
+             patch("floatingbar.hardening.winapi.set_foreground_window", return_value=True), \
+             patch("floatingbar.hardening.winapi.ensure_restored"), \
+             patch("floatingbar.hardening.time.sleep"):
+            self.assertFalse(injector._strategy_b(box, "hello", False, 999))
+
+        pasted = [call for call in box.type_keys.call_args_list if call.args and call.args[0] == "^v"]
+        self.assertEqual(pasted, [])
 
 
 if __name__ == "__main__":
