@@ -38,7 +38,7 @@ SHA-256 checksum file.
 
 https://github.com/pyraxxz/Floating-Bar/releases
 
-Current release: **v0.1.13**.
+Current release: **v0.1.14**.
 
 Prefer building it yourself? Right-click `build.ps1` → *Run with
 PowerShell* (or run the equivalent manually):
@@ -50,7 +50,7 @@ pyinstaller --onefile --noconsole --name FloatingBar main.py
 
 ---
 
-## How sending works (v0.1.13)
+## How sending works (v0.1.14)
 
 Sending is designed to avoid bringing Telegram to the foreground. The
 production path is a hardened cascade:
@@ -58,7 +58,7 @@ production path is a hardened cascade:
 1. Capture the window that owned focus when the orb was opened.
 2. Locate Telegram by process image name. If the captured foreground HWND
    is a Telegram window, prefer that exact window; otherwise fall back to
-   the normal Telegram discovery order.
+   normal Telegram discovery.
 3. Capture the Telegram top-level `(HWND, PID)` scope for the send.
 4. Post an invisible click into the chosen compose field.
 5. Ask Windows which child HWND currently owns focus and, when it belongs to
@@ -80,14 +80,26 @@ production path is a hardened cascade:
    candidates must remain in the compose row and to its right; unrelated
    lower-window controls are ignored.
 10. Submission verification is bounded and asynchronous: a send click is
-   allowed time to clear the compose before it is classified as a failure,
-   reducing false failures and avoiding unnecessary duplicate fallback sends.
+    allowed time to clear the compose before it is classified as a failure,
+    reducing false failures and avoiding unnecessary duplicate fallback sends.
 11. When the landing cannot be verified, only an explicitly named `Send`
-   button can be clicked. Ambiguous controls are rejected; posted Enter
-   combinations are the fallback.
+    button can be clicked. Ambiguous controls are rejected; posted Enter
+    combinations are the fallback.
 
-The process is also initialized as **per-monitor DPI aware** before Tk creates
-its first window. This keeps Tk/UIA geometry and posted client coordinates
+### Failure recovery and status feedback
+
+A genuinely failed send keeps the unsent text as a **session-only retry draft**.
+The next time you open the orb, the draft is restored and selected so you can
+retry or replace it quickly. The draft is held only in process memory and is
+cleared when you begin typing a new message or after a successful send.
+
+A path that completes without a reliable read-back confirmation is deliberately
+**amber**, not green. The message is not automatically offered as a retry,
+because it may already have reached Telegram and an automatic retry could
+create a duplicate.
+
+The process is initialized as **per-monitor DPI aware** before Tk creates its
+first window. This keeps Tk/UIA geometry and posted client coordinates more
 consistent when Windows uses different scaling factors on different monitors.
 
 The aggressive focus-stealing/clipboard recovery remains opt-in through
@@ -117,8 +129,9 @@ fallback. `ENTER_SEND_MODE = "ctrl+enter"` changes which is tried first.
 | blue | Telegram window located — ready |
 | gray | Telegram not found |
 | amber pulse | injection in flight |
-| green flash | sent |
-| red flash | failed |
+| amber flash | send path completed but could not be confirmed |
+| green flash | sent and verified |
+| red flash | failed; the draft is preserved for retry |
 
 ---
 
@@ -177,8 +190,12 @@ python tools/diagnose.py --send "test 123"
   portable/repackaged Telegram may rename the exe. Edit
   `PROCESS_NAME_RE` / `TITLE_FALLBACK_RE` in `config.py`.
 * **Multiple Telegram windows** — when the orb was opened while Telegram
-  itself was active, v0.1.13 preserves that exact Telegram window. When the
+  itself was active, v0.1.13+ preserves that exact Telegram window. When the
   orb was opened from another application, normal Telegram discovery is used.
+* **Send could not be confirmed** — do not immediately retry unless you have
+  checked the chat. v0.1.14 deliberately marks this amber to avoid duplicates.
+* **A previous send failed** — open the orb to recover the previous text as a
+  selected draft. Typing anything new replaces that draft.
 * **The orb is blue but sending fails** — most likely UIPI: don't run
   Floating Bar (or Telegram) elevated while the other runs normally.
 * **Mixed-DPI/multi-monitor setup** — v0.1.11+ enables per-monitor DPI
