@@ -38,7 +38,7 @@ SHA-256 checksum file.
 
 https://github.com/pyraxxz/Floating-Bar/releases
 
-Current release: **v0.1.16**.
+Current release: **v0.1.17**.
 
 Prefer building it yourself? Right-click `build.ps1` → *Run with
 PowerShell* (or run the equivalent manually):
@@ -50,7 +50,7 @@ pyinstaller --onefile --noconsole --name FloatingBar main.py
 
 ---
 
-## How sending works (v0.1.16)
+## How sending works (v0.1.17)
 
 Sending is designed to avoid bringing Telegram to the foreground. The
 production path is a hardened cascade:
@@ -93,6 +93,9 @@ production path is a hardened cascade:
     parsing strategy-name substrings.
 13. Text is converted into UTF-16LE code units before posting `WM_CHAR`,
     preserving surrogate pairs for emoji and other astral Unicode characters.
+14. Each UI send attempt carries a monotonic attempt ID. A result from an
+    older worker is ignored if a newer attempt is already active, preventing
+    delayed background results from clearing or replacing current UI state.
 
 ### Failure recovery and status feedback
 
@@ -157,8 +160,8 @@ only correct way to close the app.
 
 Every send attempt writes a stage-by-stage trace (strategy labels,
 pattern availability, verification results, button names, geometry,
-focused-HWND decisions, target-scope decisions, candidate evidence scores —
-**never message content**) to:
+focused-HWND decisions, target-scope decisions, candidate evidence scores,
+attempt IDs — **never message content**) to:
 
 ```
 %APPDATA%\FloatingBar\trace.log
@@ -179,8 +182,8 @@ python tools/diagnose.py
 ```
 
 It lists the focused HWND, chosen compose click point, Edit runtime IDs,
-and every Button near the compose with its accessible name and
-InvokePattern availability.
+and every Button near the compose with its accessible name, evidence score,
+and InvokePattern availability.
 
 A live end-to-end test uses the **same hardened injector as the app**:
 
@@ -219,6 +222,8 @@ python tools/diagnose.py --send "test 123"
 * **Unicode/emoji appears corrupted** — v0.1.16 posts UTF-16LE code units,
   including surrogate pairs for astral Unicode. If a specific Telegram build
   still rejects a character, share the trace without message content.
+* **A delayed result appears to affect a newer send** — v0.1.17 attaches an
+  attempt ID to worker results and ignores stale completions.
 * **Telegram must not be minimized.** Background (behind other windows)
   is supported — minimized windows cannot reliably receive the posted
   client-coordinate clicks.
@@ -233,9 +238,10 @@ network. No Telegram credentials.
 ## Release integrity
 
 Release builds are validated on Windows before publication. The release
-workflow avoids publishing a queued build if `main` has moved on, serializes
-versioned releases, and publishes `FloatingBar.exe.sha256` alongside the EXE
-so the downloaded binary can be integrity-checked independently.
+workflow cancels superseded main-branch release work, refuses to publish if
+`main` moved on during a queued/building run, and publishes
+`FloatingBar.exe.sha256` alongside the EXE so the downloaded binary can be
+integrity-checked independently.
 
 ## Limitations (accepted, by design)
 
