@@ -166,8 +166,7 @@ class TelegramInjector:
         and empirically reliable. No UIA writes: Qt focuses the edit when
         an automation client sets its value, raising Telegram's window
         (v0.1.6's first-send-only raise), and the write silently no-ops
-        on real Telegram builds anyway — the wrapper Edit's SetValue
-        silently no-ops on real builds."""
+        on real Telegram builds anyway."""
         try:
             winapi.post_text(hwnd, text)  # no focus steal; empirically lands
             return "A2"
@@ -177,7 +176,7 @@ class TelegramInjector:
 
     # -------------------------------------------------- Phase 1.5: audit
 
-    def _audit_and_retarget(self, box, hwnd, text):
+    def _audit_and_retarget(self, box, hwnd: int, text: str):
         """Audit where the text landed. Returns (landing, box) where box
         may have been re-targeted to the real inner field.
 
@@ -383,6 +382,7 @@ class TelegramInjector:
                 )
                 box.type_keys("^v", pause=0.02)
                 time.sleep(config.PASTE_SETTLE_MS / 1000.0)
+
                 box.type_keys(_combo(primary_ctrl), pause=0.02)
                 time.sleep(config.PASTE_SETTLE_MS / 1000.0)
                 if self._value_length(box) == 0:
