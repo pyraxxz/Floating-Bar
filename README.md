@@ -61,49 +61,53 @@ production path is a hardened cascade:
    is a Telegram window, prefer that exact window; otherwise fall back to
    normal Telegram discovery.
 3. Capture the Telegram top-level `(HWND, PID)` scope for the send.
-4. When Telegram was the active window, capture a one-way fingerprint of its
-   window title so a conversation switch can be detected without retaining
-   the title itself.
-5. Post an invisible click into the chosen compose field.
-6. Ask Windows which child HWND currently owns focus and, when it belongs to
+4. When Telegram was the active window, capture a per-process HMAC fingerprint
+   of its window title so a conversation switch can be detected without
+   retaining the title itself. Generic `Telegram`/`Telegram Desktop` titles
+   are intentionally treated as unavailable context.
+5. Run a read-only safe-send preflight. It can block unsafe targets before
+   any click, keypress, or clipboard mutation. A missing Send button is not
+   itself fatal because posted Enter remains a valid fallback.
+6. Post an invisible click into the chosen compose field.
+7. Ask Windows which child HWND currently owns focus and, when it belongs to
    Telegram, post UTF-16 `WM_CHAR` units directly to that child. Fall back to
    the top-level Telegram window only when necessary.
-7. Audit the Edit controls using **value lengths only**. If another Edit is
+8. Audit the Edit controls using **value lengths only**. If another Edit is
    already non-empty (for example, the search field), prefer the positive-value
    Edit that geometrically overlaps the selected compose.
-8. Remember the confirmed inner compose runtime ID only for the current
+9. Remember the confirmed inner compose runtime ID only for the current
    Telegram window/process. After Telegram restarts, or when the remembered
    control no longer has valid lower-window compose geometry, the cache is
    discarded and the compose is rediscovered.
-9. Before every critical click/keypress, verify that the same Telegram
-   top-level HWND/PID is still the target. A restart or window replacement
-   aborts the current send safely instead of risking delivery into a changed
-   target.
-10. When the compose is verifiably holding the text, submit through a scored
+10. Before every critical click/keypress, verify that the same Telegram
+    top-level HWND/PID is still the target. A restart or window replacement
+    aborts the current send safely instead of risking delivery into a changed
+    target.
+11. When the compose is verifiably holding the text, submit through a scored
     Send-button/Enter cascade with strict voice/mic rejection. Candidate
     evidence combines explicit `Send` naming, automation IDs, InvokePattern
     availability, compose-row alignment, position relative to the compose,
     and reasonable button geometry. Weak unnamed candidates are rejected and
     the flow falls back to posted Enter combinations.
-11. Submission verification is bounded and asynchronous: a send click is
+12. Submission verification is bounded and asynchronous: a send click is
     allowed time to clear the compose before it is classified as a failure,
     reducing false failures and avoiding unnecessary duplicate fallback sends.
-12. When the landing cannot be verified, only an explicitly named `Send`
+13. When the landing cannot be verified, only an explicitly named `Send`
     button can be clicked. Ambiguous controls are rejected; posted Enter
     combinations are the fallback.
-13. The injector result is converted to a typed `SubmissionEvidence` state
+14. The injector result is converted to a typed `SubmissionEvidence` state
     (`failed`, `submitted`, `verified`, `verification-unavailable`, or
     `unknown`) before UI presentation. The UI does not infer confirmation by
     parsing strategy-name substrings.
-14. Text is converted into UTF-16LE code units before posting `WM_CHAR`,
+15. Text is converted into UTF-16LE code units before posting `WM_CHAR`,
     preserving surrogate pairs for emoji and other astral Unicode characters.
-15. Each UI send attempt carries a monotonic attempt ID. A result from an
+16. Each UI send attempt carries a monotonic attempt ID. A result from an
     older worker is ignored if a newer attempt is already active, preventing
     delayed background results from clearing or replacing current UI state.
-16. Message text is not trimmed before injection. Intentional leading or
+17. Message text is not trimmed before injection. Intentional leading or
     trailing whitespace is preserved; only whitespace-only submissions are
     treated as empty and skipped.
-17. The optional focus-stealing/clipboard recovery path is guarded by the
+18. The optional focus-stealing/clipboard recovery path is guarded by the
     same target checks and never runs unless explicitly enabled in config.
 
 ### Failure recovery and retry
@@ -133,10 +137,14 @@ Before testing a live send, run the read-only preflight:
 python tools/diagnose.py --preflight
 ```
 
-It verifies Telegram discovery, non-minimized state, compose geometry, stable
-window/process scope, and the presence or absence of a safe Send-button
-candidate. A missing Send button is reported as a warning because the normal
-Enter fallback remains available.
+It reports one of three states:
+
+- **ready** — Telegram is usable and conversation context can also be guarded;
+- **ready-with-degraded-context** — Telegram is usable, but its window title
+  does not expose a useful conversation identity, so title-based switch
+  protection is unavailable;
+- **blocked** — a hard prerequisite such as Telegram availability, a usable
+  compose target, non-minimized state, or stable window scope is missing.
 
 The preflight never clicks, types, changes foreground focus, reads message
 content, or touches the clipboard.
@@ -195,7 +203,8 @@ It lists the focused HWND, chosen compose click point, Edit runtime IDs,
 and every Button near the compose with its accessible name, evidence score,
 and InvokePattern availability.
 
-A live end-to-end test uses the **same hardened injector family as the app**:
+A live end-to-end test uses the **same context-aware, scope-guarded injector
+family as the app** and performs the same preflight first:
 
 ```bat
 python tools/diagnose.py --send "test 123"
@@ -230,10 +239,11 @@ python tools/diagnose.py --send "test 123"
   scaling.
 * **Telegram restarts during a send** — the send is aborted safely rather
   than continuing against a stale HWND.
-* **Telegram switches chats while the orb is open** — the next development
-  builds use an in-memory one-way title fingerprint to detect that context
-  change when Telegram exposes a useful window title; the raw title is never
-  logged or persisted.
+* **Telegram switches chats while the orb is open** — the development path
+  uses an in-memory per-process HMAC fingerprint of the Telegram window title
+  when Telegram exposes a useful changing title; the raw title and HMAC key
+  are never logged or persisted. This is an additional guard, not a universal
+  guarantee across all Telegram configurations.
 * **Unicode/emoji appears corrupted** — the injector posts UTF-16LE code
   units, including surrogate pairs for astral Unicode. If a specific Telegram
   build still rejects a character, share the trace without message content.
@@ -252,10 +262,10 @@ python tools/diagnose.py --send "test 123"
 No message content is ever logged, stored, or persisted — the app holds
 the typed text in memory only until it is injected. Verification uses
 lengths/booleans and never records message content. For conversation-switch
-protection, Telegram's window title is reduced to a one-way SHA-256
-fingerprint held only for the current send context; the raw title is not
-logged, persisted, or exposed. No telemetry. No network. No Telegram
-credentials.
+protection, Telegram's window title is reduced to a **per-process HMAC-SHA256
+fingerprint** held only for the current send context. The raw title and the
+random HMAC key are not logged, persisted, or exposed. Generic Telegram titles
+are not fingerprinted. No telemetry. No network. No Telegram credentials.
 
 ## Release integrity
 
