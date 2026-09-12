@@ -33,6 +33,13 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
         except Exception:
             return False
 
+    def _capture_target_context(self) -> None:
+        hwnd = self.target.hwnd
+        if hwnd and self._is_telegram_window(hwnd):
+            self._attempt_context = capture(hwnd)
+            self.injector.set_window_context(self._attempt_context)
+            trace.trace("window context: captured non-content Telegram title fingerprint")
+
     def _expand(self) -> None:
         super()._expand()
         if self._state == "bar" and self._work_hwnd and self._is_telegram_window(self._work_hwnd):
@@ -62,6 +69,8 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
 
         super()._retry_failed_draft()
         self._attempt_context = self._retry_context
+        if self._attempt_context is None:
+            self._capture_target_context()
         self.injector.set_window_context(self._attempt_context)
 
     def _on_key_typed(self, _event) -> None:
@@ -78,7 +87,19 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
         return super()._on_enter_key(_event)
 
     def _send_worker(self, text: str, work_hwnd: int, attempt_id: int) -> None:
+        # When the orb was opened from another app, the original foreground
+        # HWND is not a Telegram window. In that case select the actual target
+        # first, then capture its non-content context before injection begins.
         context = self._attempt_context
+        if context is None:
+            try:
+                if work_hwnd:
+                    self.target.select_for_send(preferred_hwnd=work_hwnd)
+                self._capture_target_context()
+                context = self._attempt_context
+            except Exception as exc:
+                trace.trace(f"window context capture failed before send: {exc}")
+
         if context is not None and not context.matches():
             trace.trace("window context: changed before send worker started; aborting")
             self._result_q.put(
