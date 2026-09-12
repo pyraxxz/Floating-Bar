@@ -38,7 +38,7 @@ SHA-256 checksum file.
 
 https://github.com/pyraxxz/Floating-Bar/releases
 
-Current release: **v0.1.18**.
+Current release: **v0.1.19**.
 
 Prefer building it yourself? Right-click `build.ps1` → *Run with
 PowerShell* (or run the equivalent manually):
@@ -50,7 +50,7 @@ pyinstaller --onefile --noconsole --name FloatingBar main.py
 
 ---
 
-## How sending works (v0.1.18)
+## How sending works (v0.1.19)
 
 Sending is designed to avoid bringing Telegram to the foreground. The
 production path is a hardened cascade:
@@ -121,8 +121,9 @@ first window. This keeps Tk/UIA geometry and posted client coordinates more
 consistent when Windows uses different scaling factors on different monitors.
 
 The aggressive focus-stealing/clipboard recovery remains opt-in through
-`ALLOW_FOCUS_STEAL = False`. Clipboard recovery refuses to paste when setting
-the relay text on the clipboard fails.
+`ALLOW_FOCUS_STEAL = False`. In v0.1.19, that recovery path also checks the
+same Telegram `(HWND, PID)` scope before each focus, key, clipboard, and Send
+operation, and aborts safely if Telegram changes underneath it.
 
 ### Why the implementation avoids UIA `SetValue`
 
@@ -229,6 +230,9 @@ python tools/diagnose.py --send "test 123"
   attempt ID to worker results and ignores stale completions.
 * **Leading/trailing spaces disappear** — v0.1.18 preserves intentional
   whitespace. Only whitespace-only submissions are skipped.
+* **Opt-in focus/clipboard recovery stops unexpectedly** — v0.1.19 deliberately
+  aborts if the Telegram window/process changes during recovery; retry after
+  reopening or selecting the intended Telegram window.
 * **Telegram must not be minimized.** Background (behind other windows)
   is supported — minimized windows cannot reliably receive the posted
   client-coordinate clicks.
