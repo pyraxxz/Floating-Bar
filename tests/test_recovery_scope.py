@@ -90,6 +90,40 @@ class RecoveryScopeTests(unittest.TestCase):
         box.type_keys.assert_not_called()
         self.assertFalse(any(call.args == (123,) for call in set_foreground.call_args_list))
 
+    def test_clipboard_recovery_uses_original_scope_after_target_replacement(self):
+        target = Mock()
+        target.hwnd = 999
+        target.scope_matches.return_value = False
+        injector = ScopeGuardedRecoveryInjector(target)
+        injector._recovery_scope = (123, 11)
+        box = Mock()
+        guard = Mock()
+        guard.__enter__ = Mock(return_value=guard)
+        guard.__exit__ = Mock(return_value=False)
+
+        with patch(
+            "floatingbar.recovery.clipboard_guard.preserved_clipboard",
+            return_value=guard,
+        ), patch(
+            "floatingbar.recovery.winapi.get_foreground_window",
+            return_value=999,
+        ), patch(
+            "floatingbar.recovery.winapi.get_window_pid",
+            return_value=11,
+        ), patch(
+            "floatingbar.recovery.winapi.ensure_restored"
+        ) as restored, patch(
+            "floatingbar.recovery.winapi.set_foreground_window",
+            return_value=True,
+        ) as set_foreground, patch("floatingbar.recovery.time.sleep"):
+            with self.assertRaises(InjectionFailed):
+                injector._strategy_b(box, "hello", False, 999)
+
+        restored.assert_called_once_with(123)
+        set_foreground.assert_not_called()
+        box.set_focus.assert_not_called()
+        target.hwnd = 999
+
 
 if __name__ == "__main__":
     unittest.main()
