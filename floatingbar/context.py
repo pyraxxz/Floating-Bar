@@ -12,10 +12,16 @@ from hashlib import sha256
 from . import winapi
 
 
+_GENERIC_TITLES = {
+    "telegram",
+    "telegram desktop",
+}
+
+
 def title_fingerprint(title: str) -> str:
-    """Return a stable in-memory fingerprint without retaining the title."""
+    """Return a stable in-memory fingerprint without retaining generic titles."""
     normalized = (title or "").strip().casefold()
-    if not normalized:
+    if not normalized or normalized in _GENERIC_TITLES:
         return ""
     return sha256(normalized.encode("utf-8", "surrogatepass")).hexdigest()
 
