@@ -26,7 +26,7 @@ The audit considers all Edit controls but prefers positive-value controls that g
 
 ### Target lifecycle safety
 
-UIA runtime IDs are session-scoped hints rather than permanent identities. The target tracks the Telegram top-level `(HWND, PID)` scope. When that scope changes, the remembered compose runtime ID is discarded and the compose is rediscovered. Remembered controls are also revalidated for sensible dimensions, lower-window placement, and editability before reuse.
+UIA runtime IDs are session-scoped hints, never permanent identities. The target tracks the Telegram top-level `(HWND, PID)` scope. When that scope changes, the remembered compose runtime ID is discarded and the compose is rediscovered. Remembered controls are also revalidated for sensible dimensions, lower-window placement, and editability before reuse.
 
 ### Stale-target send guard
 
@@ -70,7 +70,7 @@ A send path that completed but could not be reliably confirmed is treated differ
 
 ### Explicit retry action
 
-A genuinely failed draft can now be restored through the existing right-click menu using **Retry failed draft**. The action captures the current foreground window before refocusing the orb, restores/selects the draft, and never submits automatically. The command is disabled for verified, uncertain, and idle states. This makes retry deliberate rather than implicit.
+A genuinely failed draft can be restored through the existing right-click menu using **Retry failed draft**. The action preserves the original Telegram target before refocusing the orb, restores/selects the draft, and never submits automatically. The command is disabled for verified, uncertain, and idle states. This makes retry deliberate rather than implicit.
 
 ## Submission evidence
 
@@ -82,35 +82,47 @@ Injector strategy strings are mapped into a typed `SubmissionEvidence` model bef
 
 `floatingbar/recovery_overlay.py` wires that subclass into the production entry point without modifying the established overlay implementation. This keeps the normal invisible path stable while ensuring the opt-in fallback cannot continue against a replaced Telegram window.
 
-## Diagnostics and tests
+## Diagnostics and safe preflight
 
-`tools/diagnose.py --send` uses the same hardened injector family as the production orb and reports focused HWND, compose click point, runtime IDs, button names, evidence scores, and InvokePattern availability without logging message content.
+`tools/diagnose.py` remains read-only by default and reports focused HWND, compose click point, runtime IDs, button names, evidence scores, and InvokePattern availability without logging message content.
 
-The regression suite covers nested compose geometry, pre-filled search fields, voice-button rejection, explicit Send selection, ambiguous-button fallback, focused-child routing, delayed compose clearing, clipboard-write failure, stale runtime-ID invalidation, Send-button row filtering, disabled controls, DPI-awareness bootstrap, stale-target scope aborts, multi-window target preference, failed-draft behavior, typed send-state classification, repeated sends, Unicode surrogate-pair handling, opt-in recovery scope aborts, and explicit retry-menu behavior.
+`tools/diagnose.py --preflight` runs a dedicated non-invasive readiness check. It verifies that Telegram exists, is not minimized, has usable compose geometry, and retains a stable `(HWND, PID)` target during discovery. It reports whether a safe Send-button candidate exists; lack of a button is a warning rather than a hard failure because the production cascade has an Enter fallback.
+
+`tools/diagnose.py --send` uses the same hardened injector family as the production orb and preserves the foreground Telegram target when one was selected before the command started.
+
+The regression suite covers nested compose geometry, pre-filled search fields, voice-button rejection, explicit Send selection, ambiguous-button fallback, focused-child routing, delayed compose clearing, clipboard-write failure, stale runtime-ID invalidation, Send-button row filtering, disabled controls, DPI-awareness bootstrap, stale-target scope aborts, multi-window target preference, failed-draft behavior, typed send-state classification, repeated sends, Unicode surrogate-pair handling, opt-in recovery scope aborts, explicit retry-menu behavior, and safe-preflight readiness states.
 
 ## Release/deployment
 
-The Windows release workflow checks `floatingbar.__version__`, validates/builds on Windows, creates or repairs the matching version tag only after validation succeeds, and publishes `FloatingBar.exe`. Existing releases are not rebuilt.
+The project now follows **milestone-based releases**. Ordinary pushes to `main` run Windows CI but do not publish a release. The release workflow only runs for an explicit `vMAJOR.MINOR.PATCH` tag or an intentional manual publish of an existing version tag.
 
-Release publishing is serialized and superseded runs are cancelled. Before building, a queued job checks that `main` has not moved past its own commit; after building, it reconfirms `main` is still at that commit before tagging. This prevents an older queued build from becoming the newest release.
+Release publishing is serialized and superseded runs are cancelled. A release build validates the exact tag source, checks that the package version matches the tag, runs the complete Windows regression suite, builds the PyInstaller executable, confirms the tag did not move during the build, calculates SHA-256, then publishes `FloatingBar.exe` and `FloatingBar.exe.sha256`.
 
-Published EXEs ship with `FloatingBar.exe.sha256`, and the SHA256 is recorded in the release body.
+Published releases are not rebuilt automatically. This keeps downloadable artifacts tied to intentional milestones rather than every small improvement pushed to `main`.
 
-The CI workflows now use current Node 24-compatible GitHub Actions lines: `actions/checkout@v6`, `actions/setup-python@v7`, `actions/github-script@v9`, and `softprops/action-gh-release@v3`, while artifact upload remains on `actions/upload-artifact@v4`.
+The CI workflows use current Node 24-compatible GitHub Actions lines: `actions/checkout@v6`, `actions/setup-python@v7`, `actions/github-script@v9`, `softprops/action-gh-release@v3`, and `actions/upload-artifact@v4`.
 
 ## Validation boundary
 
 Windows CI compiles the source tree, executes the unittest suite, and builds the PyInstaller executable. The release workflow performs the same validation before publishing the versioned EXE.
 
-The development environment cannot execute the final Windows/Telegram UI integration itself. Real desktop validation remains important for Telegram versions, DPI configurations, multiple-monitor layouts, multiple Telegram windows, focus behavior, and Qt accessibility behavior. The trace log intentionally records lengths, geometry, runtime IDs, stages, candidate scores, attempt IDs, and booleans — never message content.
+The development environment cannot execute the final Windows/Telegram UI integration itself. Real desktop validation remains important for Telegram versions, DPI configurations, multiple-monitor layouts, multiple Telegram windows, focus behavior, Qt accessibility behavior, and the actual meaning of Telegram's current UIA tree. The trace log intentionally records lengths, geometry, runtime IDs, stages, candidate scores, attempt IDs, and booleans — never message content.
 
-## Current release
+## Current release and milestone policy
 
-**v0.1.19** is the last published release. It contains the guarded opt-in recovery path. The next release candidate adds the explicit failed-draft retry action and the updated Node 24-compatible CI/release action stack.
+**v0.1.20** is the current published stable release and remains the downloadable baseline. The ongoing `main` line is intentionally allowed to move ahead of the release while development continues.
+
+A new release should be cut only when we reach a meaningful product milestone such as:
+
+1. a demonstrably more reliable Telegram send transaction across real-world window/process states;
+2. a substantial user-facing capability that changes the core workflow; or
+3. a coherent production-readiness milestone backed by Windows validation and real desktop smoke testing.
+
+Patch-level fixes, refactors, tests, diagnostics, and small reliability improvements should normally accumulate on `main` without creating a new public release.
 
 ## Next engineering targets
 
-1. Gather real Windows traces from multiple Telegram versions/builds and compare focused child HWND behavior.
-2. Improve chat-switch detection so a target selected at orb-open cannot silently become a different conversation before submission, without introducing message-content logging.
-3. Add a small real-desktop smoke-test checklist for multi-monitor/DPI and Telegram restart scenarios.
+1. Improve chat-switch detection without reading or logging Telegram message content.
+2. Build a practical Windows/Telegram desktop smoke-test checklist covering DPI, multiple monitors, multiple Telegram windows, restart, minimized state, and repeated sends.
+3. Use real-world traces from multiple Telegram builds to tune focused-child and Send-button evidence rather than guessing from one UIA tree.
 4. Generalize the target abstraction to other Windows background apps only after Telegram behavior is stable and well-tested.
