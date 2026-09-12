@@ -5,8 +5,9 @@ Package layout:
     winapi          raw Win32 ctypes layer (window discovery, message posting)
     clipboard_guard full-fidelity clipboard save/restore
     target          Telegram window + compose-box discovery (UI Automation)
-    injector        cascading send strategy A -> A2 -> B
+    injector        established cascading send strategy
+    hardening       v0.1.8 safety layer over the established injector
     overlay         the Tk orb/bar UI
 """
 
-__version__ = "0.1.7"
+__version__ = "0.1.8"
