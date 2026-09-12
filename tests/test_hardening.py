@@ -55,6 +55,7 @@ class HardeningTests(unittest.TestCase):
         events = []
         target = Mock()
         target.compose_click_point.return_value = (77, 88)
+        target.scope_matches.return_value = True
         injector = HardenedTelegramInjector(target)
 
         def click(*args):
@@ -65,7 +66,7 @@ class HardeningTests(unittest.TestCase):
 
         with patch("floatingbar.hardening.winapi.post_click", side_effect=click), \
              patch("floatingbar.hardening.winapi.get_focused_hwnd", return_value=456), \
-             patch("floatingbar.hardening.winapi.get_window_pid", side_effect=[10, 10]), \
+             patch("floatingbar.hardening.winapi.get_window_pid", return_value=10), \
              patch("floatingbar.hardening.winapi.post_text", side_effect=text), \
              patch("floatingbar.hardening.time.sleep"):
             result = injector._land_text(SimpleNamespace(), 123, "ignored")
@@ -76,12 +77,14 @@ class HardeningTests(unittest.TestCase):
     def test_unverified_ambiguous_button_falls_back_to_enter_without_click(self):
         target = Mock()
         target.send_button_click.return_value = ("Emoji", 20, 30)
+        target.scope_matches.return_value = True
         injector = HardenedTelegramInjector(target)
         posted = Mock()
         enter = Mock()
 
         with patch("floatingbar.hardening.winapi.post_click", posted), \
              patch("floatingbar.hardening.winapi.post_enter", enter), \
+             patch("floatingbar.hardening.winapi.get_window_pid", return_value=1), \
              patch("floatingbar.hardening.time.sleep"):
             result = injector._submit_invisible(object(), 123, False, "unknown")
 
@@ -92,10 +95,12 @@ class HardeningTests(unittest.TestCase):
     def test_unverified_explicit_send_button_is_clicked(self):
         target = Mock()
         target.send_button_click.return_value = ("Send", 20, 30)
+        target.scope_matches.return_value = True
         injector = HardenedTelegramInjector(target)
         posted = Mock()
 
         with patch("floatingbar.hardening.winapi.post_click", posted), \
+             patch("floatingbar.hardening.winapi.get_window_pid", return_value=1), \
              patch("floatingbar.hardening.time.sleep"):
             result = injector._submit_invisible(object(), 123, False, "unknown")
 
@@ -105,10 +110,12 @@ class HardeningTests(unittest.TestCase):
     def test_unverified_voice_button_raises_and_never_clicks(self):
         target = Mock()
         target.send_button_click.return_value = ("Voice message", 20, 30)
+        target.scope_matches.return_value = True
         injector = HardenedTelegramInjector(target)
         posted = Mock()
 
-        with patch("floatingbar.hardening.winapi.post_click", posted):
+        with patch("floatingbar.hardening.winapi.post_click", posted), \
+             patch("floatingbar.hardening.winapi.get_window_pid", return_value=1):
             with self.assertRaises(InjectionFailed):
                 injector._submit_invisible(object(), 123, False, "unknown")
 
@@ -134,10 +141,12 @@ class HardeningTests(unittest.TestCase):
         box = Mock()
         target = Mock()
         target.send_button_click.return_value = ("Send", 20, 30)
+        target.scope_matches.return_value = True
         injector = HardenedTelegramInjector(target)
         injector._value_length = Mock(side_effect=[12, 12, 0])
 
         with patch("floatingbar.hardening.winapi.post_click") as posted, \
+             patch("floatingbar.hardening.winapi.get_window_pid", return_value=1), \
              patch("floatingbar.hardening.time.sleep") as sleeping:
             result = injector._submit_invisible(box, 123, False, "compose")
 
@@ -153,6 +162,7 @@ class HardeningTests(unittest.TestCase):
     def test_strategy_b_refuses_failed_clipboard_write(self):
         target = Mock()
         target.hwnd = 123
+        target.scope_matches.return_value = True
         injector = HardenedTelegramInjector(target)
         box = Mock()
         guard = Mock()
@@ -166,6 +176,7 @@ class HardeningTests(unittest.TestCase):
             "floatingbar.hardening.clipboard_guard.set_text",
             return_value=False,
         ), patch("floatingbar.hardening.winapi.get_foreground_window", return_value=999), \
+             patch("floatingbar.hardening.winapi.get_window_pid", return_value=1), \
              patch("floatingbar.hardening.winapi.set_foreground_window", return_value=True), \
              patch("floatingbar.hardening.winapi.ensure_restored"), \
              patch("floatingbar.hardening.time.sleep"):
