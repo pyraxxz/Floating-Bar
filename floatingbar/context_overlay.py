@@ -6,6 +6,7 @@ from . import trace
 from . import winapi
 from .context import capture
 from .context_injector import ContextGuardedRecoveryInjector
+from .preflight import run as run_preflight
 from .recovery_overlay import OrbRelayWindow as _RecoveryOrbRelayWindow
 
 
@@ -38,14 +39,14 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
         if hwnd and self._is_telegram_window(hwnd):
             self._attempt_context = capture(hwnd)
             self.injector.set_window_context(self._attempt_context)
-            trace.trace("window context: captured non-content Telegram title fingerprint")
+            trace.trace("window context: captured non-content Telegram title context")
 
     def _expand(self) -> None:
         super()._expand()
         if self._state == "bar" and self._work_hwnd and self._is_telegram_window(self._work_hwnd):
             self._attempt_context = capture(self._work_hwnd)
             self.injector.set_window_context(self._attempt_context)
-            trace.trace("window context: captured non-content Telegram title fingerprint")
+            trace.trace("window context: captured non-content Telegram title context")
         else:
             self._attempt_context = None
             self.injector.set_window_context(None)
@@ -61,9 +62,6 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
                 config.ERROR_COLOR,
             )
             self._set_retry_menu_enabled(True)
-            # Keep the invalid context attached so an accidental Enter cannot
-            # silently retarget the message. Editing the draft below starts a
-            # fresh compose attempt and clears this guard.
             self.injector.set_window_context(self._retry_context)
             return
 
@@ -87,18 +85,35 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
         return super()._on_enter_key(_event)
 
     def _send_worker(self, text: str, work_hwnd: int, attempt_id: int) -> None:
-        # When the orb was opened from another app, the original foreground
-        # HWND is not a Telegram window. In that case select the actual target
-        # first, then capture its non-content context before injection begins.
-        context = self._attempt_context
-        if context is None:
-            try:
-                if work_hwnd:
-                    self.target.select_for_send(preferred_hwnd=work_hwnd)
+        # First prove that the selected Telegram target is viable without any
+        # click, keypress, focus change, or clipboard mutation. This turns the
+        # diagnostics preflight into a production transaction gate.
+        try:
+            preferred = work_hwnd if self._is_telegram_window(work_hwnd) else 0
+            preflight = run_preflight(self.target, preferred_hwnd=preferred)
+            trace.trace(
+                f"preflight: status={preflight.status} "
+                f"path={preflight.submission_path} "
+                f"context_guard={preflight.context_guard_available}"
+            )
+            if not preflight.ready:
+                error = "; ".join(preflight.reasons) or "Telegram send preflight blocked the send."
+                self._result_q.put((attempt_id, None, error))
+                return
+
+            if self._attempt_context is None:
                 self._capture_target_context()
-                context = self._attempt_context
-            except Exception as exc:
-                trace.trace(f"window context capture failed before send: {exc}")
+            context = self._attempt_context
+        except Exception as exc:
+            trace.trace(f"preflight: unexpected failure: {exc}")
+            self._result_q.put(
+                (
+                    attempt_id,
+                    None,
+                    f"Telegram send preflight failed safely: {exc}",
+                )
+            )
+            return
 
         if context is not None and not context.matches():
             trace.trace("window context: changed before send worker started; aborting")
