@@ -37,7 +37,7 @@ Windows and published as a GitHub Release with **FloatingBar.exe**.
 
 https://github.com/pyraxxz/Floating-Bar/releases
 
-Current release: **v0.1.10**.
+Current release: **v0.1.11**.
 
 Prefer building it yourself? Right-click `build.ps1` → *Run with
 PowerShell* (or run the equivalent manually):
@@ -49,7 +49,7 @@ pyinstaller --onefile --noconsole --name FloatingBar main.py
 
 ---
 
-## How sending works (v0.1.10)
+## How sending works (v0.1.11)
 
 Sending is designed to avoid bringing Telegram to the foreground. The
 production path is a hardened cascade:
@@ -63,14 +63,24 @@ production path is a hardened cascade:
 4. Audit the Edit controls using **value lengths only**. If another Edit is
    already non-empty (for example, the search field), prefer the positive-value
    Edit that geometrically overlaps the selected compose.
-5. When the compose is verifiably holding the text, submit through the
-   Send-button/Enter cascade with strict voice/mic rejection.
-6. Submission verification is bounded and asynchronous: a send click is
+5. Remember the confirmed inner compose runtime ID only for the current
+   Telegram window/process. After Telegram restarts, or when the remembered
+   control no longer has valid lower-window compose geometry, the cache is
+   discarded and the compose is rediscovered.
+6. When the compose is verifiably holding the text, submit through the
+   Send-button/Enter cascade with strict voice/mic rejection. Unnamed button
+   candidates must remain in the compose row and to its right; unrelated
+   lower-window controls are ignored.
+7. Submission verification is bounded and asynchronous: a send click is
    allowed time to clear the compose before it is classified as a failure,
    reducing false failures and avoiding unnecessary duplicate fallback sends.
-7. When the landing cannot be verified, only an explicitly named `Send`
+8. When the landing cannot be verified, only an explicitly named `Send`
    button can be clicked. Ambiguous controls are rejected; posted Enter
    combinations are the fallback.
+
+The process is also initialized as **per-monitor DPI aware** before Tk creates
+its first window. This keeps Tk/UIA geometry and posted client coordinates
+consistent when Windows uses different scaling factors on different monitors.
 
 The aggressive focus-stealing/clipboard recovery remains opt-in through
 `ALLOW_FOCUS_STEAL = False`. Clipboard recovery refuses to paste when setting
@@ -159,6 +169,9 @@ python tools/diagnose.py --send "test 123"
   `PROCESS_NAME_RE` / `TITLE_FALLBACK_RE` in `config.py`.
 * **The orb is blue but sending fails** — most likely UIPI: don't run
   Floating Bar (or Telegram) elevated while the other runs normally.
+* **Mixed-DPI/multi-monitor setup** — v0.1.11 enables per-monitor DPI
+  awareness before creating the UI. Restart the app after changing Windows
+  display scaling.
 * **Telegram must not be minimized.** Background (behind other windows)
   is supported — minimized windows cannot reliably receive the posted
   client-coordinate clicks.
@@ -174,7 +187,7 @@ network. No Telegram credentials.
 
 * Telegram Desktop on Windows only (v1).
 * The compose box is located heuristically and then refined using real
-  runtime geometry and prior-session confirmation.
+  runtime geometry and current-window confirmation.
 * Injection targets **whatever chat is currently open** — that's the
   feature, and also the footprint: if you send while the wrong chat is
   focused, the text goes there.
