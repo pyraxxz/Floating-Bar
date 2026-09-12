@@ -82,7 +82,8 @@ class RecoveryScopeTests(unittest.TestCase):
             "floatingbar.recovery.winapi.set_foreground_window",
             return_value=True,
         ) as set_foreground, patch("floatingbar.recovery.time.sleep"):
-            self.assertFalse(injector._strategy_b(box, "hello", False, 999))
+            with self.assertRaises(InjectionFailed):
+                injector._strategy_b(box, "hello", False, 999)
 
         restored.assert_called_once_with(123)
         box.set_focus.assert_not_called()
