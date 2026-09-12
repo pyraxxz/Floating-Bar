@@ -93,7 +93,7 @@ class RecoveryScopeTests(unittest.TestCase):
     def test_clipboard_recovery_uses_original_scope_after_target_replacement(self):
         target = Mock()
         target.hwnd = 999
-        target.scope_matches.return_value = False
+        target.scope_matches.side_effect = [True, False]
         injector = ScopeGuardedRecoveryInjector(target)
         injector._recovery_scope = (123, 11)
         box = Mock()
@@ -120,9 +120,9 @@ class RecoveryScopeTests(unittest.TestCase):
                 injector._strategy_b(box, "hello", False, 999)
 
         restored.assert_called_once_with(123)
-        set_foreground.assert_not_called()
+        self.assertFalse(any(call.args == (123,) for call in set_foreground.call_args_list))
         box.set_focus.assert_not_called()
-        target.hwnd = 999
+        box.type_keys.assert_not_called()
 
 
 if __name__ == "__main__":
