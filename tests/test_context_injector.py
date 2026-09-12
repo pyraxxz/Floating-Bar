@@ -24,6 +24,20 @@ class ContextInjectorTests(unittest.TestCase):
         injector._assert_window_context("test landing")
         context.matches.assert_called_once_with()
 
+    def test_context_guard_is_included_in_per_action_scope_check(self):
+        target = Mock()
+        target.scope_matches.return_value = True
+        injector = ContextGuardedRecoveryInjector(target)
+        context = Mock()
+        context.matches.return_value = False
+        injector.set_window_context(context)
+
+        with self.assertRaises(InjectionFailed):
+            injector._assert_target_scope(100, "before send click")
+
+        target.scope_matches.assert_called_once_with(100, 0)
+        context.matches.assert_called_once_with()
+
     def test_no_context_preserves_existing_behavior(self):
         injector = ContextGuardedRecoveryInjector(Mock())
         injector._assert_window_context("test")
