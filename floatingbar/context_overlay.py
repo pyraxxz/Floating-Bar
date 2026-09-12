@@ -105,7 +105,8 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
             # later Telegram rescan must not silently choose another window.
             work_hwnd = preflight.hwnd
             self._work_hwnd = work_hwnd
-            self._capture_target_context(work_hwnd)
+            if self._attempt_context is None or self._attempt_context.hwnd != work_hwnd:
+                self._capture_target_context(work_hwnd)
             context = self._attempt_context
         except Exception as exc:
             trace.trace(f"preflight: unexpected failure: {exc}")
@@ -118,8 +119,8 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
             )
             return
 
-        if context is None:
-            trace.trace("window context: target identity could not be captured; aborting")
+        if context is None or context.hwnd != work_hwnd:
+            trace.trace("window context: target identity could not be safely captured; aborting")
             self._result_q.put(
                 (
                     attempt_id,
