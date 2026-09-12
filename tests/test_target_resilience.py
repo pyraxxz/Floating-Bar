@@ -1,6 +1,6 @@
 import unittest
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from floatingbar.target import TelegramTarget
 
@@ -32,16 +32,23 @@ class FakeEdit:
 
 
 class FakeButton:
-    def __init__(self, rect, name="", enabled=True):
+    def __init__(self, rect, name="", enabled=True, automation_id="", invoke=False):
         self._rect = rect
-        self.element_info = SimpleNamespace(name=name)
+        self.element_info = SimpleNamespace(name=name, automation_id=automation_id)
         self._enabled = enabled
+        self._invoke = invoke
 
     def rectangle(self):
         return self._rect
 
     def is_enabled(self):
         return self._enabled
+
+    @property
+    def iface_invoke(self):
+        if not self._invoke:
+            raise AttributeError("InvokePattern unavailable")
+        return object()
 
 
 class FakeWindow:
@@ -84,11 +91,9 @@ class TargetResilienceTests(unittest.TestCase):
             (200, 20, 500000, "Telegram", "Telegram.exe"),
         ]
         with patch(
-            "floatingbar.target.winapi.find_windows",
-            return_value=matches,
+            "floatingbar.target.winapi.find_windows", return_value=matches
         ), patch(
-            "floatingbar.target.winapi.user32.IsWindow",
-            return_value=True,
+            "floatingbar.target.winapi.user32.IsWindow", return_value=True
         ):
             selected = target.select_for_send(preferred_hwnd=200)
 
@@ -102,11 +107,9 @@ class TargetResilienceTests(unittest.TestCase):
             (200, 20, 500000, "Telegram", "Telegram.exe"),
         ]
         with patch(
-            "floatingbar.target.winapi.find_windows",
-            return_value=matches,
+            "floatingbar.target.winapi.find_windows", return_value=matches
         ), patch(
-            "floatingbar.target.winapi.user32.IsWindow",
-            return_value=True,
+            "floatingbar.target.winapi.user32.IsWindow", return_value=True
         ):
             selected = target.select_for_send(preferred_hwnd=999)
 
@@ -159,6 +162,52 @@ class TargetResilienceTests(unittest.TestCase):
 
         self.assertEqual(result[0], "Send")
         self.assertEqual(result[1:], (800, 730))
+
+    def test_explicit_send_evidence_beats_plausible_unnamed_icon(self):
+        target = TelegramTarget()
+        target._hwnd = 100
+        target._pid = 10
+        window = FakeWindow(
+            Rect(0, 0, 1000, 1000),
+            [
+                FakeButton(
+                    Rect(800, 740, 840, 780),
+                    "",
+                    True,
+                ),
+                FakeButton(
+                    Rect(720, 765, 760, 805),
+                    "Send message",
+                    True,
+                    automation_id="sendButton",
+                    invoke=True,
+                ),
+            ],
+        )
+        box = FakeEdit(Rect(100, 700, 700, 760))
+
+        with patch("floatingbar.target.winapi.user32.IsWindow", return_value=True), \
+             patch.object(target, "_window", return_value=window):
+            result = target.send_button_click(near_box=box)
+
+        self.assertEqual(result[0], "Send message")
+        self.assertEqual(result[1:], (740, 785))
+
+    def test_weak_unnamed_button_is_rejected(self):
+        target = TelegramTarget()
+        target._hwnd = 100
+        target._pid = 10
+        window = FakeWindow(
+            Rect(0, 0, 1000, 1000),
+            [FakeButton(Rect(705, 708, 745, 748), "", True)],
+        )
+        box = FakeEdit(Rect(100, 700, 700, 760))
+
+        with patch("floatingbar.target.winapi.user32.IsWindow", return_value=True), \
+             patch.object(target, "_window", return_value=window):
+            result = target.send_button_click(near_box=box)
+
+        self.assertIsNone(result)
 
 
 if __name__ == "__main__":
