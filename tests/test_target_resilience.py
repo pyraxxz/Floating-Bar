@@ -199,7 +199,7 @@ class TargetResilienceTests(unittest.TestCase):
         target._pid = 10
         window = FakeWindow(
             Rect(0, 0, 1000, 1000),
-            [FakeButton(Rect(705, 708, 745, 748), "", True)],
+            [FakeButton(Rect(705, 810, 745, 850), "", True)],
         )
         box = FakeEdit(Rect(100, 700, 700, 760))
 
