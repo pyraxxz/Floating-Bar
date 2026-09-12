@@ -6,8 +6,8 @@ Package layout:
     clipboard_guard full-fidelity clipboard save/restore
     target          Telegram window + compose-box discovery (UI Automation)
     injector        established cascading send strategy
-    hardening       v0.1.10 reliability and safety layer over the injector
+    hardening       reliability and safety layer over the injector
     overlay         the Tk orb/bar UI
 """
 
-__version__ = "0.1.10"
+__version__ = "0.1.11"
