@@ -1,9 +1,9 @@
 """The only UI: an orb (idle) that expands into a transparent input bar
 (active). Two states, nothing else — no history, no settings window.
 
-The orb also provides a small amount of recovery UX: failed sends keep the
-unsent text as a session-only retry draft, while a successful-but-unverified
-send is shown as an amber warning instead of being presented as confirmed.
+The orb also provides recovery UX: failed sends keep the unsent text as a
+session-only retry draft, while a successful-but-unverified send is shown as
+an amber warning instead of being presented as confirmed.
 """
 
 import os
@@ -17,19 +17,13 @@ from . import winapi
 from . import __version__
 from .injector import InjectionFailed
 from .hardening import HardenedTelegramInjector
+from .evidence import EvidenceState, from_result
 from .target import TelegramTarget, TelegramNotFound
 
 
 def _classify_send_result(strategy, error):
-    """Return one of 'failed', 'unverified', 'verified', or 'unknown'."""
-    if error:
-        return "failed"
-    if not strategy:
-        return "unknown"
-    normalized = str(strategy).lower()
-    if "unverified" in normalized or "verification-unavailable" in normalized:
-        return "unverified"
-    return "verified"
+    """Compatibility wrapper returning typed submission evidence."""
+    return from_result(strategy, error)
 
 
 class OrbRelayWindow(tk.Tk):
@@ -168,6 +162,9 @@ class OrbRelayWindow(tk.Tk):
         if self._sending:
             return
         if self._state != "bar":
+            # Capture the window that owns focus BEFORE focus_force() moves
+            # focus to our entry. When that window is Telegram, the sender can
+            # preserve that exact Telegram window in multi-window setups.
             self._work_hwnd = winapi.get_foreground_window()
             self._update_status()
             self._show_bar()
@@ -397,26 +394,29 @@ class OrbRelayWindow(tk.Tk):
 
         active_text = self._active_send_text
         self._active_send_text = ""
-        state = _classify_send_result(strategy, error)
+        evidence = _classify_send_result(strategy, error)
 
-        if state == "failed":
-            if active_text:
+        if evidence.state is EvidenceState.FAILED:
+            if evidence.retryable and active_text:
                 self._retry_draft = active_text
             self._flash_orb(config.ORB_COLOR_ERROR)
-            self._show_feedback(error, config.ERROR_COLOR)
-        elif state == "unverified":
-            # Do not offer the text as an automatic retry: the message may
-            # already exist in Telegram, so retrying could duplicate it.
+            self._show_feedback(
+                evidence.detail or "Send failed.",
+                config.ERROR_COLOR,
+            )
+        elif evidence.confirmed:
+            self._retry_draft = None
+            self._hide_feedback()
+            self._flash_orb(config.ORB_COLOR_OK)
+        elif evidence.uncertain:
+            # Never offer an uncertain message as an automatic retry: it may
+            # already exist in Telegram and retrying could duplicate it.
             self._retry_draft = None
             self._flash_orb(config.ORB_COLOR_UNVERIFIED)
             self._show_feedback(
                 "Telegram did not confirm the send. Verify it before retrying.",
                 config.ORB_COLOR_UNVERIFIED,
             )
-        elif state == "verified":
-            self._retry_draft = None
-            self._hide_feedback()
-            self._flash_orb(config.ORB_COLOR_OK)
         else:
             self._retry_draft = None
             self._flash_orb(config.ORB_COLOR_ERROR)
