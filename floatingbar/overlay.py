@@ -52,6 +52,7 @@ class OrbRelayWindow(tk.Tk):
         self._dragging = False
         self._press_xy = (0, 0)
         self._win_off = (0, 0)
+        self._retry_menu_label = "Retry failed draft"
 
         self.overrideredirect(True)
         self.attributes("-topmost", True)
@@ -104,6 +105,11 @@ class OrbRelayWindow(tk.Tk):
         self.menu = tk.Menu(self, tearoff=0)
         self.menu.add_command(label=f"Floating Bar v{__version__}", state="disabled")
         self.menu.add_command(label="Open trace folder", command=self._open_trace_folder)
+        self.menu.add_command(
+            label=self._retry_menu_label,
+            command=self._retry_failed_draft,
+            state="disabled",
+        )
         self.menu.add_separator()
         self.menu.add_command(label="Quit", command=self.destroy)
         self.orb.bind("<Button-3>", self._show_menu)
@@ -116,6 +122,15 @@ class OrbRelayWindow(tk.Tk):
         self.update_idletasks()
         try:
             winapi.hide_from_alt_tab(self.winfo_id())
+        except Exception:
+            pass
+
+    def _set_retry_menu_enabled(self, enabled: bool) -> None:
+        try:
+            self.menu.entryconfig(
+                self._retry_menu_label,
+                state="normal" if enabled else "disabled",
+            )
         except Exception:
             pass
 
@@ -170,6 +185,20 @@ class OrbRelayWindow(tk.Tk):
             self._work_hwnd = winapi.get_foreground_window()
             self._update_status()
             self._show_bar()
+
+    def _retry_failed_draft(self) -> None:
+        """Restore a failed draft for an explicit, user-confirmed retry.
+
+        The current foreground window is captured before focus moves to our
+        entry, preserving the same multi-window Telegram targeting semantics
+        as a normal orb expansion. The message is never sent automatically.
+        """
+        if self._sending or not self._retry_draft:
+            return
+        self._work_hwnd = winapi.get_foreground_window()
+        self._hide_feedback()
+        self._show_bar()
+        self._set_retry_menu_enabled(True)
 
     def _collapse(self) -> None:
         if self._state == "orb":
@@ -325,6 +354,7 @@ class OrbRelayWindow(tk.Tk):
         self._reset_idle()
         if self._retry_draft is not None:
             self._retry_draft = None
+            self._set_retry_menu_enabled(False)
         if self._feedback_message:
             self._hide_feedback()
 
@@ -341,6 +371,7 @@ class OrbRelayWindow(tk.Tk):
         self._active_attempt_id = attempt_id
         self._active_send_text = text
         self._retry_draft = None
+        self._set_retry_menu_enabled(False)
         work_hwnd = self._work_hwnd
         self._hide_feedback()
         self._collapse()
@@ -411,6 +442,9 @@ class OrbRelayWindow(tk.Tk):
         if evidence.state is EvidenceState.FAILED:
             if evidence.retryable and active_text:
                 self._retry_draft = active_text
+                self._set_retry_menu_enabled(True)
+            else:
+                self._set_retry_menu_enabled(False)
             self._flash_orb(config.ORB_COLOR_ERROR)
             self._show_feedback(
                 evidence.detail or "Send failed.",
@@ -418,12 +452,14 @@ class OrbRelayWindow(tk.Tk):
             )
         elif evidence.confirmed:
             self._retry_draft = None
+            self._set_retry_menu_enabled(False)
             self._hide_feedback()
             self._flash_orb(config.ORB_COLOR_OK)
         elif evidence.uncertain:
             # Never offer an uncertain message as an automatic retry: it may
             # already exist in Telegram and retrying could duplicate it.
             self._retry_draft = None
+            self._set_retry_menu_enabled(False)
             self._flash_orb(config.ORB_COLOR_UNVERIFIED)
             self._show_feedback(
                 "Telegram did not confirm the send. Verify it before retrying.",
@@ -431,6 +467,7 @@ class OrbRelayWindow(tk.Tk):
             )
         else:
             self._retry_draft = None
+            self._set_retry_menu_enabled(False)
             self._flash_orb(config.ORB_COLOR_ERROR)
             self._show_feedback(
                 "Send completed without a usable status.",
