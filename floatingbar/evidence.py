@@ -39,3 +39,37 @@ class SubmissionEvidence:
             EvidenceState.UNAVAILABLE,
             EvidenceState.UNKNOWN,
         )
+
+
+def from_result(strategy: Optional[str], error: Optional[str] = None) -> SubmissionEvidence:
+    """Convert a legacy injector result into structured evidence."""
+    if error:
+        return SubmissionEvidence(
+            EvidenceState.FAILED,
+            strategy=strategy,
+            detail=error,
+            retryable=True,
+        )
+    if not strategy:
+        return SubmissionEvidence(EvidenceState.UNKNOWN, retryable=False)
+
+    normalized = strategy.lower()
+    if "verified" in normalized:
+        return SubmissionEvidence(
+            EvidenceState.VERIFIED,
+            strategy=strategy,
+            retryable=False,
+        )
+    if "verification-unavailable" in normalized:
+        return SubmissionEvidence(
+            EvidenceState.UNAVAILABLE,
+            strategy=strategy,
+            retryable=False,
+        )
+    # A concrete strategy that returned without verification still means an
+    # action was attempted, so classify it as submitted-but-uncertain.
+    return SubmissionEvidence(
+        EvidenceState.SUBMITTED,
+        strategy=strategy,
+        retryable=False,
+    )
