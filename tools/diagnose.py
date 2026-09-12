@@ -22,7 +22,6 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import config
 from floatingbar import trace
 from floatingbar import winapi
 from floatingbar.hardening import HardenedTelegramInjector
@@ -32,7 +31,7 @@ from floatingbar.target import TelegramTarget, TelegramNotFound
 
 def _print_preflight(result) -> None:
     print("Safe-send preflight")
-    print(f"  ready={result.ready}")
+    print(f"  status={result.status}  ready={result.ready}")
     print(f"  telegram_hwnd={result.hwnd}  pid={result.pid}")
     print(
         f"  minimized={result.minimized}  scope_stable={result.scope_stable}"
@@ -42,6 +41,11 @@ def _print_preflight(result) -> None:
         f"focused_pid={result.focused_pid}"
     )
     print(f"  compose_click={result.compose_click}")
+    print(f"  submission_path={result.submission_path}")
+    print(
+        f"  context_guard_available={result.context_guard_available} "
+        f"context_stable={result.context_stable}"
+    )
     if result.button_available:
         print(
             f"  send_candidate=name={result.send_name!r} "
