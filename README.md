@@ -8,7 +8,7 @@ Desktop**. The bar collapses back to the dot. That's the whole product.
 
 No login. No Telegram API, account access, or credentials. No message
 history, no chat display, no read receipts. This is a **one-way blind
-injector** — it never reads Telegram's content back.
+injector** — it never reads Telegram message content back.
 
 ---
 
@@ -32,13 +32,14 @@ A second launch exits silently (single-instance).
 
 ### Just want the exe? (no Python, no command line)
 
-Each package version on `main` is automatically validated on Windows and
-published as a GitHub Release with **FloatingBar.exe** plus a SHA-256
-checksum file.
+The current stable milestone is published as a GitHub Release with
+**FloatingBar.exe** plus a SHA-256 checksum file. New releases are created
+only for meaningful milestones; ordinary development commits on `main` do
+not publish a new version.
 
 https://github.com/pyraxxz/Floating-Bar/releases
 
-Current release: **v0.1.20**.
+Current stable release: **v0.1.20**.
 
 Prefer building it yourself? Right-click `build.ps1` → *Run with
 PowerShell* (or run the equivalent manually):
@@ -50,7 +51,7 @@ pyinstaller --onefile --noconsole --name FloatingBar main.py
 
 ---
 
-## How sending works (v0.1.20)
+## How sending works (v0.1.20 baseline + development hardening)
 
 Sending is designed to avoid bringing Telegram to the foreground. The
 production path is a hardened cascade:
@@ -60,45 +61,50 @@ production path is a hardened cascade:
    is a Telegram window, prefer that exact window; otherwise fall back to
    normal Telegram discovery.
 3. Capture the Telegram top-level `(HWND, PID)` scope for the send.
-4. Post an invisible click into the chosen compose field.
-5. Ask Windows which child HWND currently owns focus and, when it belongs to
+4. When Telegram was the active window, capture a one-way fingerprint of its
+   window title so a conversation switch can be detected without retaining
+   the title itself.
+5. Post an invisible click into the chosen compose field.
+6. Ask Windows which child HWND currently owns focus and, when it belongs to
    Telegram, post UTF-16 `WM_CHAR` units directly to that child. Fall back to
    the top-level Telegram window only when necessary.
-6. Audit the Edit controls using **value lengths only**. If another Edit is
+7. Audit the Edit controls using **value lengths only**. If another Edit is
    already non-empty (for example, the search field), prefer the positive-value
    Edit that geometrically overlaps the selected compose.
-7. Remember the confirmed inner compose runtime ID only for the current
+8. Remember the confirmed inner compose runtime ID only for the current
    Telegram window/process. After Telegram restarts, or when the remembered
    control no longer has valid lower-window compose geometry, the cache is
    discarded and the compose is rediscovered.
-8. Before every critical click/keypress, verify that the same Telegram
+9. Before every critical click/keypress, verify that the same Telegram
    top-level HWND/PID is still the target. A restart or window replacement
    aborts the current send safely instead of risking delivery into a changed
    target.
-9. When the compose is verifiably holding the text, submit through a scored
-   Send-button/Enter cascade with strict voice/mic rejection. Candidate
-   evidence combines explicit `Send` naming, automation IDs, InvokePattern
-   availability, compose-row alignment, position relative to the compose,
-   and reasonable button geometry. Weak unnamed candidates are rejected and
-   the flow falls back to posted Enter combinations.
-10. Submission verification is bounded and asynchronous: a send click is
+10. When the compose is verifiably holding the text, submit through a scored
+    Send-button/Enter cascade with strict voice/mic rejection. Candidate
+    evidence combines explicit `Send` naming, automation IDs, InvokePattern
+    availability, compose-row alignment, position relative to the compose,
+    and reasonable button geometry. Weak unnamed candidates are rejected and
+    the flow falls back to posted Enter combinations.
+11. Submission verification is bounded and asynchronous: a send click is
     allowed time to clear the compose before it is classified as a failure,
     reducing false failures and avoiding unnecessary duplicate fallback sends.
-11. When the landing cannot be verified, only an explicitly named `Send`
+12. When the landing cannot be verified, only an explicitly named `Send`
     button can be clicked. Ambiguous controls are rejected; posted Enter
     combinations are the fallback.
-12. The injector result is converted to a typed `SubmissionEvidence` state
+13. The injector result is converted to a typed `SubmissionEvidence` state
     (`failed`, `submitted`, `verified`, `verification-unavailable`, or
     `unknown`) before UI presentation. The UI does not infer confirmation by
     parsing strategy-name substrings.
-13. Text is converted into UTF-16LE code units before posting `WM_CHAR`,
+14. Text is converted into UTF-16LE code units before posting `WM_CHAR`,
     preserving surrogate pairs for emoji and other astral Unicode characters.
-14. Each UI send attempt carries a monotonic attempt ID. A result from an
+15. Each UI send attempt carries a monotonic attempt ID. A result from an
     older worker is ignored if a newer attempt is already active, preventing
     delayed background results from clearing or replacing current UI state.
-15. Message text is not trimmed before injection. Intentional leading or
+16. Message text is not trimmed before injection. Intentional leading or
     trailing whitespace is preserved; only whitespace-only submissions are
     treated as empty and skipped.
+17. The optional focus-stealing/clipboard recovery path is guarded by the
+    same target checks and never runs unless explicitly enabled in config.
 
 ### Failure recovery and retry
 
@@ -109,12 +115,34 @@ replace it or send it again.
 There is also an explicit **Retry failed draft** command in the existing
 right-click menu. It is enabled only after a genuinely failed, retryable send.
 Selecting it restores the draft and focuses the input, but **does not send
-anything automatically**. The current foreground window is captured before
-the orb takes focus, preserving multi-window Telegram targeting.
+anything automatically**. The failed attempt's original Telegram target is
+preserved when available; if that target's context has changed, the retry is
+blocked safely instead of silently retargeting another chat.
 
 A path that completes without reliable read-back confirmation is deliberately
 **amber**, not green, and is never offered as an automatic retry because the
 message may already exist in Telegram.
+
+---
+
+## Safe preflight diagnostics
+
+Before testing a live send, run the read-only preflight:
+
+```bat
+python tools/diagnose.py --preflight
+```
+
+It verifies Telegram discovery, non-minimized state, compose geometry, stable
+window/process scope, and the presence or absence of a safe Send-button
+candidate. A missing Send button is reported as a warning because the normal
+Enter fallback remains available.
+
+The preflight never clicks, types, changes foreground focus, reads message
+content, or touches the clipboard.
+
+For the complete real-desktop validation sequence, see
+[`docs/SMOKE_TEST.md`](docs/SMOKE_TEST.md).
 
 ---
 
@@ -180,14 +208,14 @@ python tools/diagnose.py --send "test 123"
 * **A solid dark box instead of transparency** — your Tk build mishandles
   `-alpha` combined with `-transparentcolor`. Set `USE_WINDOW_ALPHA = False`
   in `config.py`; the color-key alone keeps working.
-* **Text never arrives** — run `tools/diagnose.py`; it prints the selected
-  compose geometry, focused HWND, and UIA control information. If no `Edit`
-  control is listed, no chat is open in Telegram.
+* **Text never arrives** — run `tools/diagnose.py --preflight`; it prints the
+  selected compose geometry, focused HWND, and UIA control information. If no
+  `Edit` control is listed, no chat is open in Telegram.
 * **"Telegram Desktop doesn't seem to be running"** while it is — a
   portable/repackaged Telegram may rename the exe. Edit
   `PROCESS_NAME_RE` / `TITLE_FALLBACK_RE` in `config.py`.
 * **Multiple Telegram windows** — when the orb was opened while Telegram
-  itself was active, v0.1.13+ preserves that exact Telegram window. When the
+  itself was active, the selected Telegram window is preserved. When the
   orb was opened from another application, normal Telegram discovery is used.
 * **Send could not be confirmed** — do not immediately retry unless you have
   checked the chat. Uncertain outcomes are deliberately amber to avoid
@@ -197,20 +225,24 @@ python tools/diagnose.py --send "test 123"
   anything new replaces the draft.
 * **The orb is blue but sending fails** — most likely UIPI: don't run
   Floating Bar (or Telegram) elevated while the other runs normally.
-* **Mixed-DPI/multi-monitor setup** — v0.1.11+ enables per-monitor DPI
-  awareness before creating the UI. Restart the app after changing Windows
-  display scaling.
-* **Telegram restarts during a send** — v0.1.12+ aborts that send safely and
-  asks you to try again rather than continuing against a stale HWND.
-* **Unicode/emoji appears corrupted** — v0.1.16 posts UTF-16LE code units,
-  including surrogate pairs for astral Unicode. If a specific Telegram build
-  still rejects a character, share the trace without message content.
-* **A delayed result appears to affect a newer send** — v0.1.17 attaches an
-  attempt ID to worker results and ignores stale completions.
-* **Leading/trailing spaces disappear** — v0.1.18 preserves intentional
-  whitespace. Only whitespace-only submissions are skipped.
-* **Opt-in recovery is enabled** — v0.1.19 guards every recovery interaction
-  with the same Telegram `(HWND, PID)` scope checks as the default path.
+* **Mixed-DPI/multi-monitor setup** — per-monitor DPI awareness is enabled
+  before the UI is created. Restart the app after changing Windows display
+  scaling.
+* **Telegram restarts during a send** — the send is aborted safely rather
+  than continuing against a stale HWND.
+* **Telegram switches chats while the orb is open** — the next development
+  builds use an in-memory one-way title fingerprint to detect that context
+  change when Telegram exposes a useful window title; the raw title is never
+  logged or persisted.
+* **Unicode/emoji appears corrupted** — the injector posts UTF-16LE code
+  units, including surrogate pairs for astral Unicode. If a specific Telegram
+  build still rejects a character, share the trace without message content.
+* **A delayed result appears to affect a newer send** — worker results carry
+  attempt IDs and stale completions are ignored.
+* **Leading/trailing spaces disappear** — intentional whitespace is preserved.
+  Only whitespace-only submissions are skipped.
+* **Opt-in recovery is enabled** — recovery actions use per-step Telegram
+  `(HWND, PID)` checks and refuse to continue after a target change.
 * **Telegram must not be minimized.** Background (behind other windows)
   is supported — minimized windows cannot reliably receive the posted
   client-coordinate clicks.
@@ -219,18 +251,22 @@ python tools/diagnose.py --send "test 123"
 
 No message content is ever logged, stored, or persisted — the app holds
 the typed text in memory only until it is injected. Verification uses
-lengths/booleans and never records message content. No telemetry. No
-network. No Telegram credentials.
+lengths/booleans and never records message content. For conversation-switch
+protection, Telegram's window title is reduced to a one-way SHA-256
+fingerprint held only for the current send context; the raw title is not
+logged, persisted, or exposed. No telemetry. No network. No Telegram
+credentials.
 
 ## Release integrity
 
-Release builds are validated on Windows before publication. The release
-workflow cancels superseded main-branch release work, refuses to publish if
-`main` moved on during a queued/building run, and publishes
-`FloatingBar.exe.sha256` alongside the EXE so the downloaded binary can be
-integrity-checked independently.
+Release builds are validated on Windows before publication. Public releases
+are **milestone-only**: ordinary pushes to `main` do not publish a new version.
+A release must be created intentionally from a `vMAJOR.MINOR.PATCH` tag or an
+explicit manual publish of an existing tag. The publisher validates that exact
+tag before building, calculates the EXE checksum, and publishes
+`FloatingBar.exe` plus `FloatingBar.exe.sha256`.
 
-The CI workflow uses current Node 24-compatible GitHub Actions lines for
+The CI workflow uses the current Node 24-compatible GitHub Actions lines for
 checkout, Python setup, GitHub Script, and release publication; artifact
 uploads remain on `actions/upload-artifact@v4`.
 
@@ -240,8 +276,17 @@ uploads remain on `actions/upload-artifact@v4`.
 * The compose box is located heuristically and then refined using real
   runtime geometry and current-window confirmation.
 * Injection targets **whatever chat is currently open** in the selected
-  Telegram window — that's the feature, and also the footprint: if you send
-  while the wrong chat is focused, the text goes there.
+  Telegram window. The context fingerprint reduces accidental chat switches
+  when Telegram exposes a useful changing title, but it is not a universal
+  guarantee across all Telegram builds.
 * If the opt-in clipboard strategy runs while another app is actively
   changing the clipboard, there is a small race window during restore;
   the guard retries and preserves all captured HGLOBAL-backed formats.
+
+## Release policy
+
+**v0.1.20** is the current stable downloadable milestone. Development now
+continues on `main` without public version bumps for individual fixes.
+The next public release will be cut only after a meaningful milestone is
+complete and the accumulated Windows regression suite plus the applicable
+real-desktop smoke tests pass.
