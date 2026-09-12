@@ -1,17 +1,9 @@
 """The only UI: an orb (idle) that expands into a transparent input bar
 (active). Two states, nothing else — no history, no settings window.
 
-Improvements over the spec's reference UI:
-
-* Click vs drag disambiguation: a press only drags after crossing a pixel
-  threshold, and expansion happens on release-without-drag.
-* The bar is draggable only by its grip bands (the padding around the entry).
-  Dragging via the entry itself would fight text selection.
-* Sends run on a worker thread (pywinauto + comtypes CoInitialize), so the Tk
-  event loop and idle timer never freeze during injection — results come back
-  through a queue polled on the UI thread.
-* The orb's color is a status channel: blue = ready, gray = Telegram not
-  found, amber pulse = sending, green/red flash = sent / failed.
+The orb also provides a small amount of recovery UX: failed sends keep the
+unsent text as a session-only retry draft, while a successful-but-unverified
+send is shown as an amber warning instead of being presented as confirmed.
 """
 
 import os
@@ -28,6 +20,18 @@ from .hardening import HardenedTelegramInjector
 from .target import TelegramTarget, TelegramNotFound
 
 
+def _classify_send_result(strategy, error):
+    """Return one of 'failed', 'unverified', 'verified', or 'unknown'."""
+    if error:
+        return "failed"
+    if not strategy:
+        return "unknown"
+    normalized = str(strategy).lower()
+    if "unverified" in normalized or "verification-unavailable" in normalized:
+        return "unverified"
+    return "verified"
+
+
 class OrbRelayWindow(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -39,8 +43,11 @@ class OrbRelayWindow(tk.Tk):
 
         self._state = "orb"
         self._sending = False
-        self._last_error = None
         self._work_hwnd = 0
+        self._retry_draft = None
+        self._active_send_text = ""
+        self._feedback_message = None
+        self._feedback_color = config.ERROR_COLOR
         self._pos = (config.DEFAULT_X, config.DEFAULT_Y)
         self._idle_job = None
         self._collapse_job = None
@@ -83,7 +90,7 @@ class OrbRelayWindow(tk.Tk):
             disabledbackground=config.TRANSPARENT_KEY_COLOR,
             relief="flat",
         )
-        self.error_label = tk.Label(
+        self.feedback_label = tk.Label(
             self.bar,
             bg=config.TRANSPARENT_KEY_COLOR,
             fg=config.ERROR_COLOR,
@@ -126,7 +133,7 @@ class OrbRelayWindow(tk.Tk):
             d = config.ORB_DIAMETER
             self.geometry(f"{d}x{d}+{self._pos[0]}+{self._pos[1]}")
         else:
-            extra = 16 if self.error_label.winfo_ismapped() else 0
+            extra = 16 if self.feedback_label.winfo_ismapped() else 0
             h = config.BAR_HEIGHT + extra
             self.geometry(f"{config.BAR_WIDTH}x{h}+{self._pos[0]}+{self._pos[1]}")
 
@@ -148,17 +155,19 @@ class OrbRelayWindow(tk.Tk):
         self._set_geometry()
         self.lift()
         self.entry.focus_force()
-        if self._last_error:
-            self._show_error(self._last_error)
+
+        if self._retry_draft and not self.entry.get():
+            self.entry.insert(0, self._retry_draft)
+            self.entry.select_range(0, "end")
+
+        if self._feedback_message:
+            self._show_feedback(self._feedback_message, self._feedback_color)
         self._reset_idle()
 
     def _expand(self) -> None:
         if self._sending:
             return
         if self._state != "bar":
-            # Capture the window that owns focus BEFORE focus_force() moves
-            # focus to our entry. When that window is Telegram, the sender can
-            # preserve that exact Telegram window in multi-window setups.
             self._work_hwnd = winapi.get_foreground_window()
             self._update_status()
             self._show_bar()
@@ -166,7 +175,7 @@ class OrbRelayWindow(tk.Tk):
     def _collapse(self) -> None:
         if self._state == "orb":
             return
-        self._hide_error()
+        self._hide_feedback()
         self._show_orb()
 
     def _set_dot_color(self, color: str) -> None:
@@ -199,23 +208,31 @@ class OrbRelayWindow(tk.Tk):
         )
         self._blink_job = self.after(280, lambda: self._blink_sending(not on))
 
-    def _show_error(self, message: str) -> None:
-        self._last_error = message
+    def _show_feedback(self, message: str, color: str = None) -> None:
+        self._feedback_message = message
+        self._feedback_color = color or config.ERROR_COLOR
         if self._state != "bar":
             return
-        self.error_label.config(text=message)
-        self.error_label.place(
+        self.feedback_label.config(
+            text=self._feedback_message,
+            fg=self._feedback_color,
+        )
+        self.feedback_label.place(
             x=8,
             y=config.BAR_HEIGHT - 4,
             width=config.BAR_WIDTH - 16,
             height=14,
         )
         self._set_geometry()
-        self.after(4000, self._hide_error)
+        self.after(config.FEEDBACK_TIMEOUT_MS, self._hide_feedback)
 
-    def _hide_error(self) -> None:
-        self.error_label.place_forget()
-        self._last_error = None
+    def _hide_feedback(self) -> None:
+        try:
+            self.feedback_label.place_forget()
+        except Exception:
+            pass
+        self._feedback_message = None
+        self._feedback_color = config.ERROR_COLOR
         if self._state == "bar":
             self._set_geometry()
 
@@ -307,8 +324,10 @@ class OrbRelayWindow(tk.Tk):
 
     def _on_key_typed(self, _event) -> None:
         self._reset_idle()
-        if self._last_error:
-            self._hide_error()
+        if self._retry_draft is not None:
+            self._retry_draft = None
+        if self._feedback_message:
+            self._hide_feedback()
 
     def _on_enter_key(self, _event=None) -> str:
         if self._sending:
@@ -318,8 +337,10 @@ class OrbRelayWindow(tk.Tk):
         if not text.strip():
             return "break"
         self._sending = True
+        self._active_send_text = text
+        self._retry_draft = None
         work_hwnd = self._work_hwnd
-        self._hide_error()
+        self._hide_feedback()
         self._collapse()
         self._blink_sending()
         threading.Thread(
@@ -341,9 +362,6 @@ class OrbRelayWindow(tk.Tk):
         strategy = None
         error = None
         try:
-            # Re-scan the Telegram target at send time. If the pre-orb
-            # foreground window was a Telegram window, prefer that exact HWND
-            # rather than whichever Telegram window happens to be largest.
             if work_hwnd:
                 self.target.select_for_send(preferred_hwnd=work_hwnd)
             strategy = self.injector.send(text, restore_hwnd=work_hwnd)
@@ -376,12 +394,36 @@ class OrbRelayWindow(tk.Tk):
             except Exception:
                 pass
             self._blink_job = None
-        if error:
+
+        active_text = self._active_send_text
+        self._active_send_text = ""
+        state = _classify_send_result(strategy, error)
+
+        if state == "failed":
+            if active_text:
+                self._retry_draft = active_text
             self._flash_orb(config.ORB_COLOR_ERROR)
-            self._last_error = error
-        else:
+            self._show_feedback(error, config.ERROR_COLOR)
+        elif state == "unverified":
+            # Do not offer the text as an automatic retry: the message may
+            # already exist in Telegram, so retrying could duplicate it.
+            self._retry_draft = None
+            self._flash_orb(config.ORB_COLOR_UNVERIFIED)
+            self._show_feedback(
+                "Telegram did not confirm the send. Verify it before retrying.",
+                config.ORB_COLOR_UNVERIFIED,
+            )
+        elif state == "verified":
+            self._retry_draft = None
+            self._hide_feedback()
             self._flash_orb(config.ORB_COLOR_OK)
-            self._last_error = None
+        else:
+            self._retry_draft = None
+            self._flash_orb(config.ORB_COLOR_ERROR)
+            self._show_feedback(
+                "Send completed without a usable status.",
+                config.ERROR_COLOR,
+            )
 
     def run(self) -> None:
         self.update_idletasks()
