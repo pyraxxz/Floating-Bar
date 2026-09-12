@@ -2,7 +2,7 @@
 
 ## Current baseline
 
-The repository evolved from the real Telegram traces collected during the earlier implementation work. The production orb uses the hardened injector path rather than the original injector directly.
+The repository evolved from real Telegram traces collected during the earlier implementation work. The production orb uses the hardened injector path rather than the original injector directly.
 
 Established behavior:
 
@@ -14,7 +14,7 @@ Established behavior:
 - Focus-stealing and clipboard-based recovery remain opt-in through `ALLOW_FOCUS_STEAL=False`.
 - Clipboard recovery preserves HGLOBAL-backed formats and distinguishes clipboard-open failure from an actually empty clipboard.
 
-## v0.1.10 / v0.1.11 hardening
+## v0.1.10 / v0.1.11 / v0.1.12 hardening
 
 ### Focused-child injection
 
@@ -26,7 +26,7 @@ The audit considers all Edit controls but prefers positive-value controls that g
 
 ### Delayed-clear verification
 
-A successful Send-button click does not necessarily clear the compose instantly. The hardened injector polls for up to roughly one second before classifying the submission as failed. This reduces false errors and prevents an unnecessary fallback from duplicating a message that was already accepted by Telegram.
+A successful Send-button click does not necessarily clear the compose instantly. The hardened injector polls for up to roughly one second before classifying the submission as failed. This reduces false errors and prevents unnecessary duplicate fallback sends.
 
 ### Clipboard write safety
 
@@ -34,9 +34,7 @@ The opt-in clipboard strategy checks the return value from `clipboard_guard.set_
 
 ### Target lifecycle safety
 
-UIA runtime IDs are treated as session-scoped hints rather than permanent identities. The target tracks the Telegram top-level `(HWND, PID)` scope. When that scope changes, the remembered compose runtime ID is discarded and the compose is rediscovered.
-
-Remembered compose controls are also revalidated for sensible dimensions, lower-window placement, and editability before reuse.
+UIA runtime IDs are session-scoped hints rather than permanent identities. The target tracks the Telegram top-level `(HWND, PID)` scope. When that scope changes, the remembered compose runtime ID is discarded and the compose is rediscovered. Remembered controls are also revalidated for sensible dimensions, lower-window placement, and editability before reuse.
 
 ### Safer Send-button geometry
 
@@ -50,27 +48,33 @@ Before every critical compose click, retry, Enter, Send click, and clipboard rec
 
 `floatingbar/dpi.py` enables Windows per-monitor-V2 DPI awareness before Tk creates its first window, with a legacy Shcore fallback. This keeps Tk/UIA geometry and posted client coordinates more consistent on mixed-DPI and multi-monitor desktops.
 
-### Diagnostics parity
+## v0.1.13 multi-window targeting
+
+When the orb opens, it records the top-level window that owned foreground focus. At send time, the target layer re-scans Telegram windows and prefers that exact HWND when it is one of the detected Telegram windows. Otherwise the normal largest-window discovery remains the fallback.
+
+This matters when a user has multiple Telegram windows: if Telegram was the active work context when the orb opened, the send stays tied to that exact Telegram window instead of choosing another window merely because it has a larger rectangle.
+
+## Diagnostics and tests
 
 `tools/diagnose.py --send` uses the same `HardenedTelegramInjector` as the production orb. Diagnostic output includes focused HWND, compose click point, runtime IDs, button names, and InvokePattern availability without logging message content.
 
+The regression suite covers nested compose geometry, pre-filled search fields, voice-button rejection, explicit Send selection, ambiguous-button fallback, focused-child routing, delayed compose clearing, clipboard-write failure, stale runtime-ID invalidation, Send-button row filtering, disabled controls, DPI-awareness bootstrap, stale-target scope aborts, and multi-window target preference.
+
 ## Release/deployment
 
-The Windows release workflow checks `floatingbar.__version__`, validates/builds on a Windows runner, creates or repairs the matching version tag only after validation succeeds, and publishes `FloatingBar.exe`. Existing releases are not rebuilt.
+The Windows release workflow checks `floatingbar.__version__`, validates/builds on Windows, creates or repairs the matching version tag only after validation succeeds, and publishes `FloatingBar.exe`. Existing releases are not rebuilt.
 
-Release publishing is serialized by version/repository concurrency. Release notes use an explicit body rather than automatically generated notes so repeated workflow retries cannot duplicate changelog text.
+Release publishing is serialized by repository/ref concurrency. Before building, a queued job checks that `main` has not moved past its own commit; after building, it reconfirms `main` is still at that commit before tagging. This prevents an older queued build from becoming the newest release.
 
-The v0.1.10 deployment incident was traced to a stale tag pointing at an older commit. The workflow was hardened to repair stale tags before publishing, and the corrected v0.1.10 release completed successfully.
+Published EXEs now also ship with a `FloatingBar.exe.sha256` checksum file and the SHA256 is recorded in the release body.
 
-## Validation
+The v0.1.10 deployment incident was traced to a stale tag pointing at an older commit. The workflow was hardened to repair stale tags before publishing. The corrected v0.1.10, v0.1.11, and v0.1.12 release paths all completed successfully.
+
+## Validation boundary
 
 Windows CI compiles the source tree, executes the unittest suite, and builds the PyInstaller executable. The release workflow performs the same validation before publishing the versioned EXE.
 
-The current development environment cannot execute the final Windows/Telegram UI integration itself. Real desktop validation remains important for Telegram versions, DPI configurations, multiple-monitor layouts, and focus behavior. The trace log intentionally records lengths, geometry, runtime IDs, stages, and booleans — never message content.
-
-## Current regression coverage
-
-The test suite covers nested compose geometry, pre-filled search fields, voice-button rejection, explicit Send selection, ambiguous-button fallback, focused-child routing, delayed compose clearing, clipboard-write failure, stale runtime-ID invalidation, Send-button row filtering, disabled controls, DPI-awareness bootstrap behavior, and stale-target scope aborts.
+The development environment cannot execute the final Windows/Telegram UI integration itself. Real desktop validation remains important for Telegram versions, DPI configurations, multiple-monitor layouts, multiple Telegram windows, focus behavior, and Qt accessibility behavior. The trace log intentionally records lengths, geometry, runtime IDs, stages, and booleans — never message content.
 
 ## Next engineering targets
 
