@@ -34,10 +34,10 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
         except Exception:
             return False
 
-    def _capture_target_context(self) -> None:
-        hwnd = self.target.hwnd
-        if hwnd and self._is_telegram_window(hwnd):
-            self._attempt_context = capture(hwnd)
+    def _capture_target_context(self, hwnd: int = 0) -> None:
+        target_hwnd = hwnd or self.target.hwnd
+        if target_hwnd and self._is_telegram_window(target_hwnd):
+            self._attempt_context = capture(target_hwnd)
             self.injector.set_window_context(self._attempt_context)
             trace.trace("window context: captured non-content Telegram title context")
 
@@ -101,8 +101,11 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
                 self._result_q.put((attempt_id, None, error))
                 return
 
-            if self._attempt_context is None:
-                self._capture_target_context()
+            # Bind the entire transaction to the exact preflight target. A
+            # later Telegram rescan must not silently choose another window.
+            work_hwnd = preflight.hwnd
+            self._work_hwnd = work_hwnd
+            self._capture_target_context(work_hwnd)
             context = self._attempt_context
         except Exception as exc:
             trace.trace(f"preflight: unexpected failure: {exc}")
@@ -115,7 +118,18 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
             )
             return
 
-        if context is not None and not context.matches():
+        if context is None:
+            trace.trace("window context: target identity could not be captured; aborting")
+            self._result_q.put(
+                (
+                    attempt_id,
+                    None,
+                    "Telegram target identity could not be safely captured; the send was stopped.",
+                )
+            )
+            return
+
+        if not context.matches():
             trace.trace("window context: changed before send worker started; aborting")
             self._result_q.put(
                 (
