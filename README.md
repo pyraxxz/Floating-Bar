@@ -32,10 +32,13 @@ A second launch exits silently (single-instance).
 
 ### Just want the exe? (no Python, no command line)
 
-Every version tag in this repo triggers an automatic Windows build —
-download **FloatingBar.exe** straight from the Releases page:
+The repository publishes a Windows executable for each unreleased package
+version when that version lands on `main` and passes the Windows CI gates.
+Download **FloatingBar.exe** from the project's Releases page:
 
-https://github.com/AzamanLTD/Floating-Bar/releases
+https://github.com/pyraxxz/Floating-Bar/releases
+
+Current release: **v0.1.9**.
 
 Prefer building it yourself? Right-click `build.ps1` → *Run with
 PowerShell* (or run the equivalent manually):
@@ -47,98 +50,42 @@ pyinstaller --onefile --noconsole --name FloatingBar main.py
 
 ---
 
-## How sending works (the cascade)
+## How sending works (v0.1.9)
 
-Sending never *requires* Telegram to come to the foreground. Strategies
-are tried in order, least disruptive first; each stage only runs if the
-previous one did not verifiably work:
+Sending is designed to avoid bringing Telegram to the foreground. The
+production path is now a hardened cascade:
 
-| Stage | Mechanism | Focus stolen? | Clipboard used? | Verifiable? |
-|---|---|---|---|---|
-| **A** | UI Automation `ValuePattern.SetValue` + posted Enter key | no | no | yes — read-back compare |
-| **A+** | (A set the text but the posted Enter didn't submit) brief focus steal just to press Enter | briefly | no | yes |
-| **A2** | raw `WM_CHAR` / `WM_KEYDOWN` posted into Telegram's HWND | no | no | only if the compose exposes ValuePattern |
-| **B** | focus steal + paste via clipboard + Enter | briefly | yes — **fully preserved** | no signal available |
+1. Locate Telegram by process image name and choose the most likely compose
+   Edit by geometry.
+2. Post an invisible click into that compose field.
+3. Ask Windows which child HWND currently owns focus and, when it belongs to
+   Telegram, post UTF-16 `WM_CHAR` units directly to that child. Fall back to
+   the top-level Telegram window only when necessary.
+4. Audit the Edit controls using **value lengths only**. If another Edit is
+   already non-empty (for example, the search field), the audit prefers the
+   positive-value Edit that geometrically overlaps the selected compose.
+5. When the compose is verifiably holding the text, use the existing safe
+   Send-button cascade. Voice/mic/record/audio controls are never clicked.
+6. When the landing cannot be verified, only an explicitly named `Send`
+   button can be clicked. Ambiguous controls are rejected; posted Enter
+   combinations are the fallback.
 
-On top of the keystroke chain there is a **send-button fallback**: when
-the compose verifiably still holds the text, the cascade invokes Telegram's
-Send button via UIA, and if that is unavailable, moves the real mouse
-cursor and physically clicks it. A physical click cannot be ignored the
-way posted keystrokes can. It is never blind: with an empty compose that
-button is the mic button, so the app clicks only when it can prove the
-compose holds text or the button is explicitly named "Send".
+The aggressive focus-stealing/clipboard recovery remains opt-in through
+`ALLOW_FOCUS_STEAL = False`.
 
-Notes:
+### Why the implementation avoids UIA `SetValue`
 
-* **A** is the best case — genuinely invisible. It depends on Telegram's
-  Qt compose box implementing `IValueProvider`, which is not guaranteed;
-  when absent, A is skipped instantly.
-* **Sending is invisible, always.** By default the app NEVER raises
-  Telegram's window, steals focus, or moves the mouse. The whole flow is
-  mouse-driven and posted as messages: a posted click focuses the message
-  field, WM_CHAR posts the text, and a posted click on Telegram's own Send
-  button (WM_LBUTTONDOWN / WM_LBUTTONUP at its client coordinates — the
-  background-window equivalent of AutoHotkey's ControlClick) submits.
-  A voice/mic-named button is never clicked: with an empty compose that
-  slot is the mic button. The button is located via UI
-  Automation (rightmost button in the compose row; a button named as a
-  voice/mic control is never clicked, because with an empty compose that
-  slot is the mic button). Posted Enter keystrokes are the fallback when
-  no button can be located.
-* **Telegram's compose is two nested Edits.** Real trace data showed the
-  compose is an outer wrapper Edit (broken ValuePattern, always reads "")
-  wrapped around the inner field that actually holds the text. After
-  landing text, the audit re-targets to the text-holding Edit whenever
-  it geometrically overlaps the chosen one (same visual field), giving
-  the injector a REAL verification channel; the confirmed inner field is
-  remembered for the rest of the session. Text landing in a
-  non-overlapping Edit (e.g. the search field) triggers one retry and
-  then an honest failure — never a blind click on the mic button.
-* **Minimized Telegram fails honestly.** Text cannot land while
-  Telegram is minimized (and accessibility reads freeze) — the orb
-  blinks red and says so. Background (behind other windows) is fully
-  supported; minimized is not.
-* **No UIA writes, ever.** Text lands exclusively via posted WM_CHAR
-  characters — never through accessibility SetValue. Real trace data
-  showed the compose's ValuePattern silently no-ops on real builds, and
-  worse: Qt FOCUSES the edit when an automation client writes its value,
-  which raised Telegram's window on the first send of every session
-  (v0.1.6). UIA is used for reading only (geometry, value lengths). After landing the text, an AUDIT
-  re-reads every Edit control (value LENGTHS only — never content):
-  text found in our compose confirms the landing; text found in a
-  different Edit (e.g. the search field) triggers one retry of the
-  compose click + text post and then an honest failure rather than ever
-  risking the mic button; text found nowhere readable means the reads
-  are stale on this build and the mouse flow proceeds on empirical
-  evidence.
-* **The aggressive fallback exists but is off.** `ALLOW_FOCUS_STEAL` in
-  config.py (default `False`) gates everything that raises Telegram to the
-  foreground: the dual-combo focus-steal submit, the UIA Send-button
-  invoke/physical click, and the clipboard paste. Enable it only if you
-  prefer "maybe sends with a visible window flash" over "never disturbs
-  your screen".
-* **A2** works when Telegram's compose box is its internally-focused
-  widget. Qt exposes one native HWND per top-level window, so the
-  characters land wherever Qt's internal focus is — inherently best-effort.
-* **B** is the safety net. It raises Telegram, clears the compose
-  deterministically (`Ctrl+A`, `Del`), pastes, hits Enter, and then
-  returns focus to the window you were actually working in.
-* `WM_KEYDOWN`/`WM_KEYUP` posts carry a properly constructed LPARAM
-  (repeat count, scan code, state bits) — zero-LPARAM posts are ignored
-  by some Qt builds. `WM_CHAR` is posted per UTF-16 code unit, so emoji
-  and astral characters survive injection intact.
-* **Clipboard preservation**: strategy B snapshots *every* HGLOBAL-backed
-  clipboard format (text, DIB images, file lists, HTML, RTF, app formats)
-  and restores them byte-for-byte — a text-only round-trip would destroy
-  a screenshot or copied-file clipboard.
+Telegram's Qt accessibility tree can expose a wrapper Edit whose
+`ValuePattern` does not write correctly. Earlier real traces also showed
+that automation writes could change focus and bring Telegram forward. The
+production injector therefore uses UI Automation for discovery, geometry,
+value-length auditing, and button identification — but not for writing the
+message text through `ValuePattern.SetValue`.
 
 ### Telegram's "Send on Ctrl+Enter" setting
 
-You don't need to configure anything — the app presses the alternate
-combo automatically if the configured one doesn't submit. Setting
-`ENTER_SEND_MODE = "ctrl+enter"` in `config.py` just makes your preferred
-combo the one tried first (marginally less visual churn in the newline
-mode).
+The app presses the configured combo first and the alternate combo as a
+fallback. `ENTER_SEND_MODE = "ctrl+enter"` changes which is tried first.
 
 ---
 
@@ -147,10 +94,10 @@ mode).
 | Color | Meaning |
 |---|---|
 | blue | Telegram window located — ready |
-| gray | Telegram not found (it starts working the moment Telegram opens) |
+| gray | Telegram not found |
 | amber pulse | injection in flight |
 | green flash | sent |
-| red flash | failed (expand the bar to see the error message) |
+| red flash | failed |
 
 ---
 
@@ -163,8 +110,8 @@ only correct way to close the app.
 ## The trace log — what to send when something misbehaves
 
 Every send attempt writes a stage-by-stage trace (strategy labels,
-pattern availability, verification results, button names — **never
-message content**) to:
+pattern availability, verification results, button names, geometry,
+focused-HWND decisions — **never message content**) to:
 
 ```
 %APPDATA%\FloatingBar\trace.log
@@ -178,56 +125,56 @@ only ever holds the current session.
 ## Diagnostics
 
 A read-only diagnostic that finds the Telegram window and ranks its Edit
-controls (never reading message content):
+controls without reading message content:
 
 ```bat
 python tools/diagnose.py
 ```
 
-It also lists every Button near the compose box with its accessible name
-and InvokePattern availability — exactly what the send-button fallback
-needs to know on your machine.
+It lists the focused HWND, chosen compose click point, Edit runtime IDs,
+and every Button near the compose with its accessible name and
+InvokePattern availability.
 
-And a live end-to-end test of the cascade:
+A live end-to-end test uses the **same hardened injector as the app**:
 
 ```bat
 python tools/diagnose.py --send "test 123"
 ```
+
+---
 
 ## Troubleshooting
 
 * **A solid dark box instead of transparency** — your Tk build mishandles
   `-alpha` combined with `-transparentcolor`. Set `USE_WINDOW_ALPHA = False`
   in `config.py`; the color-key alone keeps working.
-* **Text never arrives** — run `tools/diagnose.py`; it prints exactly which
-  strategy the compose box supports. If no `Edit` control is listed, no
-  chat is open in Telegram.
+* **Text never arrives** — run `tools/diagnose.py`; it prints the selected
+  compose geometry, focused HWND, and UIA control information. If no `Edit`
+  control is listed, no chat is open in Telegram.
 * **"Telegram Desktop doesn't seem to be running"** while it is — a
   portable/repackaged Telegram may rename the exe. Edit
   `PROCESS_NAME_RE` / `TITLE_FALLBACK_RE` in `config.py`.
 * **The orb is blue but sending fails** — most likely UIPI: don't run
   Floating Bar (or Telegram) elevated while the other runs normally.
 * **Telegram must not be minimized.** Background (behind other windows)
-  is fine and fully supported — but posted clicks target client
-  coordinates, which are meaningless while a window is minimized. Keep
-  Telegram open on any monitor.
+  is supported — minimized windows cannot reliably receive the posted
+  client-coordinate clicks.
 
 ## Privacy
 
 No message content is ever logged, stored, or persisted — the app holds
-the typed text in memory only until it is injected. The verification
-read-backs compare the compose box's value against the text we ourselves
-just wrote; the value is used for the comparison and immediately discarded.
-No telemetry. No network. No Telegram credentials.
+the typed text in memory only until it is injected. Verification uses
+lengths/booleans and never records message content. No telemetry. No
+network. No Telegram credentials.
 
 ## Limitations (accepted, by design)
 
 * Telegram Desktop on Windows only (v1).
-* The compose box is located heuristically (largest bottom-half `Edit`
-  control) — a future Telegram UI change can break this until the
-  heuristic is updated.
+* The compose box is located heuristically and then refined using real
+  runtime geometry and prior-session confirmation.
 * Injection targets **whatever chat is currently open** — that's the
   feature, and also the footprint: if you send while the wrong chat is
   focused, the text goes there.
-* If strategy B runs while your clipboard is mid-use by another app,
-  there's a small race window on restore (retry-backed, best effort).
+* If the opt-in clipboard strategy runs while another app is actively
+  changing the clipboard, there is a small race window during restore;
+  the guard retries and preserves all captured HGLOBAL-backed formats.
