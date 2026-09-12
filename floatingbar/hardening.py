@@ -1,7 +1,8 @@
 """Safety hardening layered on top of the established Telegram injector.
 
 This module keeps the proven injector implementation intact while making
-focus targeting, audit selection, and submission verification safer.
+focus targeting, target-scope validation, audit selection, and submission
+verification safer.
 """
 
 import time
@@ -32,14 +33,28 @@ def _is_explicit_send_name(name: str) -> bool:
 class HardenedTelegramInjector(TelegramInjector):
     """Production reliability layer over the established cascade."""
 
-    def _pick_compose_text_edit(self, box, fallback, entries):
-        """Prefer a positive-value Edit that overlaps the chosen compose.
+    def _assert_target_scope(self, hwnd: int, stage: str) -> None:
+        """Refuse to continue if Telegram's top-level target changed mid-send."""
+        try:
+            pid = winapi.get_window_pid(hwnd)
+        except Exception:
+            pid = 0
+        try:
+            stable = self.target.scope_matches(hwnd, pid)
+        except Exception as exc:
+            trace.trace(f"scope check failed at {stage}: {exc}")
+            stable = False
+        if not stable:
+            trace.trace(
+                f"scope changed at {stage}; refusing to continue with stale target"
+            )
+            raise InjectionFailed(
+                "Telegram changed or restarted while the message was being sent. "
+                "The send was stopped safely; try again."
+            )
 
-        Telegram may already have non-empty text in another Edit, such as the
-        search field. Among overlapping positive-value controls, the smaller
-        control is preferred because the real inner compose Edit observed in
-        earlier traces is slightly smaller than its wrapper.
-        """
+    def _pick_compose_text_edit(self, box, fallback, entries):
+        """Prefer a positive-value Edit that overlaps the chosen compose."""
         overlapping = []
         for edit, _line in entries:
             try:
@@ -63,6 +78,7 @@ class HardenedTelegramInjector(TelegramInjector):
 
     def _land_text(self, box, hwnd: int, text: str):
         """Target the compose first, then post characters to its focused child."""
+        self._assert_target_scope(hwnd, "before compose click")
         try:
             point = self.target.compose_click_point(box)
             if point is not None:
@@ -77,6 +93,7 @@ class HardenedTelegramInjector(TelegramInjector):
         except Exception as exc:
             trace.trace(f"phase 0 compose click failed: {exc}")
 
+        self._assert_target_scope(hwnd, "after compose click")
         focused = winapi.get_focused_hwnd(hwnd)
         target_hwnd = hwnd
         try:
@@ -88,8 +105,8 @@ class HardenedTelegramInjector(TelegramInjector):
                     trace.trace(f"phase 0 focused child hwnd={focused}")
                 else:
                     trace.trace(
-                        f"phase 0 focused hwnd={focused} belongs to a "
-                        "different process; using Telegram top-level"
+                        f"phase 0 focused hwnd={focused} belongs to a different process; "
+                        "using Telegram top-level"
                     )
         except Exception as exc:
             trace.trace(f"phase 0 focused-child lookup failed: {exc}")
@@ -126,13 +143,13 @@ class HardenedTelegramInjector(TelegramInjector):
             return "none", None
         if preferred is not text_edit:
             trace.trace(
-                "audit: overriding first text Edit with overlapping "
-                "compose candidate"
+                "audit: overriding first text Edit with overlapping compose candidate"
             )
         return "found", preferred
 
     def _audit_and_retarget(self, box, hwnd: int, text: str):
         """Audit and re-target while using the focused native child on retry."""
+        self._assert_target_scope(hwnd, "before audit")
         time.sleep(config.AUDIT_SETTLE_MS / 1000.0)
         _landing, real = self._audit(box)
         if real is None:
@@ -147,9 +164,9 @@ class HardenedTelegramInjector(TelegramInjector):
             return "compose", real
 
         trace.trace(
-            "landing in a different field — retrying compose click + "
-            "focused-child text post"
+            "landing in a different field — retrying compose click + focused-child text post"
         )
+        self._assert_target_scope(hwnd, "before compose retry")
         point = self.target.compose_click_point(box)
         if point:
             try:
@@ -158,6 +175,7 @@ class HardenedTelegramInjector(TelegramInjector):
             except Exception as exc:
                 trace.trace(f"compose retry click failed: {exc}")
 
+        self._assert_target_scope(hwnd, "after compose retry click")
         focused = winapi.get_focused_hwnd(hwnd)
         target_hwnd = hwnd
         try:
@@ -193,6 +211,8 @@ class HardenedTelegramInjector(TelegramInjector):
     def _submit_invisible(self, box, hwnd: int, primary_ctrl: bool,
                           landing: str):
         """Submit invisibly with bounded asynchronous-clear verification."""
+        self._assert_target_scope(hwnd, "before submission")
+
         if landing != "compose":
             info = self.target.send_button_click(near_box=box)
             if info is not None:
@@ -206,9 +226,9 @@ class HardenedTelegramInjector(TelegramInjector):
                         "safe Send button; message submission was refused."
                     )
                 if _is_explicit_send_name(name):
+                    self._assert_target_scope(hwnd, "before unverified Send click")
                     trace.trace(
-                        f"unverified submit: explicit Send button at "
-                        f"({cx},{cy}) name={name!r}"
+                        f"unverified submit: explicit Send button at ({cx},{cy}) name={name!r}"
                     )
                     winapi.post_click(hwnd, cx, cy)
                     time.sleep(config.PASTE_SETTLE_MS / 1000.0)
@@ -219,11 +239,12 @@ class HardenedTelegramInjector(TelegramInjector):
                 )
             else:
                 trace.trace(
-                    "unverified submit: no button candidate; "
-                    "falling back to posted Enter combos"
+                    "unverified submit: no button candidate; falling back to posted Enter combos"
                 )
+            self._assert_target_scope(hwnd, "before unverified Enter")
             winapi.post_enter(hwnd, ctrl=primary_ctrl)
             time.sleep(config.POSTED_ENTER_WAIT_MS / 1000.0)
+            self._assert_target_scope(hwnd, "before alternate unverified Enter")
             winapi.post_enter(hwnd, ctrl=not primary_ctrl)
             time.sleep(config.POSTED_ENTER_WAIT_MS / 1000.0)
             return "posted-enter (unverified)"
@@ -231,9 +252,7 @@ class HardenedTelegramInjector(TelegramInjector):
         before = self._value_length(box)
         trace.trace(f"submit: verified channel, compose value_len={before}")
         if before == 0:
-            raise InjectionFailed(
-                "The message text is not in Telegram's compose box."
-            )
+            raise InjectionFailed("The message text is not in Telegram's compose box.")
         if before < 0:
             raise InjectionFailed(
                 "Telegram's compose value could not be verified before submission."
@@ -242,12 +261,14 @@ class HardenedTelegramInjector(TelegramInjector):
         info = self.target.send_button_click(near_box=box)
         if info is None:
             trace.trace("send button: no candidate — posting enter combos")
+            self._assert_target_scope(hwnd, "before primary Enter")
             winapi.post_enter(hwnd, ctrl=primary_ctrl)
             time.sleep(config.POSTED_ENTER_WAIT_MS / 1000.0)
             verified = self._poll_compose_clear(lambda: self._value_length(box))
             if verified is True:
                 return "posted-enter (VERIFIED)"
             if verified is False:
+                self._assert_target_scope(hwnd, "before alternate Enter")
                 winapi.post_enter(hwnd, ctrl=not primary_ctrl)
                 verified = self._poll_compose_clear(lambda: self._value_length(box))
                 if verified is True:
@@ -263,14 +284,13 @@ class HardenedTelegramInjector(TelegramInjector):
 
         name, cx, cy = info
         if _is_voice_name(name):
-            trace.trace(
-                f"button scan returned the mic ({name!r}) — refusing to click"
-            )
+            trace.trace(f"button scan returned the mic ({name!r}) — refusing to click")
             raise InjectionFailed(
                 "Telegram's voice button is showing — the compose is empty, "
                 "so the text did not land."
             )
 
+        self._assert_target_scope(hwnd, "before Send click")
         trace.trace(f"posted click on send button at ({cx},{cy}) name={name!r}")
         winapi.post_click(hwnd, cx, cy)
         verified = self._poll_compose_clear(lambda: self._value_length(box))
@@ -294,6 +314,7 @@ class HardenedTelegramInjector(TelegramInjector):
                 delay=config.CLIPBOARD_RETRY_DELAY_S,
             ):
                 hwnd = self.target.hwnd or 0
+                self._assert_target_scope(hwnd, "before clipboard recovery")
                 winapi.ensure_restored(hwnd)
                 if not winapi.set_foreground_window(hwnd):
                     return False
@@ -319,6 +340,7 @@ class HardenedTelegramInjector(TelegramInjector):
                 time.sleep(config.PASTE_SETTLE_MS / 1000.0)
                 if self._value_length(box) == 0:
                     return True
+                self._assert_target_scope(hwnd, "before recovery Send click")
                 info = self.target.send_button_click(near_box=box)
                 if info and not _is_voice_name(info[0]):
                     winapi.post_click(hwnd, info[1], info[2])
