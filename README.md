@@ -37,7 +37,7 @@ Windows and published as a GitHub Release with **FloatingBar.exe**.
 
 https://github.com/pyraxxz/Floating-Bar/releases
 
-Current release: **v0.1.11**.
+Current release: **v0.1.12**.
 
 Prefer building it yourself? Right-click `build.ps1` → *Run with
 PowerShell* (or run the equivalent manually):
@@ -49,32 +49,37 @@ pyinstaller --onefile --noconsole --name FloatingBar main.py
 
 ---
 
-## How sending works (v0.1.11)
+## How sending works (v0.1.12)
 
 Sending is designed to avoid bringing Telegram to the foreground. The
 production path is a hardened cascade:
 
 1. Locate Telegram by process image name and choose the most likely compose
    Edit by geometry.
-2. Post an invisible click into that compose field.
-3. Ask Windows which child HWND currently owns focus and, when it belongs to
+2. Capture the Telegram top-level window/process scope for this send.
+3. Post an invisible click into that compose field.
+4. Ask Windows which child HWND currently owns focus and, when it belongs to
    Telegram, post UTF-16 `WM_CHAR` units directly to that child. Fall back to
    the top-level Telegram window only when necessary.
-4. Audit the Edit controls using **value lengths only**. If another Edit is
+5. Audit the Edit controls using **value lengths only**. If another Edit is
    already non-empty (for example, the search field), prefer the positive-value
    Edit that geometrically overlaps the selected compose.
-5. Remember the confirmed inner compose runtime ID only for the current
+6. Remember the confirmed inner compose runtime ID only for the current
    Telegram window/process. After Telegram restarts, or when the remembered
    control no longer has valid lower-window compose geometry, the cache is
    discarded and the compose is rediscovered.
-6. When the compose is verifiably holding the text, submit through the
+7. Before every critical click/keypress, verify that the same Telegram
+   top-level HWND/PID is still the active target. A restart or window swap
+   aborts the current send safely instead of risking delivery into a changed
+   target.
+8. When the compose is verifiably holding the text, submit through the
    Send-button/Enter cascade with strict voice/mic rejection. Unnamed button
    candidates must remain in the compose row and to its right; unrelated
    lower-window controls are ignored.
-7. Submission verification is bounded and asynchronous: a send click is
+9. Submission verification is bounded and asynchronous: a send click is
    allowed time to clear the compose before it is classified as a failure,
    reducing false failures and avoiding unnecessary duplicate fallback sends.
-8. When the landing cannot be verified, only an explicitly named `Send`
+10. When the landing cannot be verified, only an explicitly named `Send`
    button can be clicked. Ambiguous controls are rejected; posted Enter
    combinations are the fallback.
 
@@ -124,7 +129,8 @@ only correct way to close the app.
 
 Every send attempt writes a stage-by-stage trace (strategy labels,
 pattern availability, verification results, button names, geometry,
-focused-HWND decisions — **never message content**) to:
+focused-HWND decisions, target-scope decisions — **never message content**)
+to:
 
 ```
 %APPDATA%\FloatingBar\trace.log
@@ -169,9 +175,11 @@ python tools/diagnose.py --send "test 123"
   `PROCESS_NAME_RE` / `TITLE_FALLBACK_RE` in `config.py`.
 * **The orb is blue but sending fails** — most likely UIPI: don't run
   Floating Bar (or Telegram) elevated while the other runs normally.
-* **Mixed-DPI/multi-monitor setup** — v0.1.11 enables per-monitor DPI
+* **Mixed-DPI/multi-monitor setup** — v0.1.11+ enables per-monitor DPI
   awareness before creating the UI. Restart the app after changing Windows
   display scaling.
+* **Telegram restarts during a send** — v0.1.12 aborts that send safely and
+  asks you to try again rather than continuing against a stale HWND.
 * **Telegram must not be minimized.** Background (behind other windows)
   is supported — minimized windows cannot reliably receive the posted
   client-coordinate clicks.
