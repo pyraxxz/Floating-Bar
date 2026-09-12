@@ -23,8 +23,7 @@ from . import winapi
 
 class _Band:
     def __init__(self, left, top, right, bottom):
-        self.left, self.top = left, top
-        self.right, self.bottom = right, bottom
+        self.left, self.top, self.right, self.bottom = left, top, right, bottom
 
 
 class TelegramNotFound(Exception):
@@ -284,8 +283,64 @@ class TelegramTarget:
                 text_edit = edit
         return text_edit, entries
 
+    @staticmethod
+    def _button_evidence_score(button, rect, name, compose_rect, window_rect) -> float:
+        """Score a button using semantic, pattern, and compose-row evidence."""
+        lname = (name or "").strip().lower()
+        if any(term in lname for term in ("voice", "record", "mic", "audio")):
+            return -1.0
+
+        score = 0.0
+        if "send" in lname:
+            score += 100.0
+
+        try:
+            automation_id = (button.element_info.automation_id or "").strip().lower()
+        except Exception:
+            automation_id = ""
+        if "send" in automation_id:
+            score += 30.0
+
+        try:
+            button.iface_invoke
+            score += 15.0
+        except Exception:
+            pass
+
+        center_x = (rect.left + rect.right) / 2.0
+        center_y = (rect.top + rect.bottom) / 2.0
+        if compose_rect is not None:
+            compose_center_y = (compose_rect.top + compose_rect.bottom) / 2.0
+            compose_h = max(6, compose_rect.bottom - compose_rect.top)
+            row_limit = max(18.0, 1.75 * compose_h)
+            row_distance = abs(center_y - compose_center_y)
+            if row_distance > row_limit:
+                return -1.0
+            score += 40.0 * max(0.0, 1.0 - (row_distance / row_limit))
+
+            gap = center_x - compose_rect.right
+            if gap >= 0:
+                score += 25.0 / (1.0 + gap / 40.0)
+            elif center_x >= compose_rect.left:
+                score += 5.0
+            else:
+                score -= 35.0
+        else:
+            bottom_band = max(
+                1.0,
+                float(window_rect.bottom - window_rect.top),
+            )
+            vertical = (center_y - window_rect.top) / bottom_band
+            score += max(0.0, min(1.0, vertical)) * 10.0
+
+        width = max(1.0, rect.right - rect.left)
+        height = max(1.0, rect.bottom - rect.top)
+        if 12.0 <= width <= 120.0 and 12.0 <= height <= 120.0:
+            score += 5.0
+        return score
+
     def send_button_click(self, near_box=None):
-        """Locate a safe Send-button candidate, with compose-row geometry."""
+        """Locate a safe Send-button candidate, with compose-row evidence."""
         hwnd = self.hwnd
         if not hwnd:
             return None
@@ -318,8 +373,7 @@ class TelegramTarget:
         )
         bands.append(_Band(wrect.left, strip_top, wrect.right, wrect.bottom))
 
-        explicit = []
-        unnamed = []
+        candidates = []
         for button in buttons:
             try:
                 r = button.rectangle()
@@ -334,50 +388,41 @@ class TelegramTarget:
             except Exception:
                 pass
 
-            center_x = (r.left + r.right) / 2.0
-            center_y = (r.top + r.bottom) / 2.0
-            lname = name.lower()
-            if any(k in lname for k in ("voice", "record", "mic", "audio")):
-                continue
-
-            if compose_rect is not None:
-                compose_center_y = (compose_rect.top + compose_rect.bottom) / 2.0
-                compose_h = max(6, compose_rect.bottom - compose_rect.top)
-                row_distance = abs(center_y - compose_center_y)
-                if row_distance > max(18, 1.75 * compose_h):
-                    continue
-            else:
-                row_distance = 0.0
-
-            if "send" in lname:
-                x_distance = abs(center_x - (
-                    compose_rect.right if compose_rect else wrect.right
-                ))
-                explicit.append((row_distance, x_distance, name, r))
-                continue
-
-            if compose_rect is not None and center_x < compose_rect.right - 32:
-                continue
-            unnamed.append((row_distance, -center_x, name, r))
-
-        if explicit:
-            explicit.sort(key=lambda item: (item[0], item[1]))
-            _, _, name, r = explicit[0]
-            return (
+            score = self._button_evidence_score(
+                button,
+                r,
                 name,
-                int((r.left + r.right) / 2.0 - wrect.left),
-                int((r.top + r.bottom) / 2.0 - wrect.top),
+                compose_rect,
+                wrect,
             )
+            if score < 0:
+                continue
+            trace.trace(
+                f"button candidate: score={score:.1f} name={name!r} "
+                f"rect=({r.left},{r.top})-({r.right},{r.bottom})"
+            )
+            candidates.append((score, name, r))
 
-        if unnamed:
-            unnamed.sort(key=lambda item: (item[0], item[1]))
-            _, _, name, r = unnamed[0]
-            return (
-                name,
-                int((r.left + r.right) / 2.0 - wrect.left),
-                int((r.top + r.bottom) / 2.0 - wrect.top),
-            )
-        return None
+        if not candidates:
+            return None
+
+        # Unnamed icon candidates must clear a modest evidence threshold. A
+        # weakly-supported icon should fall through to Enter rather than risk
+        # clicking a different toolbar control.
+        candidates = [
+            item for item in candidates
+            if item[1] or item[0] >= 35.0
+        ]
+        if not candidates:
+            return None
+
+        candidates.sort(key=lambda item: (-item[0], item[2].left, item[2].top))
+        _, name, r = candidates[0]
+        return (
+            name,
+            int((r.left + r.right) / 2.0 - wrect.left),
+            int((r.top + r.bottom) / 2.0 - wrect.top),
+        )
 
     @staticmethod
     def _in_band(r, band) -> bool:
