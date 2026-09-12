@@ -2,13 +2,15 @@
 
 Run from the repo root:
 
-    python tools/diagnose.py                     # window + compose + buttons
-    python tools/diagnose.py --send "test 123"   # run the hardened live send
+    python tools/diagnose.py                         # window + compose + buttons
+    python tools/diagnose.py --preflight             # read-only send readiness
+    python tools/diagnose.py --send "test 123"       # run the hardened live send
 
-The first form is completely read-only (it inspects window geometry, control
-identifiers and names — never message content). The second form actually
-sends text to the currently open Telegram chat using the same hardened
-injector as the production orb.
+The default and --preflight forms are completely read-only: they inspect
+window geometry, control identifiers, focus ownership, and safety evidence —
+never message content. The --send form actually sends text to the currently
+open Telegram chat using the same hardened injector family as the production
+orb.
 Everything it reports is also written to the app's trace log:
 
     %APPDATA%\\FloatingBar\\trace.log
@@ -24,23 +26,38 @@ import config
 from floatingbar import trace
 from floatingbar import winapi
 from floatingbar.hardening import HardenedTelegramInjector
+from floatingbar.preflight import run as run_preflight
 from floatingbar.target import TelegramTarget, TelegramNotFound
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--send", metavar="TEXT", help="run a live send test")
-    args = parser.parse_args()
+def _print_preflight(result) -> None:
+    print("Safe-send preflight")
+    print(f"  ready={result.ready}")
+    print(f"  telegram_hwnd={result.hwnd}  pid={result.pid}")
+    print(
+        f"  minimized={result.minimized}  scope_stable={result.scope_stable}"
+    )
+    print(
+        f"  focused_hwnd={result.focused_hwnd} "
+        f"focused_pid={result.focused_pid}"
+    )
+    print(f"  compose_click={result.compose_click}")
+    if result.button_available:
+        print(
+            f"  send_candidate=name={result.send_name!r} "
+            f"point={result.send_point}"
+        )
+    else:
+        print("  send_candidate=none (posted Enter fallback is available)")
+    if result.reasons:
+        print("  notes:")
+        for reason in result.reasons:
+            print(f"    - {reason}")
+    else:
+        print("  notes: none")
 
-    print("Scanning for Telegram Desktop ...")
-    target = TelegramTarget()
-    target.refresh()
-    hwnd = target.hwnd
-    if not hwnd:
-        print("  NOT FOUND: no telegram.exe top-level window.")
-        print("  Is Telegram Desktop installed and running?")
-        sys.exit(1)
 
+def _run_full_diagnostic(target: TelegramTarget, hwnd: int) -> int:
     title = winapi.get_window_title(hwnd)
     pid = winapi.get_window_pid(hwnd)
     focused = winapi.get_focused_hwnd(hwnd)
@@ -59,11 +76,11 @@ def main() -> None:
         edits = window.descendants(control_type="Edit")
     except Exception as e:
         print(f"  FAILED to enumerate: {e}")
-        sys.exit(2)
+        return 2
 
     if not edits:
         print("  no Edit controls — is a chat actually open?")
-        sys.exit(2)
+        return 2
 
     for i, edit in enumerate(edits):
         try:
@@ -110,7 +127,7 @@ def main() -> None:
         print(f"  compose runtime_id={compose_rid}")
     except TelegramNotFound as e:
         print(f"\nCompose box selection failed: {e}")
-        sys.exit(3)
+        return 3
 
     print("\nScanning for Button controls near the compose box ...")
     try:
@@ -168,22 +185,62 @@ def main() -> None:
         "(if a send fails in the app, open the trace folder from the "
         "orb's right-click menu and share the log)"
     )
+    return 0
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    actions = parser.add_mutually_exclusive_group()
+    actions.add_argument(
+        "--preflight",
+        action="store_true",
+        help="run a read-only safe-send readiness check",
+    )
+    actions.add_argument("--send", metavar="TEXT", help="run a live send test")
+    args = parser.parse_args()
+
+    preferred_hwnd = winapi.get_foreground_window()
+    target = TelegramTarget()
+
+    if args.preflight:
+        result = run_preflight(target, preferred_hwnd=preferred_hwnd)
+        _print_preflight(result)
+        print(f"\nTrace log location: {trace.path()}")
+        return 0 if result.ready else 3
+
+    print("Scanning for Telegram Desktop ...")
+    target.refresh(preferred_hwnd=preferred_hwnd)
+    hwnd = target.hwnd
+    if not hwnd:
+        print("  NOT FOUND: no telegram.exe top-level window.")
+        print("  Is Telegram Desktop installed and running?")
+        return 1
+
+    status = _run_full_diagnostic(target, hwnd)
+    if status != 0:
+        return status
 
     if args.send:
         injector = HardenedTelegramInjector(target)
         try:
-            result = injector.send(args.send)
+            result = injector.send(args.send, restore_hwnd=preferred_hwnd)
             print(f"  -> OK, hardened strategy used: {result}")
         except Exception as e:
             print(f"  -> FAILED: {e}")
             print(f"  (full stage-by-stage detail in {trace.path()})")
-            sys.exit(4)
+            return 4
     else:
         print(
-            '\nAll good. Test a live send with:  '
+            '\nAll good. Run a read-only readiness check with:  '
+            'python tools/diagnose.py --preflight'
+        )
+        print(
+            'Or test a live send with:  '
             'python tools/diagnose.py --send "test 123"'
         )
 
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
