@@ -20,7 +20,7 @@ def main() -> None:
     # mixed-DPI monitors. Failure is non-fatal for restricted environments.
     dpi.enable_per_monitor_awareness()
 
-    from floatingbar.overlay import OrbRelayWindow
+    from floatingbar.recovery_overlay import OrbRelayWindow
 
     app = OrbRelayWindow()
     try:
