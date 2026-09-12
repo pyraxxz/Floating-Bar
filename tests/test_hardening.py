@@ -185,6 +185,36 @@ class HardeningTests(unittest.TestCase):
         pasted = [call for call in box.type_keys.call_args_list if call.args and call.args[0] == "^v"]
         self.assertEqual(pasted, [])
 
+    def test_two_consecutive_sends_reuse_the_orchestrator_safely(self):
+        target = Mock()
+        target.hwnd = 123
+        box1, box2 = object(), object()
+        target.compose_box.side_effect = [box1, box2]
+        injector = HardenedTelegramInjector(target)
+        injector._land_text = Mock(return_value="A2")
+        injector._audit_and_retarget = Mock(
+            side_effect=[("compose", box1), ("compose", box2)]
+        )
+        injector._submit_invisible = Mock(
+            side_effect=["posted-click (VERIFIED)", "posted-click (VERIFIED)"]
+        )
+
+        with patch("floatingbar.injector.winapi.is_minimized", return_value=False), \
+             patch("floatingbar.injector.winapi.get_foreground_window", return_value=999), \
+             patch.object(injector, "_restore_foreground"):
+            first = injector.send("first")
+            second = injector.send("second")
+
+        self.assertEqual(first, "posted-click (VERIFIED)")
+        self.assertEqual(second, "posted-click (VERIFIED)")
+        self.assertEqual(target.compose_box.call_count, 2)
+        self.assertEqual(injector._submit_invisible.call_count, 2)
+        self.assertEqual(
+            injector._land_text.call_args_list,
+            [unittest.mock.call(box1, 123, "first"),
+             unittest.mock.call(box2, 123, "second")],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
