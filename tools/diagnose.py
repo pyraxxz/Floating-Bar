@@ -115,9 +115,11 @@ def main() -> None:
     print("\nScanning for Button controls near the compose box ...")
     try:
         buttons = window.descendants(control_type="Button")
+        window_rect = window.rectangle()
     except Exception as e:
         print(f"  enumeration failed: {e}")
         buttons = []
+        window_rect = rect
     near = 0
     for b in buttons:
         try:
@@ -135,12 +137,24 @@ def main() -> None:
         except Exception:
             has_invoke = "no"
         try:
+            automation_id = (b.element_info.automation_id or "")
+        except Exception:
+            automation_id = ""
+        evidence = TelegramTarget._button_evidence_score(
+            b,
+            r,
+            name,
+            rect,
+            window_rect,
+        )
+        try:
             rid = tuple(b.element_info.runtime_id)
         except Exception:
             rid = ()
         print(
             f"  Button: name={name!r} at ({r.left},{r.top})-({r.right},{r.bottom}) "
-            f"invoke_pattern={has_invoke} runtime_id={rid}"
+            f"invoke_pattern={has_invoke} automation_id={automation_id!r} "
+            f"evidence_score={evidence:.1f} runtime_id={rid}"
         )
         near += 1
     if not near:
