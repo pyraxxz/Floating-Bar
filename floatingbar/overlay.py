@@ -41,6 +41,7 @@ class OrbRelayWindow(tk.Tk):
         self._active_attempt_id = 0
         self._work_hwnd = 0
         self._retry_draft = None
+        self._retry_target_hwnd = 0
         self._active_send_text = ""
         self._feedback_message = None
         self._feedback_color = config.ERROR_COLOR
@@ -189,13 +190,15 @@ class OrbRelayWindow(tk.Tk):
     def _retry_failed_draft(self) -> None:
         """Restore a failed draft for an explicit, user-confirmed retry.
 
-        The current foreground window is captured before focus moves to our
-        entry, preserving the same multi-window Telegram targeting semantics
-        as a normal orb expansion. The message is never sent automatically.
+        Prefer the exact Telegram target captured by the failed send. This is
+        safer than sampling the current foreground window because opening the
+        orb/right-click menu can itself change foreground focus. The message
+        is never sent automatically; Enter is still required.
         """
         if self._sending or not self._retry_draft:
             return
-        self._work_hwnd = winapi.get_foreground_window()
+        preferred = self._retry_target_hwnd
+        self._work_hwnd = preferred or winapi.get_foreground_window()
         self._hide_feedback()
         self._show_bar()
         self._set_retry_menu_enabled(True)
@@ -354,6 +357,7 @@ class OrbRelayWindow(tk.Tk):
         self._reset_idle()
         if self._retry_draft is not None:
             self._retry_draft = None
+            self._retry_target_hwnd = 0
             self._set_retry_menu_enabled(False)
         if self._feedback_message:
             self._hide_feedback()
@@ -371,6 +375,7 @@ class OrbRelayWindow(tk.Tk):
         self._active_attempt_id = attempt_id
         self._active_send_text = text
         self._retry_draft = None
+        self._retry_target_hwnd = 0
         self._set_retry_menu_enabled(False)
         work_hwnd = self._work_hwnd
         self._hide_feedback()
@@ -442,8 +447,10 @@ class OrbRelayWindow(tk.Tk):
         if evidence.state is EvidenceState.FAILED:
             if evidence.retryable and active_text:
                 self._retry_draft = active_text
+                self._retry_target_hwnd = self._work_hwnd
                 self._set_retry_menu_enabled(True)
             else:
+                self._retry_target_hwnd = 0
                 self._set_retry_menu_enabled(False)
             self._flash_orb(config.ORB_COLOR_ERROR)
             self._show_feedback(
@@ -452,6 +459,7 @@ class OrbRelayWindow(tk.Tk):
             )
         elif evidence.confirmed:
             self._retry_draft = None
+            self._retry_target_hwnd = 0
             self._set_retry_menu_enabled(False)
             self._hide_feedback()
             self._flash_orb(config.ORB_COLOR_OK)
@@ -459,6 +467,7 @@ class OrbRelayWindow(tk.Tk):
             # Never offer an uncertain message as an automatic retry: it may
             # already exist in Telegram and retrying could duplicate it.
             self._retry_draft = None
+            self._retry_target_hwnd = 0
             self._set_retry_menu_enabled(False)
             self._flash_orb(config.ORB_COLOR_UNVERIFIED)
             self._show_feedback(
@@ -467,6 +476,7 @@ class OrbRelayWindow(tk.Tk):
             )
         else:
             self._retry_draft = None
+            self._retry_target_hwnd = 0
             self._set_retry_menu_enabled(False)
             self._flash_orb(config.ORB_COLOR_ERROR)
             self._show_feedback(
