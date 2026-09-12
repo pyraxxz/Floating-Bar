@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import Mock, patch
 
 from floatingbar.evidence import EvidenceState, from_result
 from floatingbar.overlay import OrbRelayWindow, _classify_send_result
@@ -60,6 +61,90 @@ class OverlayStateTests(unittest.TestCase):
 
         self.assertTrue(window._sending)
         self.assertEqual(window._active_send_text, "new message")
+
+    def test_failed_send_enables_retry_menu_and_preserves_text(self):
+        window = OrbRelayWindow.__new__(OrbRelayWindow)
+        window._active_attempt_id = 1
+        window._sending = True
+        window._active_send_text = "retry me"
+        window._blink_job = None
+        window._retry_draft = None
+        window._flash_orb = Mock()
+        window._show_feedback = Mock()
+        window._hide_feedback = Mock()
+        window._set_retry_menu_enabled = Mock()
+
+        window._send_finished(1, None, "Telegram unavailable")
+
+        self.assertEqual(window._retry_draft, "retry me")
+        window._set_retry_menu_enabled.assert_called_once_with(True)
+
+    def test_confirmed_send_disables_retry_menu(self):
+        window = OrbRelayWindow.__new__(OrbRelayWindow)
+        window._active_attempt_id = 1
+        window._sending = True
+        window._active_send_text = "sent"
+        window._blink_job = None
+        window._retry_draft = "old draft"
+        window._flash_orb = Mock()
+        window._show_feedback = Mock()
+        window._hide_feedback = Mock()
+        window._set_retry_menu_enabled = Mock()
+
+        window._send_finished(1, "posted-click (VERIFIED)", None)
+
+        self.assertIsNone(window._retry_draft)
+        window._set_retry_menu_enabled.assert_called_once_with(False)
+
+    def test_uncertain_send_disables_retry_menu_and_drops_draft(self):
+        window = OrbRelayWindow.__new__(OrbRelayWindow)
+        window._active_attempt_id = 1
+        window._sending = True
+        window._active_send_text = "maybe sent"
+        window._blink_job = None
+        window._retry_draft = "old draft"
+        window._flash_orb = Mock()
+        window._show_feedback = Mock()
+        window._hide_feedback = Mock()
+        window._set_retry_menu_enabled = Mock()
+
+        window._send_finished(1, "posted-click (verification-unavailable)", None)
+
+        self.assertIsNone(window._retry_draft)
+        window._set_retry_menu_enabled.assert_called_once_with(False)
+
+    def test_retry_failed_draft_restores_draft_without_sending(self):
+        window = OrbRelayWindow.__new__(OrbRelayWindow)
+        window._sending = False
+        window._retry_draft = "retry me"
+        window._work_hwnd = 0
+        window._hide_feedback = Mock()
+        window._show_bar = Mock()
+        window._set_retry_menu_enabled = Mock()
+
+        with patch(
+            "floatingbar.overlay.winapi.get_foreground_window",
+            return_value=456,
+        ):
+            window._retry_failed_draft()
+
+        self.assertEqual(window._work_hwnd, 456)
+        window._hide_feedback.assert_called_once_with()
+        window._show_bar.assert_called_once_with()
+        window._set_retry_menu_enabled.assert_called_once_with(True)
+
+    def test_retry_draft_is_noop_when_sending(self):
+        window = OrbRelayWindow.__new__(OrbRelayWindow)
+        window._sending = True
+        window._retry_draft = "retry me"
+        window._hide_feedback = Mock()
+        window._show_bar = Mock()
+        window._set_retry_menu_enabled = Mock()
+
+        window._retry_failed_draft()
+
+        window._hide_feedback.assert_not_called()
+        window._show_bar.assert_not_called()
 
 
 if __name__ == "__main__":
