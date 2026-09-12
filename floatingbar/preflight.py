@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Optional, Tuple
 
 from . import winapi
+from .context import capture
 from .target import TelegramNotFound, TelegramTarget
 
 
@@ -25,11 +26,23 @@ class PreflightResult:
     compose_click: Optional[Tuple[int, int]] = None
     send_name: str = ""
     send_point: Optional[Tuple[int, int]] = None
+    submission_path: str = "unavailable"
     scope_stable: bool = False
+    context_guard_available: bool = False
+    context_stable: bool = False
 
     @property
     def button_available(self) -> bool:
         return bool(self.send_name or self.send_point)
+
+    @property
+    def status(self) -> str:
+        """Human-readable safety state for diagnostics."""
+        if not self.ready:
+            return "blocked"
+        if not self.context_guard_available:
+            return "ready-with-degraded-context"
+        return "ready"
 
 
 def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
@@ -56,6 +69,7 @@ def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
     compose_click = None
     send_name = ""
     send_point = None
+    submission_path = "unavailable"
 
     try:
         box = target.compose_box()
@@ -67,7 +81,9 @@ def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
             if info is not None:
                 send_name = info[0] or ""
                 send_point = (info[1], info[2])
+                submission_path = "send-button"
             else:
+                submission_path = "enter-fallback"
                 reasons.append(
                     "No safe Send button candidate was exposed; Enter fallback is required."
                 )
@@ -82,6 +98,22 @@ def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
     )
     if not scope_stable:
         reasons.append("Telegram target scope changed during preflight.")
+
+    context_guard_available = False
+    context_stable = False
+    try:
+        context = capture(hwnd)
+        context_guard_available = bool(context.title_fp)
+        if context_guard_available:
+            context_stable = context.matches()
+            if not context_stable:
+                reasons.append("Telegram conversation context changed during preflight.")
+        else:
+            reasons.append(
+                "Telegram exposes only a generic window title; conversation-switch protection is unavailable."
+            )
+    except Exception:
+        reasons.append("Telegram conversation context could not be inspected safely.")
 
     ready = bool(
         hwnd and
@@ -101,5 +133,8 @@ def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
         compose_click=compose_click,
         send_name=send_name,
         send_point=send_point,
+        submission_path=submission_path,
         scope_stable=scope_stable,
+        context_guard_available=context_guard_available,
+        context_stable=context_stable,
     )
