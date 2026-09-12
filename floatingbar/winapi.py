@@ -262,13 +262,20 @@ def post_enter(hwnd: int, ctrl: bool = False) -> None:
         )
 
 
+def _utf16_code_units(text: str) -> list[int]:
+    """Return the UTF-16LE code units that Win32 WM_CHAR expects."""
+    data = text.encode("utf-16-le")
+    return [
+        data[i] | (data[i + 1] << 8)
+        for i in range(0, len(data), 2)
+    ]
+
+
 def post_text(hwnd: int, text: str) -> None:
     """Post UTF-16 code units and fail if any message is rejected."""
     if not hwnd or not user32.IsWindow(hwnd):
         raise RuntimeError("WM_CHAR text post: target window is invalid")
-    data = text.encode("utf-16-le")
-    for i in range(0, len(data), 2):
-        code_unit = data[i] | (data[i + 1] << 8)
+    for code_unit in _utf16_code_units(text):
         _post(hwnd, WM_CHAR, code_unit, 0, "WM_CHAR text post")
 
 
