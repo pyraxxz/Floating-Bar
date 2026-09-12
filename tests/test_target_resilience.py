@@ -83,7 +83,13 @@ class TargetResilienceTests(unittest.TestCase):
             (100, 10, 900000, "Telegram", "Telegram.exe"),
             (200, 20, 500000, "Telegram", "Telegram.exe"),
         ]
-        with patch("floatingbar.target.winapi.find_windows", return_value=matches):
+        with patch(
+            "floatingbar.target.winapi.find_windows",
+            return_value=matches,
+        ), patch(
+            "floatingbar.target.winapi.user32.IsWindow",
+            return_value=True,
+        ):
             selected = target.select_for_send(preferred_hwnd=200)
 
         self.assertEqual(selected, 200)
@@ -95,7 +101,13 @@ class TargetResilienceTests(unittest.TestCase):
             (100, 10, 900000, "Telegram", "Telegram.exe"),
             (200, 20, 500000, "Telegram", "Telegram.exe"),
         ]
-        with patch("floatingbar.target.winapi.find_windows", return_value=matches):
+        with patch(
+            "floatingbar.target.winapi.find_windows",
+            return_value=matches,
+        ), patch(
+            "floatingbar.target.winapi.user32.IsWindow",
+            return_value=True,
+        ):
             selected = target.select_for_send(preferred_hwnd=999)
 
         self.assertEqual(selected, 100)
