@@ -1,9 +1,10 @@
 """Production overlay with non-content Telegram conversation guards."""
 
-from . import config as _unused_config
+import config
+
 from . import trace
 from . import winapi
-from .context import capture, WindowContext
+from .context import capture
 from .context_injector import ContextGuardedRecoveryInjector
 from .recovery_overlay import OrbRelayWindow as _RecoveryOrbRelayWindow
 
@@ -25,10 +26,10 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
             pid = winapi.get_window_pid(hwnd)
             image = winapi.get_process_image_name(pid)
             base = image.rsplit("\\", 1)[-1] if image else ""
-            if base and __import__("config").PROCESS_NAME_RE.search(base):
+            if base and config.PROCESS_NAME_RE.search(base):
                 return True
             title = winapi.get_window_title(hwnd)
-            return bool(title and __import__("config").TITLE_FALLBACK_RE.search(title))
+            return bool(title and config.TITLE_FALLBACK_RE.search(title))
         except Exception:
             return False
 
@@ -50,7 +51,7 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
             self._show_bar()
             self._show_feedback(
                 "The original Telegram chat/window changed. Return to it before retrying.",
-                __import__("config").ERROR_COLOR,
+                config.ERROR_COLOR,
             )
             self._set_retry_menu_enabled(True)
             self.injector.set_window_context(self._retry_context)
