@@ -1,7 +1,11 @@
 import unittest
 from unittest.mock import patch
 
-from floatingbar.context import WindowContext, capture, title_fingerprint
+from floatingbar.context import (
+    WindowContext,
+    capture,
+    title_fingerprint,
+)
 
 
 class ContextTests(unittest.TestCase):
@@ -47,15 +51,55 @@ class ContextTests(unittest.TestCase):
         ), patch("floatingbar.context.winapi.user32.IsWindow", return_value=True):
             self.assertFalse(context.matches())
 
-    def test_capture_uses_title_only_to_create_fingerprint(self):
+    def test_window_context_rejects_changed_compose_runtime_id(self):
+        context = WindowContext(
+            100,
+            200,
+            "",
+            compose_runtime_id=(7, 8, 9),
+        )
+        with patch("floatingbar.context.winapi.get_window_pid", return_value=200), patch(
+            "floatingbar.context.winapi.user32.IsWindow", return_value=True
+        ), patch(
+            "floatingbar.context.compose_runtime_id_present", return_value=False
+        ):
+            self.assertFalse(context.matches())
+
+    def test_window_context_accepts_matching_compose_runtime_id_without_title(self):
+        context = WindowContext(
+            100,
+            200,
+            "",
+            compose_runtime_id=(7, 8, 9),
+        )
+        with patch("floatingbar.context.winapi.get_window_pid", return_value=200), patch(
+            "floatingbar.context.winapi.user32.IsWindow", return_value=True
+        ), patch(
+            "floatingbar.context.compose_runtime_id_present", return_value=True
+        ):
+            self.assertTrue(context.matches())
+        self.assertTrue(context.guard_available)
+
+    def test_capture_retains_only_non_content_context_anchors(self):
         with patch("floatingbar.context.winapi.get_window_pid", return_value=200), patch(
             "floatingbar.context.winapi.get_window_title", return_value="Chat A"
         ):
-            context = capture(100)
+            context = capture(100, compose_runtime_id=(7, 8, 9))
 
         self.assertEqual(context.hwnd, 100)
         self.assertEqual(context.pid, 200)
         self.assertEqual(context.title_fp, title_fingerprint("Chat A"))
+        self.assertEqual(context.compose_runtime_id, (7, 8, 9))
+        self.assertTrue(context.guard_available)
+
+    def test_capture_generic_title_can_still_have_structural_guard(self):
+        with patch("floatingbar.context.winapi.get_window_pid", return_value=200), patch(
+            "floatingbar.context.winapi.get_window_title", return_value="Telegram"
+        ):
+            context = capture(100, compose_runtime_id=(7, 8, 9))
+
+        self.assertEqual(context.title_fp, "")
+        self.assertTrue(context.guard_available)
 
 
 if __name__ == "__main__":
