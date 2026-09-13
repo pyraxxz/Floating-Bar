@@ -10,6 +10,11 @@ class TargetContractTests(unittest.TestCase):
         target = TelegramTarget()
         self.assertIsInstance(target, BackgroundTarget)
 
+    def test_background_target_exposes_scope_guard_contract(self):
+        target = TelegramTarget()
+        self.assertTrue(hasattr(target, "scope_matches"))
+        self.assertTrue(callable(target.scope_matches))
+
     def test_target_scope_is_tuple_compatible_and_named(self):
         scope = TargetScope(123, 456)
         self.assertTrue(scope.valid)
