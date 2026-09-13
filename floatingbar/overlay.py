@@ -19,7 +19,7 @@ from .injector import InjectionFailed
 from .hardening import HardenedTelegramInjector
 from .evidence import EvidenceState, from_result
 from .target import TelegramTarget, TelegramNotFound
-from .transaction import SendCompletion
+from .transaction import SendCompletion, SendRequest
 
 
 def _classify_send_result(strategy, error):
@@ -40,6 +40,7 @@ class OrbRelayWindow(tk.Tk):
         self._sending = False
         self._attempt_seq = 0
         self._active_attempt_id = 0
+        self._active_request = None
         self._work_hwnd = 0
         self._retry_draft = None
         self._retry_target_hwnd = 0
@@ -373,22 +374,55 @@ class OrbRelayWindow(tk.Tk):
         self._sending = True
         self._attempt_seq += 1
         attempt_id = self._attempt_seq
+        request = SendRequest(
+            attempt_id=attempt_id,
+            text=text,
+            restore_hwnd=self._work_hwnd,
+        )
+        if not request.valid:
+            self._sending = False
+            self._show_feedback(
+                "The send request was invalid and was stopped safely.",
+                config.ERROR_COLOR,
+            )
+            return "break"
         self._active_attempt_id = attempt_id
-        self._active_send_text = text
+        self._active_request = request
+        # Retained temporarily for compatibility with older direct tests and
+        # diagnostics. New UI completion logic reads from _active_request.
+        self._active_send_text = request.text
         self._retry_draft = None
         self._retry_target_hwnd = 0
         self._set_retry_menu_enabled(False)
-        work_hwnd = self._work_hwnd
+        self._work_hwnd = request.restore_hwnd
         self._hide_feedback()
         self._collapse()
         self._blink_sending()
         threading.Thread(
-            target=self._send_worker,
-            args=(text, work_hwnd, attempt_id),
+            target=self._send_worker_request,
+            args=(request,),
             daemon=True,
             name="floatingbar-send",
         ).start()
         return "break"
+
+    def _send_worker_request(self, request: SendRequest) -> None:
+        """Validate the immutable request, then enter the legacy worker adapter."""
+        if not isinstance(request, SendRequest) or not request.valid:
+            attempt_id = getattr(request, "attempt_id", 0)
+            self._result_q.put(
+                SendCompletion.from_result(
+                    attempt_id=attempt_id,
+                    strategy=None,
+                    error="The send request was invalid and was stopped safely.",
+                )
+            )
+            return
+        self._send_worker(
+            request.text,
+            request.restore_hwnd,
+            request.attempt_id,
+        )
 
     def _send_worker(self, text: str, work_hwnd: int, attempt_id: int) -> None:
         comtypes = None
@@ -478,7 +512,13 @@ class OrbRelayWindow(tk.Tk):
                 pass
             self._blink_job = None
 
-        active_text = self._active_send_text
+        active_request = self._active_request
+        active_text = (
+            active_request.text
+            if isinstance(active_request, SendRequest)
+            else self._active_send_text
+        )
+        self._active_request = None
         self._active_send_text = ""
         evidence = completion.evidence_state
         if evidence is None:
