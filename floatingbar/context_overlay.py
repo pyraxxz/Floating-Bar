@@ -9,6 +9,7 @@ from .context import capture
 from .context_injector import ContextGuardedRecoveryInjector
 from .preflight import run as run_preflight
 from .recovery_overlay import OrbRelayWindow as _RecoveryOrbRelayWindow
+from .target import TelegramNotFound
 from .transaction import SendAttempt, TargetScope
 
 
