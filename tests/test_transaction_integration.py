@@ -1,78 +1,88 @@
 import queue
 import unittest
-from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from floatingbar.context_overlay import OrbRelayWindow
-from floatingbar.transaction import TargetScope
+from floatingbar.transaction import SendAttempt, TargetScope
+from floatingbar.transaction_coordinator import PreparedTransaction, TransactionRejected
 
 
 class TransactionIntegrationTests(unittest.TestCase):
     def _window(self):
         window = OrbRelayWindow.__new__(OrbRelayWindow)
         window.target = Mock()
-        window.target.select_for_send.return_value = 700
-        window.target.scope.return_value = TargetScope(700, 900)
+        window.coordinator = Mock()
         window.injector = Mock()
         window._result_q = queue.Queue()
-        window._attempt_context = Mock()
-        window._attempt_context.hwnd = 700
-        window._attempt_context.matches.return_value = True
+        window._attempt_context = None
+        window._retry_context = None
         window._active_transaction = None
-        window._work_hwnd = 700
+        window._active_attempt_id = 0
+        window._work_hwnd = 0
         return window
 
-    def test_send_worker_binds_exact_preflight_target_into_transaction(self):
-        window = self._window()
-        preflight = SimpleNamespace(
-            ready=True,
-            status="ready",
-            submission_path="send-button",
-            context_guard_available=True,
-            hwnd=700,
-            pid=900,
-            reasons=(),
+    def _prepared(self, attempt_id=12, restore_hwnd=321):
+        context = Mock()
+        context.hwnd = 700
+        attempt = SendAttempt(
+            attempt_id=attempt_id,
+            text="hello",
+            target=TargetScope(700, 900),
+            restore_hwnd=restore_hwnd,
+            context=context,
         )
+        return PreparedTransaction(attempt=attempt, preflight=Mock())
 
-        with patch("floatingbar.context_overlay.run_preflight", return_value=preflight), patch.object(
-            window, "_is_telegram_window", return_value=True
-        ), patch.object(window, "_capture_target_context"), patch(
+    def test_send_worker_uses_coordinator_attempt_target(self):
+        window = self._window()
+        prepared = self._prepared()
+        window.coordinator.prepare.return_value = prepared
+
+        with patch.object(window, "_is_telegram_window", return_value=True), patch(
             "floatingbar.recovery_overlay.OrbRelayWindow._send_worker"
         ) as base_worker:
             window._send_worker("hello", 700, 12)
 
-        attempt = window._active_transaction
-        self.assertIsNotNone(attempt)
-        self.assertEqual(attempt.attempt_id, 12)
-        self.assertEqual(attempt.text, "hello")
-        self.assertEqual(attempt.target.hwnd, 700)
-        self.assertEqual(attempt.target.pid, 900)
-        self.assertIs(attempt.context, window._attempt_context)
+        window.coordinator.prepare.assert_called_once_with(
+            text="hello",
+            attempt_id=12,
+            preferred_hwnd=700,
+            restore_hwnd=700,
+        )
+        self.assertEqual(window._active_transaction.target, TargetScope(700, 900))
+        self.assertEqual(window._work_hwnd, 700)
         base_worker.assert_called_once_with("hello", 700, 12)
 
-    def test_blocked_preflight_creates_no_transaction(self):
+    def test_send_worker_preserves_nontelegram_foreground_for_restore(self):
         window = self._window()
-        window._active_transaction = None
-        preflight = SimpleNamespace(
-            ready=False,
-            status="blocked",
-            submission_path="unavailable",
-            context_guard_available=False,
-            hwnd=700,
-            pid=900,
-            reasons=("scope changed",),
-        )
+        prepared = self._prepared(restore_hwnd=111)
+        window.coordinator.prepare.return_value = prepared
 
-        with patch("floatingbar.context_overlay.run_preflight", return_value=preflight), patch.object(
-            window, "_is_telegram_window", return_value=True
-        ):
-            window._send_worker("hello", 700, 13)
+        with patch.object(window, "_is_telegram_window", return_value=False), patch(
+            "floatingbar.recovery_overlay.OrbRelayWindow._send_worker"
+        ) as base_worker:
+            window._send_worker("hello", 111, 13)
+
+        window.coordinator.prepare.assert_called_once_with(
+            text="hello",
+            attempt_id=13,
+            preferred_hwnd=0,
+            restore_hwnd=111,
+        )
+        self.assertEqual(window._active_transaction.restore_hwnd, 111)
+        base_worker.assert_called_once_with("hello", 700, 13)
+
+    def test_blocked_coordinator_creates_no_active_attempt(self):
+        window = self._window()
+        window.coordinator.prepare.side_effect = TransactionRejected("blocked")
+
+        window._send_worker("hello", 700, 14)
 
         self.assertIsNone(window._active_transaction)
         attempt_id, strategy, error = window._result_q.get_nowait()
-        self.assertEqual(attempt_id, 13)
+        self.assertEqual(attempt_id, 14)
         self.assertIsNone(strategy)
-        self.assertIn("scope changed", error)
+        self.assertEqual(error, "blocked")
 
 
 if __name__ == "__main__":
