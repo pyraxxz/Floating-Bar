@@ -32,10 +32,6 @@ class SendCandidate(NamedTuple):
     client_y: int
     evidence_score: float = 0.0
 
-    @property
-    def explicit_semantics(self) -> bool:
-        return bool(self.name.strip() or self.evidence_score >= 0.0)
-
 
 @dataclass(frozen=True)
 class SendAttempt:
