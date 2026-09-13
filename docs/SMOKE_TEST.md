@@ -27,7 +27,7 @@ Expected hard prerequisites:
 - A usable compose click point.
 - Either a safe Send candidate or an explicit Enter-fallback note.
 
-The reported status should normally be `ready`. `ready-with-degraded-context` is acceptable only when Telegram exposes a generic window title; in that state the exact HWND/PID remains protected, but title-based conversation-switch detection is unavailable.
+The reported status should normally be `ready`. `ready-with-degraded-context` is acceptable only when Telegram exposes no useful content-free context anchor. When a non-generic title is available, the title is fingerprinted. When the title is generic, an available compose-control runtime ID can still provide structural context protection without reading message content.
 
 The command must not change foreground focus, type, click, or touch the clipboard.
 
@@ -66,9 +66,9 @@ Expected: the send is refused safely rather than targeting the new Telegram wind
 
 Open the orb while Telegram chat A is active. Switch Telegram to chat B before pressing Enter (using a separate method that can change the Telegram UI while the bar is open).
 
-Expected when Telegram exposes a useful changing title: the send is refused safely and does not silently send to B.
+Expected when Telegram exposes a useful changing title: the send is refused safely because the title fingerprint changes.
 
-When Telegram is configured to expose only a generic title, the test should still verify the stronger HWND/PID protection and document that title-based conversation protection is unavailable for that configuration.
+When Telegram exposes only a generic title, the test should check whether a compose-control runtime ID is available. If it is available, replacing that structural compose control should also cause a safe refusal. If neither title nor compose runtime ID is available, the system must explicitly report degraded context protection and rely only on the HWND/PID transaction guard rather than claiming exact chat protection.
 
 ## 6. Failed-send retry
 
@@ -92,6 +92,7 @@ Expected:
 - Voice/record/microphone/audio controls are never selected as Send.
 - A named unrelated control such as Attach/Emoji is rejected even when its geometry looks plausible.
 - A weak unnamed icon falls through to Enter rather than being clicked.
+- The reported Send evidence score reflects the selected candidate's semantic and geometric evidence.
 
 ## 8. Unverified result
 
@@ -144,7 +145,7 @@ For the current 0.2.0 reliability milestone, the acceptance bar is specifically:
 1. Windows CI green on the exact release source.
 2. Read-only preflight works without changing focus or touching content.
 3. Production sends are gated by preflight and remain bound to the selected Telegram HWND/PID.
-4. Conversation context protection behaves conservatively when Telegram exposes a useful title and degrades safely when it does not.
+4. Conversation context protection behaves conservatively when Telegram exposes a useful title or compose runtime anchor, and degrades safely when neither is available.
 5. Send-button selection rejects voice/mic and unrelated named controls.
 6. Restart, retry, and opt-in recovery paths stop safely on target replacement.
 7. Real Telegram smoke tests confirm actual landing and submission behavior on the user's Windows desktop.
