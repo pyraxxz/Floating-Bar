@@ -74,7 +74,7 @@ class TransactionCoordinatorTests(unittest.TestCase):
 
     def test_prepare_rejects_silent_retarget_after_preflight(self):
         target = self._target()
-        target.select_for_send.side_effect = [700, 701]
+        target.select_for_send.return_value = 701
         context = Mock()
         context.hwnd = 700
         context.matches.return_value = True
@@ -88,7 +88,7 @@ class TransactionCoordinatorTests(unittest.TestCase):
             with self.assertRaises(TransactionRejected):
                 coordinator.prepare("hello", 12, preferred_hwnd=700)
 
-        self.assertEqual(target.select_for_send.call_count, 2)
+        target.select_for_send.assert_called_once_with(preferred_hwnd=700)
 
     def test_prepare_rejects_context_change_before_worker(self):
         target = self._target()
@@ -105,7 +105,7 @@ class TransactionCoordinatorTests(unittest.TestCase):
             with self.assertRaises(TransactionRejected) as raised:
                 coordinator.prepare("hello", 12, preferred_hwnd=700)
 
-        self.assertIn("context", str(raised.exception).lower())
+        self.assertIn("changed", str(raised.exception).lower())
         target.scope.assert_not_called()
 
     def test_prepare_rejects_bound_scope_mismatch(self):
