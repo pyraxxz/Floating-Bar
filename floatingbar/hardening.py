@@ -82,17 +82,29 @@ class HardenedTelegramInjector(TelegramInjector):
         self._assert_target_scope(hwnd, "before compose click")
         try:
             point = self.target.compose_click_point(box)
-            if point is not None:
+        except Exception as exc:
+            trace.trace(f"phase 0 compose click geometry lookup failed: {exc}")
+            raise InjectionFailed(
+                "Telegram's compose control could not be located safely; "
+                "message submission was stopped."
+            )
+
+        if point is not None:
+            try:
                 trace.trace(f"phase 0 compose click: ({point[0]},{point[1]})")
                 winapi.post_click(hwnd, point[0], point[1])
                 time.sleep(config.COMPOSE_CLICK_SETTLE_MS / 1000.0)
-            else:
-                trace.trace(
-                    "phase 0 compose click: geometry unavailable; "
-                    "falling back to existing focus"
+            except Exception as exc:
+                trace.trace(f"phase 0 compose click failed: {exc}")
+                raise InjectionFailed(
+                    "Telegram's compose control could not be focused safely; "
+                    "message submission was stopped."
                 )
-        except Exception as exc:
-            trace.trace(f"phase 0 compose click failed: {exc}")
+        else:
+            trace.trace(
+                "phase 0 compose click: geometry unavailable; "
+                "falling back to existing focus"
+            )
 
         self._assert_target_scope(hwnd, "after compose click")
         focused = winapi.get_focused_hwnd(hwnd)
@@ -168,13 +180,24 @@ class HardenedTelegramInjector(TelegramInjector):
             "landing in a different field — retrying compose click + focused-child text post"
         )
         self._assert_target_scope(hwnd, "before compose retry")
-        point = self.target.compose_click_point(box)
+        try:
+            point = self.target.compose_click_point(box)
+        except Exception as exc:
+            trace.trace(f"compose retry geometry lookup failed: {exc}")
+            raise InjectionFailed(
+                "Telegram's compose control could not be located safely during recovery; "
+                "message submission was stopped."
+            )
         if point:
             try:
                 winapi.post_click(hwnd, point[0], point[1])
                 time.sleep(config.COMPOSE_CLICK_SETTLE_MS / 1000.0)
             except Exception as exc:
                 trace.trace(f"compose retry click failed: {exc}")
+                raise InjectionFailed(
+                    "Telegram's compose control could not be focused safely during recovery; "
+                    "message submission was stopped."
+                )
 
         self._assert_target_scope(hwnd, "after compose retry click")
         focused = winapi.get_focused_hwnd(hwnd)
