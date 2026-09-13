@@ -116,6 +116,7 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
             return
 
         transaction = prepared.attempt
+        self._active_transaction = transaction
         self._work_hwnd = transaction.target.hwnd
         self._attempt_context = transaction.context
         self.injector.set_window_context(transaction.context)
