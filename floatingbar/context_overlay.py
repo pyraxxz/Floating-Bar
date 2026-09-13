@@ -8,6 +8,7 @@ from .context import capture
 from .context_injector import ContextGuardedRecoveryInjector
 from .preflight import run as run_preflight
 from .recovery_overlay import OrbRelayWindow as _RecoveryOrbRelayWindow
+from .transaction import SendAttempt, TargetScope
 
 
 class OrbRelayWindow(_RecoveryOrbRelayWindow):
@@ -18,6 +19,7 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
         self.injector = ContextGuardedRecoveryInjector(self.target)
         self._attempt_context = None
         self._retry_context = None
+        self._active_transaction = None
 
     @staticmethod
     def _is_telegram_window(hwnd: int) -> bool:
@@ -141,12 +143,37 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
                 )
             )
             return
+
+        transaction = SendAttempt(
+            attempt_id=attempt_id,
+            text=text,
+            target=TargetScope(preflight.hwnd, preflight.pid),
+            restore_hwnd=work_hwnd,
+            context=context,
+        )
+        if not transaction.valid:
+            trace.trace("transaction: invalid immutable send attempt; aborting")
+            self._result_q.put(
+                (
+                    attempt_id,
+                    None,
+                    "The send transaction could not be safely bound to its target; the send was stopped.",
+                )
+            )
+            return
+
+        self._active_transaction = transaction
         self.injector.set_window_context(context)
-        super()._send_worker(text, work_hwnd, attempt_id)
+        super()._send_worker(transaction.text, transaction.target.hwnd, transaction.attempt_id)
 
     def _send_finished(self, attempt_id: int, strategy: str, error) -> None:
-        is_current = attempt_id == getattr(self, "_active_attempt_id", 0)
-        context = self._attempt_context
+        is_current = (
+            attempt_id == getattr(self, "_active_attempt_id", 0)
+        )
+        context = self._active_transaction.context if (
+            self._active_transaction is not None and
+            self._active_transaction.attempt_id == attempt_id
+        ) else self._attempt_context
         super()._send_finished(attempt_id, strategy, error)
         if not is_current:
             return
@@ -156,3 +183,4 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
             self._retry_context = None
             self._attempt_context = None
             self.injector.set_window_context(None)
+        self._active_transaction = None
