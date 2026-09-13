@@ -131,7 +131,7 @@ class TargetResilienceTests(unittest.TestCase):
             Rect(0, 0, 1000, 1000),
             [
                 FakeButton(Rect(930, 920, 970, 960), "", True),
-                FakeButton(Rect(730, 710, 770, 750), "", True),
+                FakeButton(Rect(730, 710, 770, 750), "Send", True),
             ],
         )
         box = FakeEdit(Rect(100, 700, 700, 760))
@@ -141,6 +141,7 @@ class TargetResilienceTests(unittest.TestCase):
             result = target.send_button_click(near_box=box)
 
         self.assertIsNotNone(result)
+        self.assertEqual(result[0], "Send")
         self.assertEqual(result[1:], (750, 730))
 
     def test_disabled_button_is_not_selected(self):
