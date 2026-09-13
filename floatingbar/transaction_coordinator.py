@@ -44,6 +44,9 @@ class SendTransactionCoordinator:
         restore_hwnd: int = 0,
     ) -> PreparedTransaction:
         """Run preflight and bind the exact target without performing I/O side effects."""
+        if not (text or "").strip():
+            raise TransactionRejected("The send text is empty.")
+
         preflight = run_preflight(
             self.target,
             preferred_hwnd=preferred_hwnd,
