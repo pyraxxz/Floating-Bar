@@ -56,7 +56,6 @@ class HardeningTests(unittest.TestCase):
         target = Mock()
         target.compose_click_point.return_value = (77, 88)
         target.scope_matches.return_value = True
-        injector = HardenedTelegramInjector(target)
 
         def click(*args):
             events.append("click")
@@ -64,6 +63,7 @@ class HardeningTests(unittest.TestCase):
         def text(*args):
             events.append(("text", args[0]))
 
+        injector = HardenedTelegramInjector(target)
         with patch("floatingbar.hardening.winapi.post_click", side_effect=click), \
              patch("floatingbar.hardening.winapi.get_focused_hwnd", return_value=456), \
              patch("floatingbar.hardening.winapi.get_window_pid", return_value=10), \
@@ -73,6 +73,56 @@ class HardeningTests(unittest.TestCase):
 
         self.assertEqual(result, "A2-child")
         self.assertEqual(events, ["click", ("text", 456)])
+
+    def test_land_refuses_to_post_text_when_compose_click_fails(self):
+        target = Mock()
+        target.compose_click_point.return_value = (77, 88)
+        target.scope_matches.return_value = True
+        injector = HardenedTelegramInjector(target)
+
+        with patch(
+            "floatingbar.hardening.winapi.post_click",
+            side_effect=RuntimeError("click failed"),
+        ) as click, patch("floatingbar.hardening.winapi.post_text") as post_text, patch(
+            "floatingbar.hardening.trace.trace"
+        ):
+            with self.assertRaises(InjectionFailed) as raised:
+                injector._land_text(SimpleNamespace(), 123, "danger")
+
+        click.assert_called_once_with(123, 77, 88)
+        post_text.assert_not_called()
+        self.assertIn("focused safely", str(raised.exception))
+
+    def test_land_refuses_to_post_text_when_compose_geometry_lookup_fails(self):
+        target = Mock()
+        target.compose_click_point.side_effect = RuntimeError("UIA failed")
+        target.scope_matches.return_value = True
+        injector = HardenedTelegramInjector(target)
+
+        with patch("floatingbar.hardening.winapi.post_text") as post_text:
+            with self.assertRaises(InjectionFailed) as raised:
+                injector._land_text(SimpleNamespace(), 123, "danger")
+
+        post_text.assert_not_called()
+        self.assertIn("located safely", str(raised.exception))
+
+    def test_audit_retry_refuses_when_compose_click_fails(self):
+        box = Mock()
+        other = Mock()
+        target = Mock()
+        target.scope_matches.return_value = True
+        target.edit_audit.side_effect = [
+            (other, [(other, "other")]),
+        ]
+        target.compose_click_point.side_effect = RuntimeError("retry click failed")
+        injector = HardenedTelegramInjector(target)
+        injector._audit = Mock(return_value=("found", other))
+
+        with patch("floatingbar.hardening.winapi.post_text") as post_text:
+            with self.assertRaises(InjectionFailed):
+                injector._audit_and_retarget(box, 123, "danger")
+
+        post_text.assert_not_called()
 
     def test_unverified_ambiguous_button_falls_back_to_enter_without_click(self):
         target = Mock()
