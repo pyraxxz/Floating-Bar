@@ -190,16 +190,21 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
             self._active_transaction is not None and
             self._active_transaction.attempt_id == attempt_id
         ) else self._attempt_context
-        super()._send_finished(attempt_id, strategy, error)
-        if not is_current:
-            return
-        if self._retry_draft and context is not None:
-            self._retry_context = context
-        elif not self._retry_draft:
-            self._retry_context = None
-            self._attempt_context = None
-            self.injector.set_window_context(None)
-        self._active_transaction = None
         release = getattr(self.target, "release", None)
-        if callable(release):
-            release()
+        try:
+            super()._send_finished(attempt_id, strategy, error)
+            if not is_current:
+                return
+            if self._retry_draft and context is not None:
+                self._retry_context = context
+            elif not self._retry_draft:
+                self._retry_context = None
+                self._attempt_context = None
+                self.injector.set_window_context(None)
+            self._active_transaction = None
+        finally:
+            # A malformed completion handler must never strand the exact target
+            # lease. Stale results still cannot release the lease belonging to
+            # a newer active attempt.
+            if is_current and callable(release):
+                release()
