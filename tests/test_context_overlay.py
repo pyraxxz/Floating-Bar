@@ -20,6 +20,10 @@ class ContextOverlayTests(unittest.TestCase):
         window._active_transaction = None
         window._active_attempt_id = 0
         window._work_hwnd = 0
+        window._retry_draft = None
+        window._retry_target_hwnd = 0
+        window._sending = False
+        window._state = "orb"
         return window
 
     def _prepared(self, attempt_id=7, restore_hwnd=111, context=None):
@@ -40,6 +44,25 @@ class ContextOverlayTests(unittest.TestCase):
     def test_bound_context_overlay_is_compatibility_only(self):
         self.assertIs(BoundContextOverlay.__init__, OrbRelayWindow.__init__)
         self.assertIs(BoundContextOverlay._send_finished, OrbRelayWindow._send_finished)
+
+    def test_expand_preserves_failed_draft_target_context(self):
+        window = self._window()
+        retry_context = Mock()
+        retry_context.hwnd = 321
+        window._retry_draft = "retry me"
+        window._retry_context = retry_context
+        window._retry_target_hwnd = 321
+
+        with patch(
+            "floatingbar.recovery_overlay.OrbRelayWindow._expand",
+            side_effect=lambda: setattr(window, "_state", "bar"),
+        ), patch.object(window, "_is_telegram_window") as is_telegram:
+            window._expand()
+
+        self.assertEqual(window._work_hwnd, 321)
+        self.assertIs(window._attempt_context, retry_context)
+        window.injector.set_window_context.assert_called_once_with(retry_context)
+        is_telegram.assert_not_called()
 
     def test_send_worker_uses_coordinator_and_preserves_restore_hwnd(self):
         window = self._window()
