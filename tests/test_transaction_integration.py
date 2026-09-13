@@ -50,8 +50,9 @@ class TransactionIntegrationTests(unittest.TestCase):
             restore_hwnd=700,
         )
         self.assertEqual(window._active_transaction.target, TargetScope(700, 900))
+        self.assertEqual(window._active_transaction.restore_hwnd, 321)
         self.assertEqual(window._work_hwnd, 700)
-        base_worker.assert_called_once_with("hello", 700, 12)
+        base_worker.assert_called_once_with("hello", 321, 12)
 
     def test_send_worker_preserves_nontelegram_foreground_for_restore(self):
         window = self._window()
