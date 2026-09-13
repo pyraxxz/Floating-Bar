@@ -3,10 +3,17 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from floatingbar.preflight import run
+from floatingbar.transaction import SendCandidate
 
 
 class PreflightTests(unittest.TestCase):
-    def _target(self, hwnd=100, pid=200, compose_point=(20, 30), send=("Send", 80, 30)):
+    def _target(
+        self,
+        hwnd=100,
+        pid=200,
+        compose_point=(20, 30),
+        send=SendCandidate("Send", 80, 30, 123.5),
+    ):
         target = SimpleNamespace()
         target.select_for_send = lambda preferred_hwnd=0: hwnd
         target.hwnd = hwnd
@@ -37,6 +44,9 @@ class PreflightTests(unittest.TestCase):
         self.assertEqual(result.pid, 200)
         self.assertEqual(result.compose_click, (20, 30))
         self.assertTrue(result.button_available)
+        self.assertEqual(result.send_name, "Send")
+        self.assertEqual(result.send_point, (80, 30))
+        self.assertEqual(result.send_evidence_score, 123.5)
         self.assertEqual(result.submission_path, "send-button")
         self.assertTrue(result.scope_stable)
         self.assertTrue(result.context_guard_available)
@@ -69,6 +79,7 @@ class PreflightTests(unittest.TestCase):
 
         self.assertTrue(result.ready)
         self.assertEqual(result.submission_path, "enter-fallback")
+        self.assertEqual(result.send_evidence_score, 0.0)
         self.assertTrue(result.context_guard_available)
         self.assertTrue(any("Enter fallback" in reason for reason in result.reasons))
 
