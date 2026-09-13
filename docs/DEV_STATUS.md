@@ -20,10 +20,21 @@ The development line now includes:
 - `TelegramTarget.scope()` returning the tuple-compatible `TargetScope`;
 - production preflight and context guards;
 - exact target binding and guarded recovery;
-- explicit retry state and typed submission evidence.
+- explicit retry state and typed submission evidence;
+- prepared-send execution that consumes the immutable transaction target without
+  repeating target selection;
+- early transaction-identity validation before any preflight or target lease
+  acquisition.
 
 The target contract is intentionally incremental. Compose and submission
 interfaces should only be generalized after real Telegram desktop validation.
+
+## Validation status
+
+Windows CI run `#260` passed compile, the full 114-test regression suite, and the
+Windows executable build after the prepared-send execution-boundary refactor.
+The latest coordinator-identity hardening is on `main` and has its own CI run
+pending.
 
 ## Release rule
 
