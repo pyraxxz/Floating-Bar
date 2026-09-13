@@ -14,6 +14,11 @@ class EvidenceState(str, Enum):
     UNAVAILABLE = "verification-unavailable"
     UNKNOWN = "unknown"
 
+    @property
+    def state(self):
+        """Compatibility view for older result consumers."""
+        return self
+
 
 @dataclass(frozen=True)
 class SubmissionEvidence:
