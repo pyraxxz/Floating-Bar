@@ -104,6 +104,7 @@ class TransactionTests(unittest.TestCase):
         )
         self.assertEqual(completion.attempt_id, 8)
         self.assertEqual(completion.evidence_state, EvidenceState.VERIFIED)
+        self.assertEqual(completion.resolved_evidence.confirmed, True)
         self.assertEqual(tuple(completion), (8, "posted-enter (VERIFIED)", None))
 
     def test_completion_from_result_maps_failure_evidence(self):
@@ -114,6 +115,8 @@ class TransactionTests(unittest.TestCase):
         )
         self.assertEqual(completion.evidence_state, EvidenceState.FAILED)
         self.assertTrue(completion.failed)
+        self.assertEqual(completion.resolved_evidence.detail, "Telegram unavailable")
+        self.assertTrue(completion.resolved_evidence.retryable)
 
     def test_completion_failure_state_is_explicit_failure(self):
         completion = SendCompletion(
@@ -121,6 +124,7 @@ class TransactionTests(unittest.TestCase):
             evidence_state=EvidenceState.FAILED,
         )
         self.assertTrue(completion.failed)
+        self.assertTrue(completion.resolved_evidence.retryable)
 
     def test_completion_error_is_explicit_failure(self):
         completion = SendCompletion(
@@ -128,6 +132,7 @@ class TransactionTests(unittest.TestCase):
             error="target changed",
         )
         self.assertTrue(completion.failed)
+        self.assertEqual(completion.resolved_evidence.detail, "target changed")
 
 
 if __name__ == "__main__":
