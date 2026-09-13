@@ -1,8 +1,10 @@
 import unittest
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from floatingbar.evidence import EvidenceState, from_result
 from floatingbar.overlay import OrbRelayWindow, _classify_send_result
+from floatingbar.transaction import SendCompletion
 
 
 class OverlayStateTests(unittest.TestCase):
@@ -49,6 +51,24 @@ class OverlayStateTests(unittest.TestCase):
             _classify_send_result(strategy, None),
             from_result(strategy, None),
         )
+
+    def test_completion_normalizer_accepts_typed_object(self):
+        window = OrbRelayWindow.__new__(OrbRelayWindow)
+        completion = SendCompletion.from_result(
+            4,
+            strategy="posted-click (VERIFIED)",
+        )
+        self.assertIs(window._coerce_completion(completion), completion)
+
+    def test_completion_normalizer_preserves_legacy_tuple_compatibility(self):
+        window = OrbRelayWindow.__new__(OrbRelayWindow)
+        completion = window._coerce_completion(
+            (4, "posted-enter (VERIFIED)", None)
+        )
+        self.assertIsInstance(completion, SendCompletion)
+        self.assertEqual(completion.attempt_id, 4)
+        self.assertEqual(completion.strategy, "posted-enter (VERIFIED)")
+        self.assertEqual(completion.evidence_state, EvidenceState.VERIFIED)
 
     def test_stale_send_result_is_ignored(self):
         window = OrbRelayWindow.__new__(OrbRelayWindow)
