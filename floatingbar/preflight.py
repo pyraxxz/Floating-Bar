@@ -68,6 +68,15 @@ def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
     if focused_hwnd and focused_pid and focused_pid != pid:
         reasons.append("Telegram does not currently own the focused child HWND.")
 
+    # Capture a non-content context snapshot before touching the UIA tree. A
+    # title change during preflight itself is unsafe to ignore: it means the
+    # user/application context moved while we were deciding whether to send.
+    initial_context = None
+    try:
+        initial_context = capture(hwnd)
+    except Exception:
+        pass
+
     compose_click = None
     compose_runtime_id = ()
     send_name = ""
@@ -114,11 +123,24 @@ def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
     try:
         context = capture(hwnd, compose_runtime_id=compose_runtime_id)
         context_guard_available = context.guard_available
-        if context_guard_available:
-            context_stable = context.matches()
-            if not context_stable:
+
+        # When the initial title produced a fingerprint, require the final
+        # title to agree. This catches a chat/window context change that occurs
+        # during the read-only compose/button discovery itself.
+        if initial_context is not None:
+            initial_fp = initial_context.title_fp
+            final_fp = context.title_fp
+            if initial_fp != final_fp and (initial_fp or final_fp):
                 reasons.append("Telegram conversation context changed during preflight.")
-        else:
+                context_stable = False
+            elif context_guard_available:
+                context_stable = context.matches()
+        if context_guard_available and not context_stable:
+            if not any("context changed" in reason for reason in reasons):
+                context_stable = context.matches()
+                if not context_stable:
+                    reasons.append("Telegram conversation context changed during preflight.")
+        elif not context_guard_available:
             # No content-free anchor is available, so this state is not a
             # claim that context remained stable; it means context could not
             # be verified and the send is intentionally degraded rather than blocked.
