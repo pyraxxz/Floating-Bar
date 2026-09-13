@@ -13,6 +13,7 @@ from . import clipboard_guard
 from . import trace
 from . import winapi
 from .injector import InjectionFailed, TelegramInjector, _combo
+from .transaction import candidate_parts
 
 
 _VOICE_TERMS = ("voice", "record", "mic", "audio")
@@ -216,7 +217,7 @@ class HardenedTelegramInjector(TelegramInjector):
         if landing != "compose":
             info = self.target.send_button_click(near_box=box)
             if info is not None:
-                name, cx, cy = info
+                name, cx, cy = candidate_parts(info)
                 if _is_voice_name(name):
                     trace.trace(
                         f"unverified submit: refusing voice/mic button {name!r}"
@@ -282,7 +283,7 @@ class HardenedTelegramInjector(TelegramInjector):
                 "Message sits in Telegram's compose box but could not be submitted."
             )
 
-        name, cx, cy = info
+        name, cx, cy = candidate_parts(info)
         if _is_voice_name(name):
             trace.trace(f"button scan returned the mic ({name!r}) — refusing to click")
             raise InjectionFailed(
@@ -342,10 +343,12 @@ class HardenedTelegramInjector(TelegramInjector):
                     return True
                 self._assert_target_scope(hwnd, "before recovery Send click")
                 info = self.target.send_button_click(near_box=box)
-                if info and not _is_voice_name(info[0]):
-                    winapi.post_click(hwnd, info[1], info[2])
-                    time.sleep(config.PASTE_SETTLE_MS / 1000.0)
-                    return self._value_length(box) == 0
+                if info:
+                    name, cx, cy = candidate_parts(info)
+                    if not _is_voice_name(name):
+                        winapi.post_click(hwnd, cx, cy)
+                        time.sleep(config.PASTE_SETTLE_MS / 1000.0)
+                        return self._value_length(box) == 0
                 return False
         except Exception as exc:
             trace.trace(f"B failed: {exc}")
