@@ -115,9 +115,15 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
                 )
             work_hwnd = preflight.hwnd
             self._work_hwnd = work_hwnd
-            if self._attempt_context is None or self._attempt_context.hwnd != work_hwnd:
-                self._capture_target_context(work_hwnd)
-            context = self._attempt_context
+            context = getattr(preflight, "context", None)
+            if context is None:
+                if self._attempt_context is None or self._attempt_context.hwnd != work_hwnd:
+                    self._capture_target_context(work_hwnd)
+                context = self._attempt_context
+            else:
+                self._attempt_context = context
+                self.injector.set_window_context(context)
+                trace.trace("window context: adopting authoritative preflight snapshot")
         except Exception as exc:
             trace.trace(f"preflight: unexpected failure: {exc}")
             self._result_q.put(
