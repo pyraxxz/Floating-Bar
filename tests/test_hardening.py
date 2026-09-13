@@ -159,6 +159,34 @@ class HardeningTests(unittest.TestCase):
             result = HardenedTelegramInjector._poll_compose_clear(lambda: -1)
         self.assertIsNone(result)
 
+    def test_strategy_b_direct_recovery_path_can_submit(self):
+        target = Mock()
+        target.hwnd = 123
+        target.scope_matches.return_value = True
+        injector = HardenedTelegramInjector(target)
+        injector._value_length = Mock(return_value=0)
+        box = Mock()
+        guard = Mock()
+        guard.__enter__ = Mock(return_value=guard)
+        guard.__exit__ = Mock(return_value=False)
+
+        with patch(
+            "floatingbar.hardening.clipboard_guard.preserved_clipboard",
+            return_value=guard,
+        ), patch(
+            "floatingbar.hardening.clipboard_guard.set_text",
+            return_value=True,
+        ), patch("floatingbar.hardening.winapi.get_foreground_window", return_value=999), \
+             patch("floatingbar.hardening.winapi.get_window_pid", return_value=1), \
+             patch("floatingbar.hardening.winapi.set_foreground_window", return_value=True), \
+             patch("floatingbar.hardening.winapi.ensure_restored"), \
+             patch("floatingbar.hardening.time.sleep"):
+            self.assertTrue(injector._strategy_b(box, "hello", False, 999))
+
+        box.type_keys.assert_any_call("^a", pause=0.01)
+        box.type_keys.assert_any_call("{DEL}", pause=0.01)
+        box.type_keys.assert_any_call("^v", pause=0.02)
+
     def test_strategy_b_refuses_failed_clipboard_write(self):
         target = Mock()
         target.hwnd = 123
