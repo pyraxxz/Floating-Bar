@@ -7,7 +7,9 @@ from . import winapi
 from .bound_target import BoundTelegramTarget
 from .context import capture
 from .context_injector import ContextGuardedRecoveryInjector
+from .injector import InjectionFailed
 from .recovery_overlay import OrbRelayWindow as _RecoveryOrbRelayWindow
+from .target import TelegramNotFound
 from .transaction_coordinator import SendTransactionCoordinator, TransactionRejected
 
 
@@ -88,6 +90,37 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
         self.injector.set_window_context(self._attempt_context)
         return super()._on_enter_key(_event)
 
+    def _execute_prepared_attempt(self, text: str, restore_hwnd: int, attempt_id: int) -> None:
+        """Run an already-prepared transaction without re-selecting its target.
+
+        The coordinator has already converted the Telegram target into an
+        immutable HWND/PID lease. The worker therefore receives only the
+        transaction's restore HWND here; target selection is intentionally not
+        repeated from the restore handle.
+        """
+        comtypes = None
+        try:
+            import comtypes
+            comtypes.CoInitialize()
+        except Exception:
+            comtypes = None
+
+        strategy = None
+        error = None
+        try:
+            strategy = self.injector.send(text, restore_hwnd=restore_hwnd)
+        except (TelegramNotFound, InjectionFailed) as exc:
+            error = str(exc)
+        except Exception as exc:
+            error = f"Unexpected error: {exc}"
+        finally:
+            if comtypes:
+                try:
+                    comtypes.CoUninitialize()
+                except Exception:
+                    pass
+        self._result_q.put((attempt_id, strategy, error))
+
     def _send_worker(self, text: str, work_hwnd: int, attempt_id: int) -> None:
         # Keep the user's original foreground HWND separate from the Telegram
         # target. The latter is a lease target; the former is what recovery
@@ -120,11 +153,7 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
         self._work_hwnd = transaction.target.hwnd
         self._attempt_context = transaction.context
         self.injector.set_window_context(transaction.context)
-        # The base worker uses its work_hwnd argument as the restore foreground
-        # handle when invoking the injector. The target itself is already bound,
-        # so pass the transaction's original restore handle rather than the
-        # Telegram target HWND.
-        super()._send_worker(
+        self._execute_prepared_attempt(
             transaction.text,
             transaction.restore_hwnd,
             transaction.attempt_id,
@@ -156,3 +185,6 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
             # a newer active attempt.
             if is_current and callable(release):
                 release()
+
+
+__all__ = ["OrbRelayWindow"]
