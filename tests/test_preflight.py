@@ -51,6 +51,9 @@ class PreflightTests(unittest.TestCase):
         self.assertTrue(result.scope_stable)
         self.assertTrue(result.context_guard_available)
         self.assertTrue(result.context_stable)
+        self.assertIsNotNone(result.context)
+        self.assertEqual(result.context.hwnd, 100)
+        self.assertEqual(result.context.pid, 200)
 
     def test_preflight_is_side_effect_free(self):
         target = self._target()
@@ -125,6 +128,8 @@ class PreflightTests(unittest.TestCase):
         self.assertEqual(result.status, "ready-with-degraded-context")
         self.assertFalse(result.context_guard_available)
         self.assertFalse(result.context_stable)
+        self.assertIsNotNone(result.context)
+        self.assertEqual(result.context.title_fp, "")
 
     def test_context_title_change_is_blocking(self):
         target = self._target()
@@ -133,9 +138,7 @@ class PreflightTests(unittest.TestCase):
             "floatingbar.preflight.winapi.get_focused_hwnd", return_value=101
         ), patch(
             "floatingbar.preflight.winapi.get_window_pid", return_value=200
-        ), patch(
-            "floatingbar.preflight.winapi.get_window_title", side_effect=lambda hwnd: next(titles)
-        ), patch(
+        ), patch("floatingbar.preflight.winapi.get_window_title", side_effect=lambda hwnd: next(titles)), patch(
             "floatingbar.preflight.winapi.user32.IsWindow", return_value=True
         ):
             result = run(target)
