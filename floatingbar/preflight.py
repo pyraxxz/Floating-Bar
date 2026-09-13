@@ -69,6 +69,7 @@ def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
         reasons.append("Telegram does not currently own the focused child HWND.")
 
     compose_click = None
+    compose_runtime_id = ()
     send_name = ""
     send_point = None
     send_evidence_score = 0.0
@@ -76,6 +77,10 @@ def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
 
     try:
         box = target.compose_box()
+        try:
+            compose_runtime_id = tuple(box.element_info.runtime_id)
+        except Exception:
+            compose_runtime_id = ()
         compose_click = target.compose_click_point(box)
         if compose_click is None:
             reasons.append("The compose control has no usable click geometry.")
@@ -107,23 +112,22 @@ def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
     context_guard_available = False
     context_stable = False
     try:
-        context = capture(hwnd)
-        context_guard_available = bool(context.title_fp)
-        if context_guard_available:
-            context_stable = context.matches()
-            if not context_stable:
+        context = capture(hwnd, compose_runtime_id=compose_runtime_id)
+        context_guard_available = context.guard_available
+        context_stable = context.matches()
+        if not context_stable:
+            if context_guard_available:
                 reasons.append("Telegram conversation context changed during preflight.")
-        else:
-            reasons.append(
-                "Telegram exposes only a generic window title; conversation-switch protection is unavailable."
-            )
+            else:
+                reasons.append(
+                    "Telegram conversation context could not be verified safely."
+                )
     except Exception:
         reasons.append("Telegram conversation context could not be inspected safely.")
 
-    # A detected context change is a hard preflight failure when the title
-    # gives us enough information to detect it. Generic/empty titles remain a
-    # degraded-but-usable state because the evidence is insufficient to assert
-    # a conversation switch either way.
+    # Any available context anchor is useful: a non-generic window title can
+    # detect a chat-name change, while a session-scoped compose runtime ID can
+    # detect a structural compose replacement without reading message content.
     context_ok = not context_guard_available or context_stable
 
     ready = bool(
