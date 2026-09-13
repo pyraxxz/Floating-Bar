@@ -1,5 +1,4 @@
 import unittest
-from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from floatingbar.bound_target import BoundTelegramTarget
@@ -23,11 +22,10 @@ class BoundTargetTests(unittest.TestCase):
             "floatingbar.bound_target.winapi.get_window_pid", return_value=7
         ):
             selected = target.select_for_send(preferred_hwnd=100)
-
-        self.assertEqual(selected, 100)
-        self.assertEqual(target.bound_scope, TargetScope(100, 7))
-        self.assertTrue(target.is_available())
-        self.assertEqual(target.scope(), TargetScope(100, 7))
+            self.assertEqual(selected, 100)
+            self.assertEqual(target.bound_scope, TargetScope(100, 7))
+            self.assertTrue(target.is_available())
+            self.assertEqual(target.scope(), TargetScope(100, 7))
 
     def test_preferred_selection_rejects_silent_retarget(self):
         inner = self._inner()
