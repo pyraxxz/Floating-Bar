@@ -78,8 +78,12 @@ class SendAttempt:
     @property
     def valid(self) -> bool:
         return bool(
+            isinstance(self.attempt_id, int) and
+            not isinstance(self.attempt_id, bool) and
             self.attempt_id > 0 and
+            isinstance(self.text, str) and
             bool(self.text.strip()) and
+            isinstance(self.target, TargetScope) and
             self.target.valid
         )
 
