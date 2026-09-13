@@ -52,6 +52,31 @@ class PreflightTests(unittest.TestCase):
         self.assertTrue(result.context_guard_available)
         self.assertTrue(result.context_stable)
 
+    def test_preflight_is_side_effect_free(self):
+        target = self._target()
+        with patch("floatingbar.preflight.winapi.is_minimized", return_value=False), patch(
+            "floatingbar.preflight.winapi.get_focused_hwnd", return_value=101
+        ), patch(
+            "floatingbar.preflight.winapi.get_window_pid", return_value=200
+        ), patch(
+            "floatingbar.preflight.winapi.get_window_title", return_value="Chat A - Telegram"
+        ), patch(
+            "floatingbar.preflight.winapi.user32.IsWindow", return_value=True
+        ), patch("floatingbar.preflight.winapi.post_click") as post_click, patch(
+            "floatingbar.preflight.winapi.post_enter"
+        ) as post_enter, patch(
+            "floatingbar.preflight.winapi.set_foreground_window"
+        ) as set_foreground, patch(
+            "floatingbar.preflight.winapi.ensure_restored"
+        ) as ensure_restored:
+            result = run(target)
+
+        self.assertTrue(result.ready)
+        post_click.assert_not_called()
+        post_enter.assert_not_called()
+        set_foreground.assert_not_called()
+        ensure_restored.assert_not_called()
+
     def test_minimized_preflight_is_not_ready(self):
         target = self._target()
         with patch("floatingbar.preflight.winapi.is_minimized", return_value=True), patch(
