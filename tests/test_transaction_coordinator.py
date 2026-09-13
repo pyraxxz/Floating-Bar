@@ -40,6 +40,29 @@ class TransactionCoordinatorTests(unittest.TestCase):
         target.select_for_send.assert_not_called()
         target.release.assert_not_called()
 
+    def test_prepare_rejects_invalid_attempt_id_before_discovery(self):
+        target = self._target()
+        coordinator = SendTransactionCoordinator(target)
+
+        with self.assertRaises(TransactionRejected) as raised:
+            coordinator.prepare("hello", 0, preferred_hwnd=700)
+
+        self.assertEqual(str(raised.exception), "The send attempt id is invalid.")
+        target.select_for_send.assert_not_called()
+        target.scope.assert_not_called()
+        target.release.assert_not_called()
+
+    def test_prepare_rejects_boolean_attempt_id_before_discovery(self):
+        target = self._target()
+        coordinator = SendTransactionCoordinator(target)
+
+        with self.assertRaises(TransactionRejected) as raised:
+            coordinator.prepare("hello", True, preferred_hwnd=700)
+
+        self.assertEqual(str(raised.exception), "The send attempt id is invalid.")
+        target.select_for_send.assert_not_called()
+        target.release.assert_not_called()
+
     def test_prepare_builds_immutable_attempt_from_preflight(self):
         target = self._target()
         context = Mock()
