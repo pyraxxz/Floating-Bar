@@ -28,17 +28,21 @@ The audit considers all Edit controls but prefers positive-value controls that g
 
 UIA runtime IDs are session-scoped hints, never permanent identities. The target tracks the Telegram top-level `(HWND, PID)` scope. When that scope changes, the remembered compose runtime ID is discarded and the compose is rediscovered. Remembered controls are also revalidated for sensible dimensions, lower-window placement, and editability before reuse.
 
+### Immutable target lease
+
+`BoundTelegramTarget` now turns a preflight-selected Telegram `(HWND, PID)` into an explicit transaction lease. While bound, it refuses a different preferred HWND, refuses to rediscover another Telegram window, and revalidates the original window/process before and after every compose, audit, and Send-button operation. The lease is released when the active UI completion is processed, including completion-handler exceptions; stale worker results cannot release a newer attempt's lease.
+
 ### Stale-target send guard
 
 Before every critical compose click, retry, Enter, Send click, and clipboard-recovery action, the injector verifies that the original Telegram top-level `(HWND, PID)` still matches the target scope. If Telegram restarts or the window is replaced mid-send, the operation aborts safely rather than continuing against a stale target.
 
 ### Multi-window targeting
 
-When the orb opens, it records the top-level window that owned foreground focus. At send time, the target layer re-scans Telegram windows and prefers that exact HWND when it is one of the detected Telegram windows. Otherwise normal discovery remains the fallback. This prevents another Telegram window with a larger rectangle from becoming the accidental destination.
+When the orb opens, it records the top-level window that owned foreground focus. At send time, the target layer re-scans Telegram windows and prefers that exact HWND when it is one of the detected Telegram windows. Otherwise normal discovery remains the fallback. The production transaction then converts the read-only preflight selection into an immutable lease, so a later rescan cannot silently retarget the send.
 
 ### Safer Send-button evidence
 
-Send candidates now receive a bounded evidence score using explicit accessible name, automation ID, InvokePattern availability, compose-row alignment, position relative to the compose, and reasonable button geometry. Voice/record/mic/audio controls are rejected. Weak unnamed candidates are rejected and posted Enter becomes the fallback.
+Send candidates now use a typed immutable `SendCandidate` carrying the accessible name, client-relative coordinates, and evidence score. The underlying tuple shape remains compatible with the legacy `(name, x, y)` consumers. Evidence combines explicit accessible name, automation ID, InvokePattern availability, compose-row alignment, position relative to the compose, and reasonable button geometry. Voice/record/mic/audio controls are rejected, and unnamed buttons are never clicked merely because their geometry looks convincing.
 
 ## Runtime reliability
 
@@ -70,11 +74,13 @@ A send path that completed but could not be reliably confirmed is treated differ
 
 ### Explicit retry action
 
-A genuinely failed draft can be restored through the existing right-click menu using **Retry failed draft**. The action preserves the original Telegram target before refocusing the orb, restores/selects the draft, and never submits automatically. The command is disabled for verified, uncertain, and idle states. This makes retry deliberate rather than implicit.
+A genuinely failed draft can be restored through the existing right-click menu using **Retry failed draft**. The action preserves the original Telegram target before refocusing the orb, restores/selects the draft, and never submits automatically. Typing a replacement clears the saved retry context. This makes retry deliberate rather than implicit.
 
 ## Submission evidence
 
 Injector strategy strings are mapped into a typed `SubmissionEvidence` model before UI presentation. The model distinguishes `failed`, `submitted`, `verified`, `verification-unavailable`, and `unknown` outcomes, with explicit `confirmed`, `uncertain`, and `retryable` properties. UI policy therefore no longer depends on substring parsing such as treating any strategy containing `verified` as confirmed.
+
+The transaction layer also carries typed immutable `SendCompletion` objects for future coordinator work. A completion is considered failed from either an explicit error or an explicit `EvidenceState.FAILED`, independent of its diagnostic strategy string.
 
 ## Opt-in recovery hardening
 
@@ -86,11 +92,11 @@ Injector strategy strings are mapped into a typed `SubmissionEvidence` model bef
 
 `tools/diagnose.py` remains read-only by default and reports focused HWND, compose click point, runtime IDs, button names, evidence scores, and InvokePattern availability without logging message content.
 
-`tools/diagnose.py --preflight` runs a dedicated non-invasive readiness check. It verifies that Telegram exists, is not minimized, has usable compose geometry, and retains a stable `(HWND, PID)` target during discovery. It reports whether a safe Send-button candidate exists; lack of a button is a warning rather than a hard failure because the production cascade has an Enter fallback.
+`tools/diagnose.py --preflight` runs a dedicated non-invasive readiness check. It verifies that Telegram exists, is not minimized, has usable compose geometry, and retains a stable `(HWND, PID)` target during discovery. It returns the one captured non-content `WindowContext` snapshot used by production for the send attempt; generic Telegram titles deliberately produce degraded context protection rather than a false claim of chat identity.
 
-`tools/diagnose.py --send` uses the same hardened injector family as the production orb and preserves the foreground Telegram target when one was selected before the command started.
+`tools/diagnose.py --send` now follows the production transaction boundary: it runs read-only preflight, binds the exact resulting target through `BoundTelegramTarget`, adopts the preflight context snapshot, sends through `ContextGuardedRecoveryInjector`, and always releases the temporary target lease.
 
-The regression suite covers nested compose geometry, pre-filled search fields, voice-button rejection, explicit Send selection, ambiguous-button fallback, focused-child routing, delayed compose clearing, clipboard-write failure, stale runtime-ID invalidation, Send-button row filtering, disabled controls, DPI-awareness bootstrap, stale-target scope aborts, multi-window target preference, failed-draft behavior, typed send-state classification, repeated sends, Unicode surrogate-pair handling, opt-in recovery scope aborts, explicit retry-menu behavior, and safe-preflight readiness states.
+The regression suite covers nested compose geometry, pre-filled search fields, voice-button rejection, explicit Send selection, ambiguous-button fallback, focused-child routing, delayed compose clearing, clipboard-write failure, stale runtime-ID invalidation, immutable target leases, preflight context replacement, Send-button row filtering, disabled controls, DPI-awareness bootstrap, stale-target scope aborts, multi-window target preference, failed-draft behavior, typed send-state classification, typed Send candidates, repeated sends, Unicode surrogate-pair handling, opt-in recovery scope aborts, explicit retry-menu behavior, production lease lifecycle, and safe-preflight readiness states.
 
 ## Release/deployment
 
@@ -106,7 +112,7 @@ The CI workflows use current Node 24-compatible GitHub Actions lines: `actions/c
 
 Windows CI compiles the source tree, executes the unittest suite, and builds the PyInstaller executable. The release workflow performs the same validation before publishing the versioned EXE.
 
-The development environment cannot execute the final Windows/Telegram UI integration itself. Real desktop validation remains important for Telegram versions, DPI configurations, multiple-monitor layouts, multiple Telegram windows, focus behavior, Qt accessibility behavior, and the actual meaning of Telegram's current UIA tree. The trace log intentionally records lengths, geometry, runtime IDs, stages, candidate scores, attempt IDs, and booleans — never message content.
+The development environment cannot execute the final Windows/Telegram UI integration itself. Real desktop validation remains important for Telegram versions, DPI configurations, multiple-monitor layouts, multiple Telegram windows, restart, minimized state, focus behavior, Qt accessibility behavior, and the actual meaning of Telegram's current UIA tree. The trace log intentionally records lengths, geometry, runtime IDs, stages, candidate scores, attempt IDs, and booleans — never message content.
 
 ## Current release and milestone policy
 
