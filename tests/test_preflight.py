@@ -38,7 +38,7 @@ class PreflightTests(unittest.TestCase):
         ), patch(
             "floatingbar.preflight.winapi.user32.IsWindow", return_value=True
         ), patch(
-            "floatingbar.preflight.compose_runtime_id_present", return_value=True
+            "floatingbar.context.compose_runtime_id_present", return_value=True
         ):
             result = run(target)
 
