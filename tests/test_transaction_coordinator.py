@@ -17,14 +17,14 @@ class TransactionCoordinatorTests(unittest.TestCase):
         target.scope.return_value = TargetScope(700, 900)
         return target
 
-    def _preflight(self, context=None, ready=True):
+    def _preflight(self, context=None, ready=True, hwnd=700, pid=900):
         return SimpleNamespace(
             ready=ready,
             status="ready" if ready else "blocked",
             submission_path="send-button",
             context_guard_available=context is not None,
-            hwnd=700,
-            pid=900,
+            hwnd=hwnd,
+            pid=pid,
             context=context,
             reasons=() if ready else ("blocked",),
         )
@@ -90,6 +90,26 @@ class TransactionCoordinatorTests(unittest.TestCase):
         target.select_for_send.assert_called_once_with(preferred_hwnd=700)
         context.matches.assert_called_once_with()
         target.release.assert_not_called()
+
+    def test_prepare_rejects_preflight_retarget_of_explicit_preferred_window(self):
+        target = self._target()
+        target.select_for_send.return_value = 701
+        context = Mock()
+        context.hwnd = 701
+        context.matches.return_value = True
+        preflight = self._preflight(context=context, hwnd=701, pid=901)
+        coordinator = SendTransactionCoordinator(target)
+
+        with patch(
+            "floatingbar.transaction_coordinator.run_preflight",
+            return_value=preflight,
+        ):
+            with self.assertRaises(TransactionRejected) as raised:
+                coordinator.prepare("hello", 12, preferred_hwnd=700)
+
+        self.assertIn("preferred Telegram window", str(raised.exception))
+        target.select_for_send.assert_not_called()
+        target.release.assert_called_once_with()
 
     def test_prepare_rejects_blocked_preflight(self):
         target = self._target()
