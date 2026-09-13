@@ -6,11 +6,12 @@ the operations a future generic injector will need once the Telegram path is
 proven stable in real-world use.
 """
 
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from .transaction import TargetScope
 
 
+@runtime_checkable
 class BackgroundTarget(Protocol):
     """Minimum discovery contract shared by future app adapters."""
 
@@ -18,7 +19,7 @@ class BackgroundTarget(Protocol):
         """Return the top-level window selected for this send attempt."""
 
     def scope(self) -> TargetScope:
-        """Return the currently selected top-level HWND/PID scope."""
+        """Return the currently selected immutable HWND/PID scope."""
 
     def is_available(self) -> bool:
         """Return whether a usable target is currently discoverable."""
