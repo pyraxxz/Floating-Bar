@@ -24,6 +24,19 @@ class TargetScope(NamedTuple):
         return bool(self.hwnd and self.pid)
 
 
+class SendCandidate(NamedTuple):
+    """Safe Send-button evidence and client-relative click coordinates."""
+
+    name: str
+    client_x: int
+    client_y: int
+    evidence_score: float = 0.0
+
+    @property
+    def explicit_semantics(self) -> bool:
+        return bool(self.name.strip() or self.evidence_score >= 0.0)
+
+
 @dataclass(frozen=True)
 class SendAttempt:
     attempt_id: int
@@ -34,7 +47,11 @@ class SendAttempt:
 
     @property
     def valid(self) -> bool:
-        return bool(self.attempt_id > 0 and self.text and self.target.valid)
+        return bool(
+            self.attempt_id > 0 and
+            bool(self.text.strip()) and
+            self.target.valid
+        )
 
 
 @dataclass(frozen=True)
@@ -46,7 +63,15 @@ class SendCompletion:
 
     @property
     def failed(self) -> bool:
-        return self.error is not None
+        return bool(
+            self.error is not None or
+            self.evidence_state is EvidenceState.FAILED
+        )
 
 
-__all__ = ["TargetScope", "SendAttempt", "SendCompletion"]
+__all__ = [
+    "TargetScope",
+    "SendCandidate",
+    "SendAttempt",
+    "SendCompletion",
+]
