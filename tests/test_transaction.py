@@ -10,10 +10,21 @@ class TransactionTests(unittest.TestCase):
         self.assertFalse(TargetScope(0, 20).valid)
         self.assertFalse(TargetScope(10, 0).valid)
 
-    def test_send_candidate_is_tuple_compatible_and_carries_evidence(self):
+    def test_send_candidate_preserves_legacy_three_value_tuple_shape(self):
         candidate = SendCandidate("Send", 40, 50, 137.5)
-        self.assertEqual(candidate[:3], ("Send", 40, 50))
+        self.assertEqual(candidate, ("Send", 40, 50))
+        self.assertEqual(candidate[1:], (40, 50))
+        name, x, y = candidate
+        self.assertEqual((name, x, y), ("Send", 40, 50))
+
+    def test_send_candidate_carries_read_only_evidence_metadata(self):
+        candidate = SendCandidate("Send", 40, 50, 137.5)
+        self.assertEqual(candidate.name, "Send")
+        self.assertEqual(candidate.client_x, 40)
+        self.assertEqual(candidate.client_y, 50)
         self.assertEqual(candidate.evidence_score, 137.5)
+        with self.assertRaises(AttributeError):
+            candidate.evidence_score = 20.0
 
     def test_send_attempt_is_immutable_and_valid(self):
         attempt = SendAttempt(
