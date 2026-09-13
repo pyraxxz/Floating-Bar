@@ -51,6 +51,37 @@ class ContextTests(unittest.TestCase):
         ), patch("floatingbar.context.winapi.user32.IsWindow", return_value=True):
             self.assertFalse(context.matches())
 
+    def test_window_context_matches_process_identity(self):
+        context = WindowContext(
+            100,
+            200,
+            "",
+            process_name="telegram.exe",
+        )
+        with patch("floatingbar.context.winapi.get_window_pid", return_value=200), patch(
+            "floatingbar.context.winapi.user32.IsWindow", return_value=True
+        ), patch(
+            "floatingbar.context.winapi.get_process_image_name",
+            return_value="C:\\Apps\\Telegram\\Telegram.exe",
+        ):
+            self.assertTrue(context.matches())
+        self.assertFalse(context.guard_available)
+
+    def test_window_context_rejects_changed_process_identity(self):
+        context = WindowContext(
+            100,
+            200,
+            "",
+            process_name="telegram.exe",
+        )
+        with patch("floatingbar.context.winapi.get_window_pid", return_value=200), patch(
+            "floatingbar.context.winapi.user32.IsWindow", return_value=True
+        ), patch(
+            "floatingbar.context.winapi.get_process_image_name",
+            return_value="C:\\Apps\\Other\\other.exe",
+        ):
+            self.assertFalse(context.matches())
+
     def test_window_context_rejects_changed_compose_runtime_id(self):
         context = WindowContext(
             100,
@@ -83,6 +114,9 @@ class ContextTests(unittest.TestCase):
     def test_capture_retains_only_non_content_context_anchors(self):
         with patch("floatingbar.context.winapi.get_window_pid", return_value=200), patch(
             "floatingbar.context.winapi.get_window_title", return_value="Chat A"
+        ), patch(
+            "floatingbar.context.winapi.get_process_image_name",
+            return_value="C:\\Apps\\Telegram\\Telegram.exe",
         ):
             context = capture(100, compose_runtime_id=(7, 8, 9))
 
@@ -90,15 +124,20 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(context.pid, 200)
         self.assertEqual(context.title_fp, title_fingerprint("Chat A"))
         self.assertEqual(context.compose_runtime_id, (7, 8, 9))
+        self.assertEqual(context.process_name, "telegram.exe")
         self.assertTrue(context.guard_available)
 
     def test_capture_generic_title_can_still_have_structural_guard(self):
         with patch("floatingbar.context.winapi.get_window_pid", return_value=200), patch(
             "floatingbar.context.winapi.get_window_title", return_value="Telegram"
+        ), patch(
+            "floatingbar.context.winapi.get_process_image_name",
+            return_value="C:\\Apps\\Telegram\\Telegram.exe",
         ):
             context = capture(100, compose_runtime_id=(7, 8, 9))
 
         self.assertEqual(context.title_fp, "")
+        self.assertEqual(context.process_name, "telegram.exe")
         self.assertTrue(context.guard_available)
 
 
