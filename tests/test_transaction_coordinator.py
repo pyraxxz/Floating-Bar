@@ -29,6 +29,16 @@ class TransactionCoordinatorTests(unittest.TestCase):
             reasons=() if ready else ("blocked",),
         )
 
+    def test_prepare_rejects_empty_text_before_discovery(self):
+        target = self._target()
+        coordinator = SendTransactionCoordinator(target)
+
+        with self.assertRaises(TransactionRejected) as raised:
+            coordinator.prepare(" \t\n", 12, preferred_hwnd=700)
+
+        self.assertEqual(str(raised.exception), "The send text is empty.")
+        target.select_for_send.assert_not_called()
+
     def test_prepare_builds_immutable_attempt_from_preflight(self):
         target = self._target()
         context = Mock()
