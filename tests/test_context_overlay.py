@@ -111,6 +111,32 @@ class ContextOverlayTests(unittest.TestCase):
         self.assertIsInstance(completion, SendCompletion)
         self.assertEqual(completion.evidence_state.name, "VERIFIED")
 
+    def test_typed_poll_delivers_completion_to_finished_handler(self):
+        window = self._window()
+        completion = SendCompletion.from_result(
+            12,
+            strategy="posted-enter (VERIFIED)",
+        )
+        window._result_q.put(completion)
+        window._send_finished = Mock()
+        window.after = Mock()
+
+        window._poll_results()
+
+        window._send_finished.assert_called_once_with(completion)
+        window.after.assert_called_once_with(80, window._poll_results)
+
+    def test_poll_rejects_untyped_completion(self):
+        window = self._window()
+        window._result_q.put((13, "posted-enter (VERIFIED)", None))
+        window._send_finished = Mock()
+        window.after = Mock()
+
+        window._poll_results()
+
+        window._send_finished.assert_not_called()
+        window.after.assert_called_once_with(80, window._poll_results)
+
     def test_active_target_lease_releases_when_completion_raises(self):
         window = self._window()
         window._active_attempt_id = 12
@@ -123,7 +149,12 @@ class ContextOverlayTests(unittest.TestCase):
             side_effect=RuntimeError("completion bug"),
         ):
             with self.assertRaises(RuntimeError):
-                window._send_finished(12, None, "error")
+                window._send_finished(
+                    SendCompletion(
+                        attempt_id=12,
+                        error="error",
+                    )
+                )
 
         window.target.release.assert_called_once_with()
 
@@ -135,9 +166,16 @@ class ContextOverlayTests(unittest.TestCase):
         window._active_transaction.context = Mock()
 
         with patch("floatingbar.recovery_overlay.OrbRelayWindow._send_finished") as base_finished:
-            window._send_finished(19, None, "old result")
+            window._send_finished(
+                SendCompletion(
+                    attempt_id=19,
+                    error="old result",
+                )
+            )
 
-        base_finished.assert_called_once_with(19, None, "old result")
+        base_finished.assert_called_once_with(
+            SendCompletion(attempt_id=19, error="old result")
+        )
         window.target.release.assert_not_called()
 
 
