@@ -1,10 +1,9 @@
 """Immutable data for one background-send transaction.
 
-The UI and worker are intentionally separated: a send attempt captures its
-identity and target before the background thread starts, while the completion
-result carries the same attempt id back to the UI. This makes stale-worker
-results and accidental target changes explicit data rather than a collection
-of loosely related mutable fields.
+The UI and worker are intentionally separated: a send request captures the
+user's text and restoration target before the background thread starts; a
+prepared send attempt then adds the exact Telegram target lease and context;
+the completion result carries the same attempt id back to the UI.
 """
 
 from dataclasses import dataclass
@@ -68,6 +67,28 @@ def candidate_parts(candidate) -> Tuple[str, int, int]:
 
 
 @dataclass(frozen=True)
+class SendRequest:
+    """Immutable user send request handed to the background worker."""
+
+    attempt_id: int
+    text: str
+    restore_hwnd: int = 0
+
+    @property
+    def valid(self) -> bool:
+        return bool(
+            isinstance(self.attempt_id, int) and
+            not isinstance(self.attempt_id, bool) and
+            self.attempt_id > 0 and
+            isinstance(self.text, str) and
+            bool(self.text.strip()) and
+            isinstance(self.restore_hwnd, int) and
+            not isinstance(self.restore_hwnd, bool) and
+            self.restore_hwnd >= 0
+        )
+
+
+@dataclass(frozen=True)
 class SendAttempt:
     attempt_id: int
     text: str
@@ -92,9 +113,9 @@ class SendAttempt:
 class SendCompletion:
     """Immutable result crossing the background-worker/UI boundary.
 
-    The iterator is a temporary compatibility bridge for the existing UI
-    consumer. New producers should enqueue the object itself rather than a
-    loosely typed tuple.
+    The iterator is a temporary compatibility bridge for legacy UI consumers.
+    New producers should enqueue the object itself rather than a loosely typed
+    tuple.
     """
 
     attempt_id: int
@@ -135,6 +156,7 @@ __all__ = [
     "TargetScope",
     "SendCandidate",
     "candidate_parts",
+    "SendRequest",
     "SendAttempt",
     "SendCompletion",
 ]
