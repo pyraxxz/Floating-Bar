@@ -18,6 +18,14 @@ With Telegram open to a chat, run from the repository root:
 python tools/diagnose.py --preflight
 ```
 
+For machine-readable support output, use:
+
+```bat
+python tools/diagnose.py --preflight --json
+```
+
+The JSON form contains only content-free readiness data: status, target HWND/PID, focus ownership, compose geometry, submission path, Send evidence score, context-guard state, and safe diagnostic reasons. It never includes Telegram's raw title, message text, or clipboard contents.
+
 Expected hard prerequisites:
 
 - `ready=True`.
