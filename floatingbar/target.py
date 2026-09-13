@@ -44,7 +44,16 @@ class TelegramTarget:
     def hwnd(self) -> int:
         """A currently-valid Telegram top-level hwnd, or 0."""
         if self._hwnd and winapi.user32.IsWindow(self._hwnd):
-            return self._hwnd
+            try:
+                current_pid = winapi.get_window_pid(self._hwnd)
+            except Exception:
+                current_pid = 0
+            if self._pid and current_pid == self._pid:
+                return self._hwnd
+            trace.trace(
+                f"telegram target: cached hwnd={self._hwnd} pid changed "
+                f"from {self._pid} to {current_pid}; refreshing"
+            )
         self.refresh()
         return self._hwnd or 0
 
