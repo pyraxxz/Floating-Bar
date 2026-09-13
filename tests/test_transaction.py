@@ -1,7 +1,13 @@
 import unittest
 
 from floatingbar.evidence import EvidenceState
-from floatingbar.transaction import SendAttempt, SendCandidate, SendCompletion, TargetScope
+from floatingbar.transaction import (
+    SendAttempt,
+    SendCandidate,
+    SendCompletion,
+    SendRequest,
+    TargetScope,
+)
 
 
 class TransactionTests(unittest.TestCase):
@@ -29,6 +35,30 @@ class TransactionTests(unittest.TestCase):
             candidate.extra = True
         with self.assertRaises(AttributeError):
             del candidate.evidence_score
+
+    def test_send_request_is_immutable_and_valid(self):
+        request = SendRequest(
+            attempt_id=7,
+            text="hello",
+            restore_hwnd=99,
+        )
+        self.assertTrue(request.valid)
+        with self.assertRaises(Exception):
+            request.attempt_id = 8
+
+    def test_send_request_rejects_malformed_values(self):
+        invalid_requests = (
+            SendRequest(0, "hello", 10),
+            SendRequest(True, "hello", 10),
+            SendRequest(7, "", 10),
+            SendRequest(7, " \t ", 10),
+            SendRequest(7, 123, 10),
+            SendRequest(7, "hello", -1),
+            SendRequest(7, "hello", True),
+        )
+        for request in invalid_requests:
+            with self.subTest(request=request):
+                self.assertFalse(request.valid)
 
     def test_send_attempt_is_immutable_and_valid(self):
         attempt = SendAttempt(
