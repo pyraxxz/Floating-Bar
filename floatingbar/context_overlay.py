@@ -11,7 +11,7 @@ from .context_injector import ContextGuardedRecoveryInjector
 from .injector import InjectionFailed
 from .recovery_overlay import OrbRelayWindow as _RecoveryOrbRelayWindow
 from .target import TelegramNotFound
-from .transaction import SendCompletion
+from .transaction import SendCompletion, SendRequest
 from .transaction_coordinator import SendTransactionCoordinator, TransactionRejected
 
 
@@ -56,9 +56,6 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
             return
 
         if self._retry_draft and retry_context is not None:
-            # A failed draft keeps the original target until the user edits
-            # the draft. Opening the orb must not replace that lease context
-            # with whichever Telegram window happens to own foreground focus.
             self._attempt_context = retry_context
             self._work_hwnd = self._retry_target_hwnd or retry_context.hwnd
             self.injector.set_window_context(retry_context)
@@ -154,26 +151,34 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
                     pass
         self._queue_completion(attempt_id, strategy, error)
 
-    def _send_worker(self, text: str, work_hwnd: int, attempt_id: int) -> None:
-        # Keep the user's original foreground HWND separate from the Telegram
-        # target. The latter is a lease target; the former is what recovery
-        # should restore if a posted click or opt-in fallback raises Telegram.
+    def _send_worker_request(self, request: SendRequest) -> None:
+        """Prepare and execute one immutable user request on the worker thread."""
+        if not isinstance(request, SendRequest) or not request.valid:
+            attempt_id = getattr(request, "attempt_id", 0)
+            self._queue_completion(
+                attempt_id,
+                None,
+                "The send request was invalid and was stopped safely.",
+            )
+            return
+
+        work_hwnd = request.restore_hwnd
         preferred = work_hwnd if self._is_telegram_window(work_hwnd) else 0
         try:
             prepared = self.coordinator.prepare(
-                text=text,
-                attempt_id=attempt_id,
+                text=request.text,
+                attempt_id=request.attempt_id,
                 preferred_hwnd=preferred,
-                restore_hwnd=work_hwnd,
+                restore_hwnd=request.restore_hwnd,
             )
         except TransactionRejected as exc:
             trace.trace(f"transaction: preparation rejected safely: {exc}")
-            self._queue_completion(attempt_id, None, str(exc))
+            self._queue_completion(request.attempt_id, None, str(exc))
             return
         except Exception as exc:
             trace.trace(f"transaction: unexpected preparation failure: {exc}")
             self._queue_completion(
-                attempt_id,
+                request.attempt_id,
                 None,
                 f"Telegram send preflight failed safely: {exc}",
             )
@@ -188,6 +193,16 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
             transaction.text,
             transaction.restore_hwnd,
             transaction.attempt_id,
+        )
+
+    def _send_worker(self, text: str, work_hwnd: int, attempt_id: int) -> None:
+        """Legacy direct-call adapter; production threads use SendRequest."""
+        self._send_worker_request(
+            SendRequest(
+                attempt_id=attempt_id,
+                text=text,
+                restore_hwnd=work_hwnd,
+            )
         )
 
     def _poll_results(self) -> None:
@@ -224,9 +239,6 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
                 self.injector.set_window_context(None)
             self._active_transaction = None
         finally:
-            # A malformed completion handler must never strand the exact target
-            # lease. Stale results still cannot release the lease belonging to
-            # a newer active attempt.
             if is_current and callable(release):
                 release()
 
