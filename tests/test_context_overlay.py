@@ -2,6 +2,7 @@ import queue
 import unittest
 from unittest.mock import Mock, patch
 
+from floatingbar.bound_context_overlay import OrbRelayWindow as BoundContextOverlay
 from floatingbar.context_overlay import OrbRelayWindow
 from floatingbar.transaction import SendAttempt, SendCompletion, TargetScope
 from floatingbar.transaction_coordinator import PreparedTransaction, TransactionRejected
@@ -35,6 +36,10 @@ class ContextOverlayTests(unittest.TestCase):
             attempt=attempt,
             preflight=Mock(),
         )
+
+    def test_bound_context_overlay_is_compatibility_only(self):
+        self.assertIs(BoundContextOverlay.__init__, OrbRelayWindow.__init__)
+        self.assertIs(BoundContextOverlay._send_finished, OrbRelayWindow._send_finished)
 
     def test_send_worker_uses_coordinator_and_preserves_restore_hwnd(self):
         window = self._window()
@@ -166,16 +171,13 @@ class ContextOverlayTests(unittest.TestCase):
         window._active_transaction.context = Mock()
 
         with patch("floatingbar.recovery_overlay.OrbRelayWindow._send_finished") as base_finished:
-            window._send_finished(
-                SendCompletion(
-                    attempt_id=19,
-                    error="old result",
-                )
+            completion = SendCompletion(
+                attempt_id=19,
+                error="old result",
             )
+            window._send_finished(completion)
 
-        base_finished.assert_called_once_with(
-            SendCompletion(attempt_id=19, error="old result")
-        )
+        base_finished.assert_called_once_with(completion)
         window.target.release.assert_not_called()
 
 
