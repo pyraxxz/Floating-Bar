@@ -41,9 +41,9 @@ class ContextOverlayTests(unittest.TestCase):
         prepared = self._prepared(restore_hwnd=111)
         window.coordinator.prepare.return_value = prepared
 
-        with patch.object(window, "_is_telegram_window", return_value=False), patch(
-            "floatingbar.recovery_overlay.OrbRelayWindow._send_worker"
-        ) as base_worker:
+        with patch.object(window, "_is_telegram_window", return_value=False), patch.object(
+            window, "_execute_prepared_attempt"
+        ) as execute_attempt:
             window._send_worker("hello", 111, 7)
 
         window.coordinator.prepare.assert_called_once_with(
@@ -58,16 +58,16 @@ class ContextOverlayTests(unittest.TestCase):
         self.assertEqual(window._work_hwnd, 700)
         self.assertIs(window._attempt_context, prepared.attempt.context)
         window.injector.set_window_context.assert_called_once_with(prepared.attempt.context)
-        base_worker.assert_called_once_with("hello", 111, 7)
+        execute_attempt.assert_called_once_with("hello", 111, 7)
 
     def test_send_worker_passes_telegram_foreground_as_exact_preference(self):
         window = self._window()
         prepared = self._prepared(restore_hwnd=700)
         window.coordinator.prepare.return_value = prepared
 
-        with patch.object(window, "_is_telegram_window", return_value=True), patch(
-            "floatingbar.recovery_overlay.OrbRelayWindow._send_worker"
-        ):
+        with patch.object(window, "_is_telegram_window", return_value=True), patch.object(
+            window, "_execute_prepared_attempt"
+        ) as execute_attempt:
             window._send_worker("hello", 700, 8)
 
         window.coordinator.prepare.assert_called_once_with(
@@ -76,6 +76,7 @@ class ContextOverlayTests(unittest.TestCase):
             preferred_hwnd=700,
             restore_hwnd=700,
         )
+        execute_attempt.assert_called_once_with("hello", 700, 8)
 
     def test_transaction_rejection_is_returned_as_safe_failure(self):
         window = self._window()
