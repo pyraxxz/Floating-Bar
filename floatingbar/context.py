@@ -3,8 +3,9 @@
 The title is read only to derive a one-way, per-process HMAC fingerprint. A
 session-scoped compose-control runtime ID is also captured when available;
 it is used only as an in-memory structural anchor and is never logged or
-persisted. Raw title text, message content, and the HMAC key are never logged,
-stored on disk, or exposed in diagnostics.
+persisted. The Telegram process basename is also retained as a non-content
+identity anchor. Raw title text, message content, and the HMAC key are never
+logged, stored on disk, or exposed in diagnostics.
 """
 
 from dataclasses import dataclass
@@ -35,6 +36,19 @@ def title_fingerprint(title: str) -> str:
     ).hexdigest()
 
 
+def _process_basename(pid: int) -> str:
+    """Return a non-content process basename, or empty when unavailable."""
+    if not pid:
+        return ""
+    try:
+        image = winapi.get_process_image_name(pid)
+        if not isinstance(image, str) or not image:
+            return ""
+        return image.rsplit("\\", 1)[-1].casefold()
+    except Exception:
+        return ""
+
+
 def compose_runtime_id_present(hwnd: int, runtime_id: Tuple[int, ...]) -> bool:
     """Return whether a content-free UIA Edit anchor still exists on the window."""
     if not hwnd or not runtime_id:
@@ -61,10 +75,11 @@ class WindowContext:
     pid: int
     title_fp: str
     compose_runtime_id: Tuple[int, ...] = ()
+    process_name: str = ""
 
     @property
     def guard_available(self) -> bool:
-        """Whether at least one non-content context anchor is available."""
+        """Whether at least one non-content conversation-level anchor is available."""
         return bool(self.title_fp or self.compose_runtime_id)
 
     def matches(self) -> bool:
@@ -74,6 +89,8 @@ class WindowContext:
         if winapi.get_window_pid(self.hwnd) != self.pid:
             return False
         if not winapi.user32.IsWindow(self.hwnd):
+            return False
+        if self.process_name and _process_basename(self.pid) != self.process_name:
             return False
         if self.title_fp:
             if title_fingerprint(winapi.get_window_title(self.hwnd)) != self.title_fp:
@@ -97,4 +114,5 @@ def capture(
         pid=pid,
         title_fp=title_fingerprint(title),
         compose_runtime_id=rid,
+        process_name=_process_basename(pid),
     )
