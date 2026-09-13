@@ -11,7 +11,7 @@ from typing import Any, List, Optional, Tuple
 
 from . import winapi
 from .target import TelegramNotFound, TelegramTarget
-from .transaction import TargetScope
+from .transaction import SendCandidate, TargetScope
 
 
 class BoundTelegramTarget:
@@ -123,7 +123,7 @@ class BoundTelegramTarget:
         self._inner.remember_compose(edit)
         self._ensure_bound_for_operation()
 
-    def send_button_click(self, near_box: Any = None) -> Optional[Tuple[str, int, int]]:
+    def send_button_click(self, near_box: Any = None) -> Optional[SendCandidate]:
         self._ensure_bound_for_operation()
         result = self._inner.send_button_click(near_box=near_box)
         self._ensure_bound_for_operation()
