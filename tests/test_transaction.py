@@ -1,7 +1,7 @@
 import unittest
 
 from floatingbar.evidence import EvidenceState
-from floatingbar.transaction import SendAttempt, SendCompletion, TargetScope
+from floatingbar.transaction import SendAttempt, SendCandidate, SendCompletion, TargetScope
 
 
 class TransactionTests(unittest.TestCase):
@@ -9,6 +9,11 @@ class TransactionTests(unittest.TestCase):
         self.assertTrue(TargetScope(10, 20).valid)
         self.assertFalse(TargetScope(0, 20).valid)
         self.assertFalse(TargetScope(10, 0).valid)
+
+    def test_send_candidate_is_tuple_compatible_and_carries_evidence(self):
+        candidate = SendCandidate("Send", 40, 50, 137.5)
+        self.assertEqual(candidate[:3], ("Send", 40, 50))
+        self.assertEqual(candidate.evidence_score, 137.5)
 
     def test_send_attempt_is_immutable_and_valid(self):
         attempt = SendAttempt(
@@ -20,6 +25,11 @@ class TransactionTests(unittest.TestCase):
         self.assertTrue(attempt.valid)
         with self.assertRaises(Exception):
             attempt.attempt_id = 8
+
+    def test_whitespace_only_send_attempt_is_invalid(self):
+        self.assertFalse(
+            SendAttempt(7, " \t ", TargetScope(10, 20)).valid
+        )
 
     def test_send_attempt_invalid_when_identity_or_target_is_missing(self):
         self.assertFalse(
@@ -40,6 +50,13 @@ class TransactionTests(unittest.TestCase):
         )
         self.assertFalse(completion.failed)
         self.assertEqual(completion.evidence_state, EvidenceState.VERIFIED)
+
+    def test_completion_failure_state_is_explicit_failure(self):
+        completion = SendCompletion(
+            attempt_id=7,
+            evidence_state=EvidenceState.FAILED,
+        )
+        self.assertTrue(completion.failed)
 
     def test_completion_error_is_explicit_failure(self):
         completion = SendCompletion(
