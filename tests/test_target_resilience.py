@@ -113,6 +113,9 @@ class TargetResilienceTests(unittest.TestCase):
             "floatingbar.target.winapi.find_windows", return_value=matches
         ), patch(
             "floatingbar.target.winapi.user32.IsWindow", return_value=True
+        ), patch(
+            "floatingbar.target.winapi.get_window_pid",
+            side_effect=lambda hwnd: {100: 10, 200: 20}[hwnd],
         ):
             selected = target.select_for_send(preferred_hwnd=200)
 
@@ -129,6 +132,9 @@ class TargetResilienceTests(unittest.TestCase):
             "floatingbar.target.winapi.find_windows", return_value=matches
         ), patch(
             "floatingbar.target.winapi.user32.IsWindow", return_value=True
+        ), patch(
+            "floatingbar.target.winapi.get_window_pid",
+            side_effect=lambda hwnd: {100: 10, 200: 20}[hwnd],
         ):
             selected = target.select_for_send(preferred_hwnd=999)
 
@@ -156,7 +162,10 @@ class TargetResilienceTests(unittest.TestCase):
         box = FakeEdit(Rect(100, 700, 700, 760))
 
         with patch("floatingbar.target.winapi.user32.IsWindow", return_value=True), \
-             patch.object(target, "_window", return_value=window):
+             patch(
+                 "floatingbar.target.winapi.get_window_pid",
+                 return_value=10,
+             ), patch.object(target, "_window", return_value=window):
             result = target.send_button_click(near_box=box)
 
         self.assertIsInstance(result, SendCandidate)
@@ -178,7 +187,10 @@ class TargetResilienceTests(unittest.TestCase):
         box = FakeEdit(Rect(100, 700, 700, 760))
 
         with patch("floatingbar.target.winapi.user32.IsWindow", return_value=True), \
-             patch.object(target, "_window", return_value=window):
+             patch(
+                 "floatingbar.target.winapi.get_window_pid",
+                 return_value=10,
+             ), patch.object(target, "_window", return_value=window):
             result = target.send_button_click(near_box=box)
 
         self.assertIsInstance(result, SendCandidate)
@@ -209,7 +221,10 @@ class TargetResilienceTests(unittest.TestCase):
         box = FakeEdit(Rect(100, 700, 700, 760))
 
         with patch("floatingbar.target.winapi.user32.IsWindow", return_value=True), \
-             patch.object(target, "_window", return_value=window):
+             patch(
+                 "floatingbar.target.winapi.get_window_pid",
+                 return_value=10,
+             ), patch.object(target, "_window", return_value=window):
             result = target.send_button_click(near_box=box)
 
         self.assertIsInstance(result, SendCandidate)
@@ -235,7 +250,10 @@ class TargetResilienceTests(unittest.TestCase):
         box = FakeEdit(Rect(100, 700, 700, 760))
 
         with patch("floatingbar.target.winapi.user32.IsWindow", return_value=True), \
-             patch.object(target, "_window", return_value=window):
+             patch(
+                 "floatingbar.target.winapi.get_window_pid",
+                 return_value=10,
+             ), patch.object(target, "_window", return_value=window):
             result = target.send_button_click(near_box=box)
 
         self.assertIsNone(result)
@@ -251,7 +269,10 @@ class TargetResilienceTests(unittest.TestCase):
         box = FakeEdit(Rect(100, 700, 700, 760))
 
         with patch("floatingbar.target.winapi.user32.IsWindow", return_value=True), \
-             patch.object(target, "_window", return_value=window):
+             patch(
+                 "floatingbar.target.winapi.get_window_pid",
+                 return_value=10,
+             ), patch.object(target, "_window", return_value=window):
             result = target.send_button_click(near_box=box)
 
         self.assertIsNone(result)
