@@ -4,6 +4,7 @@ Run from the repo root:
 
     python tools/diagnose.py                         # window + compose + buttons
     python tools/diagnose.py --preflight             # read-only send readiness
+    python tools/diagnose.py --preflight --json      # machine-readable readiness
     python tools/diagnose.py --send "test 123"       # guarded live send test
 
 The default and --preflight forms are completely read-only: they inspect
@@ -14,6 +15,7 @@ scope-guarded injector family.
 """
 
 import argparse
+import json
 import os
 import sys
 
@@ -29,7 +31,43 @@ from floatingbar.target import TelegramTarget, TelegramNotFound
 import config
 
 
-def _print_preflight(result) -> None:
+def _preflight_payload(result) -> dict:
+    """Return only content-free fields suitable for machine processing."""
+    payload = {
+        "status": result.status,
+        "ready": bool(result.ready),
+        "telegram_hwnd": int(result.hwnd),
+        "pid": int(result.pid),
+        "minimized": bool(result.minimized),
+        "scope_stable": bool(result.scope_stable),
+        "focused_hwnd": int(result.focused_hwnd),
+        "focused_pid": int(result.focused_pid),
+        "compose_click": list(result.compose_click) if result.compose_click else None,
+        "submission_path": result.submission_path,
+        "send_candidate": (
+            {
+                "name": result.send_name,
+                "point": list(result.send_point),
+                "evidence_score": float(result.send_evidence_score),
+            }
+            if result.button_available and result.send_point
+            else None
+        ),
+        "context_guard_available": bool(result.context_guard_available),
+        "context_stable": bool(result.context_stable),
+        "compose_runtime_anchor_available": bool(
+            result.context is not None and result.context.compose_runtime_id
+        ),
+        "reasons": list(result.reasons),
+    }
+    return payload
+
+
+def _print_preflight(result, json_output: bool = False) -> None:
+    if json_output:
+        print(json.dumps(_preflight_payload(result), sort_keys=True))
+        return
+
     print("Safe-send preflight")
     print(f"  status={result.status}  ready={result.ready}")
     print(f"  telegram_hwnd={result.hwnd}  pid={result.pid}")
@@ -46,6 +84,11 @@ def _print_preflight(result) -> None:
         f"  context_guard_available={result.context_guard_available} "
         f"context_stable={result.context_stable}"
     )
+    if result.context is not None:
+        print(
+            "  compose_runtime_anchor_available="
+            f"{bool(result.context.compose_runtime_id)}"
+        )
     if result.button_available:
         print(
             f"  send_candidate=name={result.send_name!r} "
@@ -245,15 +288,24 @@ def main() -> int:
         help="run a read-only safe-send readiness check",
     )
     actions.add_argument("--send", metavar="TEXT", help="run a guarded live send test")
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="with --preflight, emit a content-free JSON report",
+    )
     args = parser.parse_args()
+
+    if args.json and not args.preflight:
+        parser.error("--json is supported only with --preflight")
 
     preferred_hwnd = winapi.get_foreground_window()
     target = TelegramTarget()
 
     if args.preflight:
         result = run_preflight(target, preferred_hwnd=preferred_hwnd)
-        _print_preflight(result)
-        print(f"\nTrace log location: {trace.path()}")
+        _print_preflight(result, json_output=args.json)
+        if not args.json:
+            print(f"\nTrace log location: {trace.path()}")
         return 0 if result.ready else 3
 
     print("Scanning for Telegram Desktop ...")
