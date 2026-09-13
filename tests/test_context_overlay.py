@@ -240,7 +240,7 @@ class ContextOverlayTests(unittest.TestCase):
         with patch("floatingbar.recovery_overlay.OrbRelayWindow._send_finished") as base_finished:
             window._send_finished(19, None, "old result")
 
-        base_finished.assert_called_once_with(None, None, "old result")
+        base_finished.assert_called_once_with(19, None, "old result")
         window.target.release.assert_not_called()
 
 
