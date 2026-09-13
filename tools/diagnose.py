@@ -3,13 +3,14 @@
 Run from the repo root:
 
     python tools/diagnose.py                         # window + compose + buttons
+    python tools/diagnose.py --context              # non-content chat-row UIA probe
     python tools/diagnose.py --preflight             # read-only send readiness
     python tools/diagnose.py --preflight --json      # machine-readable readiness
     python tools/diagnose.py --send "test 123"       # guarded live send test
 
-The default and --preflight forms are completely read-only: they inspect
-window geometry, control identifiers, focus ownership, and safety evidence —
-never message content. The --send form performs the same transaction
+The default, --context, and --preflight forms are completely read-only: they
+inspect window geometry, control identifiers, focus ownership, and safety
+evidence — never message content. The --send form performs the same transaction
 preparation used by the production orb, then sends text with the same
 context-aware, scope-guarded injector family.
 """
@@ -23,6 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from floatingbar import trace
 from floatingbar import winapi
+from floatingbar.context import title_fingerprint
 from floatingbar.context_injector import ContextGuardedRecoveryInjector
 from floatingbar.preflight import run as run_preflight
 from floatingbar.bound_target import BoundTelegramTarget
@@ -118,6 +120,83 @@ def _is_telegram_window(hwnd: int) -> bool:
         return bool(title and config.TITLE_FALLBACK_RE.search(title))
     except Exception:
         return False
+
+
+def _run_context_diagnostic(hwnd: int) -> int:
+    """Inspect content-free ListItem structure without selecting or reading text."""
+    print("Telegram UIA chat-context probe (read-only)")
+    print(f"  hwnd={hwnd}  pid={winapi.get_window_pid(hwnd)}")
+
+    try:
+        import pywinauto
+
+        app = pywinauto.Application(backend="uia").connect(handle=hwnd)
+        window = app.window(handle=hwnd).wrapper_object()
+        window_rect = window.rectangle()
+        items = window.descendants(control_type="ListItem")
+    except Exception as exc:
+        print(f"  FAILED to enumerate ListItem controls: {exc}")
+        return 2
+
+    width = max(1, window_rect.width())
+    left_cutoff = window_rect.left + int(width * 0.60)
+    candidates = []
+    for item in items:
+        try:
+            rect = item.rectangle()
+            runtime_id = tuple(item.element_info.runtime_id)
+            name = item.element_info.name or ""
+            automation_id = item.element_info.automation_id or ""
+        except Exception:
+            continue
+
+        try:
+            selected = bool(item.is_selected())
+        except Exception:
+            selected = None
+
+        left_pane_candidate = rect.left < left_cutoff and rect.width() > 80
+        if selected or left_pane_candidate:
+            candidates.append(
+                (
+                    rect,
+                    selected,
+                    runtime_id,
+                    title_fingerprint(name),
+                    automation_id,
+                    left_pane_candidate,
+                )
+            )
+
+    print(f"  ListItem controls={len(items)}")
+    print(f"  reported candidates={len(candidates)}")
+    if not candidates:
+        print("  no candidate ListItem controls found")
+        print("  (Telegram may not expose chat rows through UIA on this build)")
+        return 0
+
+    for i, (rect, selected, runtime_id, name_fp, automation_id, left_pane) in enumerate(candidates):
+        print(
+            f"  ListItem[{i}]: selected={selected} left_pane_candidate={left_pane} "
+            f"at ({rect.left},{rect.top})-({rect.right},{rect.bottom}) "
+            f"automation_id={automation_id!r} runtime_id={runtime_id} "
+            f"name_fp={name_fp or 'none'}"
+        )
+
+    selected_left = [
+        candidate for candidate in candidates if candidate[1] is True and candidate[5]
+    ]
+    print(f"  selected_left_pane_candidates={len(selected_left)}")
+    if len(selected_left) == 1:
+        print("  context-anchor candidate: unique selected left-pane ListItem")
+    elif len(selected_left) > 1:
+        print("  context-anchor candidate: ambiguous (multiple selected left-pane items)")
+    else:
+        print("  context-anchor candidate: none")
+
+    print(f"\nTrace log location: {trace.path()}")
+    print("(no message text or raw chat-row names are written by this probe)")
+    return 0
 
 
 def _run_full_diagnostic(target: TelegramTarget, hwnd: int) -> int:
@@ -292,6 +371,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     actions = parser.add_mutually_exclusive_group()
     actions.add_argument(
+        "--context",
+        action="store_true",
+        help="inspect content-free chat-row UIA structure",
+    )
+    actions.add_argument(
         "--preflight",
         action="store_true",
         help="run a read-only safe-send readiness check",
@@ -325,6 +409,9 @@ def main() -> int:
         print("  Is Telegram Desktop installed and running?")
         return 1
 
+    if args.context:
+        return _run_context_diagnostic(hwnd)
+
     if args.send:
         return _run_guarded_send(target, args.send, preferred_hwnd)
 
@@ -339,6 +426,10 @@ def main() -> int:
     print(
         'Or test a guarded live send with:  '
         'python tools/diagnose.py --send "test 123"'
+    )
+    print(
+        'To inspect chat-list structure without reading chat/message text:  '
+        'python tools/diagnose.py --context'
     )
     return 0
 
