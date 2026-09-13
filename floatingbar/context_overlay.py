@@ -4,6 +4,7 @@ import config
 
 from . import trace
 from . import winapi
+from .bound_target import BoundTelegramTarget
 from .context import capture
 from .context_injector import ContextGuardedRecoveryInjector
 from .preflight import run as run_preflight
@@ -16,6 +17,7 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
 
     def __init__(self):
         super().__init__()
+        self.target = BoundTelegramTarget(self.target)
         self.injector = ContextGuardedRecoveryInjector(self.target)
         self._attempt_context = None
         self._retry_context = None
@@ -103,8 +105,9 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
                 self._result_q.put((attempt_id, None, error))
                 return
 
-            # Bind the entire transaction to the exact preflight target. A
-            # later Telegram rescan must not silently choose another window.
+            # The target wrapper has already bound the exact `(HWND, PID)`
+            # during preferred selection; retain that lease for the whole
+            # transaction rather than allowing any later rescan to retarget.
             work_hwnd = preflight.hwnd
             self._work_hwnd = work_hwnd
             if self._attempt_context is None or self._attempt_context.hwnd != work_hwnd:
@@ -144,6 +147,7 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
             )
             return
 
+        bound_scope = self.target.scope()
         transaction = SendAttempt(
             attempt_id=attempt_id,
             text=text,
@@ -151,8 +155,8 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
             restore_hwnd=work_hwnd,
             context=context,
         )
-        if not transaction.valid:
-            trace.trace("transaction: invalid immutable send attempt; aborting")
+        if not transaction.valid or bound_scope != transaction.target:
+            trace.trace("transaction: immutable target lease did not match preflight; aborting")
             self._result_q.put(
                 (
                     attempt_id,
@@ -184,3 +188,6 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
             self._attempt_context = None
             self.injector.set_window_context(None)
         self._active_transaction = None
+        release = getattr(self.target, "release", None)
+        if callable(release):
+            release()
