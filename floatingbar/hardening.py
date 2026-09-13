@@ -12,7 +12,7 @@ import config
 from . import clipboard_guard
 from . import trace
 from . import winapi
-from .injector import InjectionFailed, TelegramInjector
+from .injector import InjectionFailed, TelegramInjector, _combo
 
 
 _VOICE_TERMS = ("voice", "record", "mic", "audio")
