@@ -8,13 +8,14 @@ of loosely related mutable fields.
 """
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import NamedTuple, Optional
 
 from .evidence import EvidenceState
 
 
-@dataclass(frozen=True)
-class TargetScope:
+class TargetScope(NamedTuple):
+    """Immutable HWND/PID pair that remains compatible with tuple callers."""
+
     hwnd: int
     pid: int
 
