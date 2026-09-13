@@ -23,7 +23,6 @@ from floatingbar import trace
 from floatingbar import winapi
 from floatingbar.context import capture
 from floatingbar.context_injector import ContextGuardedRecoveryInjector
-from floatingbar.hardening import HardenedTelegramInjector
 from floatingbar.preflight import run as run_preflight
 from floatingbar.target import TelegramTarget, TelegramNotFound
 
