@@ -53,10 +53,12 @@ class ContextOverlayTests(unittest.TestCase):
             restore_hwnd=111,
         )
         self.assertIs(window._active_transaction, prepared.attempt)
+        self.assertEqual(window._active_transaction.target, TargetScope(700, 900))
+        self.assertEqual(window._active_transaction.restore_hwnd, 111)
         self.assertEqual(window._work_hwnd, 700)
         self.assertIs(window._attempt_context, prepared.attempt.context)
         window.injector.set_window_context.assert_called_once_with(prepared.attempt.context)
-        base_worker.assert_called_once_with("hello", 700, 7)
+        base_worker.assert_called_once_with("hello", 111, 7)
 
     def test_send_worker_passes_telegram_foreground_as_exact_preference(self):
         window = self._window()
