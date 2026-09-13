@@ -1,6 +1,6 @@
 import unittest
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from floatingbar.preflight import run
 from floatingbar.transaction import SendCandidate
@@ -13,13 +13,14 @@ class PreflightTests(unittest.TestCase):
         pid=200,
         compose_point=(20, 30),
         send=SendCandidate("Send", 80, 30, 123.5),
+        compose_runtime_id=(),
     ):
         target = SimpleNamespace()
         target.select_for_send = lambda preferred_hwnd=0: hwnd
         target.hwnd = hwnd
         target.scope = lambda: (hwnd, pid)
         box = SimpleNamespace()
-        box.element_info = SimpleNamespace(runtime_id=(7, 8, 9))
+        box.element_info = SimpleNamespace(runtime_id=compose_runtime_id)
         box.rectangle = lambda: SimpleNamespace(left=10, top=20, right=220, bottom=60)
         target.compose_box = lambda: box
         target.compose_click_point = lambda value: compose_point
@@ -27,7 +28,7 @@ class PreflightTests(unittest.TestCase):
         return target
 
     def test_ready_preflight_requires_compose_scope_and_non_minimized(self):
-        target = self._target()
+        target = self._target(compose_runtime_id=(7, 8, 9))
         with patch("floatingbar.preflight.winapi.is_minimized", return_value=False), patch(
             "floatingbar.preflight.winapi.get_focused_hwnd", return_value=101
         ), patch(
@@ -69,8 +70,6 @@ class PreflightTests(unittest.TestCase):
             "floatingbar.preflight.winapi.get_window_title", return_value="Chat A - Telegram"
         ), patch(
             "floatingbar.preflight.winapi.user32.IsWindow", return_value=True
-        ), patch(
-            "floatingbar.preflight.compose_runtime_id_present", return_value=True
         ), patch("floatingbar.preflight.winapi.post_click") as post_click, patch(
             "floatingbar.preflight.winapi.post_enter"
         ) as post_enter, patch(
@@ -108,8 +107,6 @@ class PreflightTests(unittest.TestCase):
             "floatingbar.preflight.winapi.get_window_title", return_value="Chat A - Telegram"
         ), patch(
             "floatingbar.preflight.winapi.user32.IsWindow", return_value=True
-        ), patch(
-            "floatingbar.preflight.compose_runtime_id_present", return_value=True
         ):
             result = run(target)
 
@@ -130,8 +127,6 @@ class PreflightTests(unittest.TestCase):
         ), patch(
             "floatingbar.preflight.winapi.user32.IsWindow", return_value=True
         ):
-            # This deliberately does not patch the structural anchor, so the
-            # fixture remains a title-only degraded-context scenario.
             result = run(target)
 
         self.assertTrue(result.ready)
@@ -140,6 +135,7 @@ class PreflightTests(unittest.TestCase):
         self.assertFalse(result.context_stable)
         self.assertIsNotNone(result.context)
         self.assertEqual(result.context.title_fp, "")
+        self.assertEqual(result.context.compose_runtime_id, ())
 
     def test_context_title_change_is_blocking(self):
         target = self._target()
