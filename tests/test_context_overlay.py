@@ -26,12 +26,12 @@ class ContextOverlayTests(unittest.TestCase):
         window._state = "orb"
         return window
 
-    def _prepared(self, attempt_id=7, restore_hwnd=111, context=None):
+    def _prepared(self, attempt_id=7, restore_hwnd=111, context=None, text="hello"):
         context = context or Mock()
         context.hwnd = 700
         attempt = SendAttempt(
             attempt_id=attempt_id,
-            text="hello",
+            text=text,
             target=TargetScope(700, 900),
             restore_hwnd=restore_hwnd,
             context=context,
@@ -64,21 +64,24 @@ class ContextOverlayTests(unittest.TestCase):
         window.injector.set_window_context.assert_called_once_with(retry_context)
         is_telegram.assert_not_called()
 
-    def test_send_worker_uses_coordinator_and_preserves_restore_hwnd(self):
+    def test_send_worker_uses_request_first_coordinator_and_preserves_restore_hwnd(self):
         window = self._window()
         prepared = self._prepared(restore_hwnd=111)
-        window.coordinator.prepare.return_value = prepared
+        window.coordinator.prepare_request.return_value = prepared
 
+        request = SendRequest(
+            attempt_id=7,
+            text="hello",
+            restore_hwnd=111,
+        )
         with patch.object(window, "_is_telegram_window", return_value=False), patch.object(
             window, "_execute_prepared_attempt"
         ) as execute_attempt:
-            window._send_worker("hello", 111, 7)
+            window._send_worker_request(request)
 
-        window.coordinator.prepare.assert_called_once_with(
-            text="hello",
-            attempt_id=7,
+        window.coordinator.prepare_request.assert_called_once_with(
+            request,
             preferred_hwnd=0,
-            restore_hwnd=111,
         )
         self.assertIs(window._active_transaction, prepared.attempt)
         self.assertEqual(window._active_transaction.target, TargetScope(700, 900))
@@ -88,10 +91,10 @@ class ContextOverlayTests(unittest.TestCase):
         window.injector.set_window_context.assert_called_once_with(prepared.attempt.context)
         execute_attempt.assert_called_once_with("hello", 111, 7)
 
-    def test_send_worker_request_uses_immutable_request_directly(self):
+    def test_send_worker_uses_immutable_request_payload(self):
         window = self._window()
-        prepared = self._prepared(attempt_id=14, restore_hwnd=333)
-        window.coordinator.prepare.return_value = prepared
+        prepared = self._prepared(attempt_id=14, restore_hwnd=333, text="prepared")
+        window.coordinator.prepare_request.return_value = prepared
 
         request = SendRequest(
             attempt_id=14,
@@ -103,13 +106,11 @@ class ContextOverlayTests(unittest.TestCase):
         ) as execute_attempt:
             window._send_worker_request(request)
 
-        window.coordinator.prepare.assert_called_once_with(
-            text="payload",
-            attempt_id=14,
+        window.coordinator.prepare_request.assert_called_once_with(
+            request,
             preferred_hwnd=0,
-            restore_hwnd=333,
         )
-        execute_attempt.assert_called_once_with("hello", 333, 14)
+        execute_attempt.assert_called_once_with("prepared", 333, 14)
 
     def test_send_worker_request_rejects_invalid_request(self):
         window = self._window()
@@ -121,7 +122,7 @@ class ContextOverlayTests(unittest.TestCase):
 
         window._send_worker_request(request)
 
-        window.coordinator.prepare.assert_not_called()
+        window.coordinator.prepare_request.assert_not_called()
         completion = window._result_q.get_nowait()
         self.assertIsInstance(completion, SendCompletion)
         self.assertEqual(completion.attempt_id, 0)
@@ -130,24 +131,23 @@ class ContextOverlayTests(unittest.TestCase):
     def test_send_worker_passes_telegram_foreground_as_exact_preference(self):
         window = self._window()
         prepared = self._prepared(attempt_id=8, restore_hwnd=700)
-        window.coordinator.prepare.return_value = prepared
+        window.coordinator.prepare_request.return_value = prepared
 
         with patch.object(window, "_is_telegram_window", return_value=True), patch.object(
             window, "_execute_prepared_attempt"
         ) as execute_attempt:
             window._send_worker("hello", 700, 8)
 
-        window.coordinator.prepare.assert_called_once_with(
-            text="hello",
-            attempt_id=8,
+        request = SendRequest(8, "hello", 700)
+        window.coordinator.prepare_request.assert_called_once_with(
+            request,
             preferred_hwnd=700,
-            restore_hwnd=700,
         )
         execute_attempt.assert_called_once_with("hello", 700, 8)
 
     def test_transaction_rejection_is_returned_as_typed_safe_failure(self):
         window = self._window()
-        window.coordinator.prepare.side_effect = TransactionRejected("blocked")
+        window.coordinator.prepare_request.side_effect = TransactionRejected("blocked")
 
         window._send_worker("hello", 111, 9)
 
@@ -159,7 +159,7 @@ class ContextOverlayTests(unittest.TestCase):
 
     def test_unexpected_coordinator_failure_is_returned_as_typed_safe_failure(self):
         window = self._window()
-        window.coordinator.prepare.side_effect = RuntimeError("unexpected")
+        window.coordinator.prepare_request.side_effect = RuntimeError("unexpected")
 
         window._send_worker("hello", 111, 10)
 
