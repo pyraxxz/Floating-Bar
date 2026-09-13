@@ -7,10 +7,8 @@ from . import winapi
 from .bound_target import BoundTelegramTarget
 from .context import capture
 from .context_injector import ContextGuardedRecoveryInjector
-from .preflight import run as run_preflight
 from .recovery_overlay import OrbRelayWindow as _RecoveryOrbRelayWindow
-from .target import TelegramNotFound
-from .transaction import SendAttempt, TargetScope
+from .transaction_coordinator import SendTransactionCoordinator, TransactionRejected
 
 
 class OrbRelayWindow(_RecoveryOrbRelayWindow):
@@ -20,6 +18,7 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
         super().__init__()
         self.target = BoundTelegramTarget(self.target)
         self.injector = ContextGuardedRecoveryInjector(self.target)
+        self.coordinator = SendTransactionCoordinator(self.target)
         self._attempt_context = None
         self._retry_context = None
         self._active_transaction = None
@@ -90,43 +89,23 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
         return super()._on_enter_key(_event)
 
     def _send_worker(self, text: str, work_hwnd: int, attempt_id: int) -> None:
-        # First prove that the selected Telegram target is viable without any
-        # click, keypress, focus change, or clipboard mutation. This turns the
-        # diagnostics preflight into a production transaction gate.
+        # Keep the user's original foreground HWND separate from the Telegram
+        # target. The latter is a lease target; the former is what recovery
+        # should restore if a posted click or opt-in fallback raises Telegram.
+        preferred = work_hwnd if self._is_telegram_window(work_hwnd) else 0
         try:
-            preferred = work_hwnd if self._is_telegram_window(work_hwnd) else 0
-            preflight = run_preflight(self.target, preferred_hwnd=preferred)
-            trace.trace(
-                f"preflight: status={preflight.status} "
-                f"path={preflight.submission_path} "
-                f"context_guard={preflight.context_guard_available}"
+            prepared = self.coordinator.prepare(
+                text=text,
+                attempt_id=attempt_id,
+                preferred_hwnd=preferred,
+                restore_hwnd=work_hwnd,
             )
-            if not preflight.ready:
-                error = "; ".join(preflight.reasons) or "Telegram send preflight blocked the send."
-                self._result_q.put((attempt_id, None, error))
-                return
-
-            # Convert the read-only preflight selection into an exact target
-            # lease. This also handles the case where the orb opened while a
-            # non-Telegram application owned the foreground focus.
-            selected = self.target.select_for_send(preferred_hwnd=preflight.hwnd)
-            if selected != preflight.hwnd:
-                raise TelegramNotFound(
-                    "Telegram's preflight target could not be bound safely."
-                )
-            work_hwnd = preflight.hwnd
-            self._work_hwnd = work_hwnd
-            context = getattr(preflight, "context", None)
-            if context is None:
-                if self._attempt_context is None or self._attempt_context.hwnd != work_hwnd:
-                    self._capture_target_context(work_hwnd)
-                context = self._attempt_context
-            else:
-                self._attempt_context = context
-                self.injector.set_window_context(context)
-                trace.trace("window context: adopting authoritative preflight snapshot")
+        except TransactionRejected as exc:
+            trace.trace(f"transaction: preparation rejected safely: {exc}")
+            self._result_q.put((attempt_id, None, str(exc)))
+            return
         except Exception as exc:
-            trace.trace(f"preflight: unexpected failure: {exc}")
+            trace.trace(f"transaction: unexpected preparation failure: {exc}")
             self._result_q.put(
                 (
                     attempt_id,
@@ -136,51 +115,15 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
             )
             return
 
-        if context is None or context.hwnd != work_hwnd:
-            trace.trace("window context: target identity could not be safely captured; aborting")
-            self._result_q.put(
-                (
-                    attempt_id,
-                    None,
-                    "Telegram target identity could not be safely captured; the send was stopped.",
-                )
-            )
-            return
-
-        if not context.matches():
-            trace.trace("window context: changed before send worker started; aborting")
-            self._result_q.put(
-                (
-                    attempt_id,
-                    None,
-                    "The Telegram conversation or target window changed while the message was being prepared. "
-                    "The send was stopped safely; return to the intended chat and try again.",
-                )
-            )
-            return
-
-        bound_scope = self.target.scope()
-        transaction = SendAttempt(
-            attempt_id=attempt_id,
-            text=text,
-            target=TargetScope(preflight.hwnd, preflight.pid),
-            restore_hwnd=work_hwnd,
-            context=context,
+        transaction = prepared.attempt
+        self._work_hwnd = transaction.target.hwnd
+        self._attempt_context = transaction.context
+        self.injector.set_window_context(transaction.context)
+        super()._send_worker(
+            transaction.text,
+            transaction.target.hwnd,
+            transaction.attempt_id,
         )
-        if not transaction.valid or bound_scope != transaction.target:
-            trace.trace("transaction: immutable target lease did not match preflight; aborting")
-            self._result_q.put(
-                (
-                    attempt_id,
-                    None,
-                    "The send transaction could not be safely bound to its target; the send was stopped.",
-                )
-            )
-            return
-
-        self._active_transaction = transaction
-        self.injector.set_window_context(context)
-        super()._send_worker(transaction.text, transaction.target.hwnd, transaction.attempt_id)
 
     def _send_finished(self, attempt_id: int, strategy: str, error) -> None:
         is_current = (
