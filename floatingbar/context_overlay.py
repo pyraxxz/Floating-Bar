@@ -1,6 +1,7 @@
 """Production overlay with non-content Telegram conversation guards."""
 
 import config
+import queue
 
 from . import trace
 from . import winapi
@@ -173,17 +174,34 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
             transaction.attempt_id,
         )
 
-    def _send_finished(self, attempt_id: int, strategy: str, error) -> None:
+    def _poll_results(self) -> None:
+        """Consume typed worker completions on Tk's UI thread."""
+        try:
+            while True:
+                completion = self._result_q.get_nowait()
+                if not isinstance(completion, SendCompletion):
+                    trace.trace("ignoring malformed untyped worker completion")
+                    continue
+                self._send_finished(completion)
+        except queue.Empty:
+            pass
+        self.after(80, self._poll_results)
+
+    def _send_finished(self, completion: SendCompletion) -> None:
         is_current = (
-            attempt_id == getattr(self, "_active_attempt_id", 0)
+            completion.attempt_id == getattr(self, "_active_attempt_id", 0)
         )
         context = self._active_transaction.context if (
             self._active_transaction is not None and
-            self._active_transaction.attempt_id == attempt_id
+            self._active_transaction.attempt_id == completion.attempt_id
         ) else self._attempt_context
         release = getattr(self.target, "release", None)
         try:
-            super()._send_finished(attempt_id, strategy, error)
+            super()._send_finished(
+                completion.attempt_id,
+                completion.strategy,
+                completion.error,
+            )
             if not is_current:
                 return
             if self._retry_draft and context is not None:
