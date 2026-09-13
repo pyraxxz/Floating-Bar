@@ -52,6 +52,9 @@ class _App:
     def __init__(self, window):
         self._window = window
 
+    def connect(self, handle):
+        return self
+
     def window(self, handle):
         return self
 
