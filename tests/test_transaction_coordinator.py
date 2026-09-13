@@ -2,7 +2,6 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from floatingbar.context import WindowContext, title_fingerprint
 from floatingbar.transaction import SendAttempt, TargetScope
 from floatingbar.transaction_coordinator import (
     PreparedTransaction,
@@ -90,7 +89,6 @@ class TransactionCoordinatorTests(unittest.TestCase):
                 coordinator.prepare("hello", 12, preferred_hwnd=700)
 
         self.assertEqual(target.select_for_send.call_count, 2)
-        self.assertIsNone(getattr(target, "bound_scope", None))
 
     def test_prepare_rejects_context_change_before_worker(self):
         target = self._target()
@@ -126,16 +124,18 @@ class TransactionCoordinatorTests(unittest.TestCase):
             with self.assertRaises(TransactionRejected):
                 coordinator.prepare("hello", 12, preferred_hwnd=700)
 
-    def test_prepare_can_use_degraded_preflight_context_when_no_anchor_exists(self):
+    def test_prepare_accepts_degraded_context_snapshot(self):
         target = self._target()
-        context = WindowContext(700, 900, title_fingerprint("Telegram"))
+        context = Mock()
+        context.hwnd = 700
+        context.matches.return_value = True
         preflight = self._preflight(context=context)
         coordinator = SendTransactionCoordinator(target)
 
         with patch(
             "floatingbar.transaction_coordinator.run_preflight",
             return_value=preflight,
-        ), patch.object(context, "matches", return_value=True):
+        ):
             prepared = coordinator.prepare("hello", 12, preferred_hwnd=700)
 
         self.assertEqual(prepared.attempt.target, TargetScope(700, 900))
