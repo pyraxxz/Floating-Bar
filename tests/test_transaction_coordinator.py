@@ -2,7 +2,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from floatingbar.transaction import SendAttempt, TargetScope
+from floatingbar.transaction import SendAttempt, SendRequest, TargetScope
 from floatingbar.transaction_coordinator import (
     PreparedTransaction,
     SendTransactionCoordinator,
@@ -28,6 +28,33 @@ class TransactionCoordinatorTests(unittest.TestCase):
             context=context,
             reasons=() if ready else ("blocked",),
         )
+
+    def test_prepare_request_passes_immutable_request_fields_to_prepare(self):
+        target = self._target()
+        coordinator = SendTransactionCoordinator(target)
+        request = SendRequest(12, "hello", 321)
+
+        with patch.object(coordinator, "prepare", return_value="prepared") as prepare:
+            result = coordinator.prepare_request(request, preferred_hwnd=700)
+
+        self.assertEqual(result, "prepared")
+        prepare.assert_called_once_with(
+            text="hello",
+            attempt_id=12,
+            preferred_hwnd=700,
+            restore_hwnd=321,
+        )
+
+    def test_prepare_request_rejects_invalid_request_before_discovery(self):
+        target = self._target()
+        coordinator = SendTransactionCoordinator(target)
+
+        with self.assertRaises(TransactionRejected) as raised:
+            coordinator.prepare_request(SendRequest(0, "hello", 321))
+
+        self.assertEqual(str(raised.exception), "The send request is invalid.")
+        target.select_for_send.assert_not_called()
+        target.release.assert_not_called()
 
     def test_prepare_rejects_empty_text_before_discovery(self):
         target = self._target()
