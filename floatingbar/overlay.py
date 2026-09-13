@@ -19,6 +19,7 @@ from .injector import InjectionFailed
 from .hardening import HardenedTelegramInjector
 from .evidence import EvidenceState, from_result
 from .target import TelegramTarget, TelegramNotFound
+from .transaction import SendCompletion
 
 
 def _classify_send_result(strategy, error):
@@ -413,18 +414,55 @@ class OrbRelayWindow(tk.Tk):
                     comtypes.CoUninitialize()
                 except Exception:
                     pass
-        self._result_q.put((attempt_id, strategy, error))
+        self._result_q.put(
+            SendCompletion.from_result(
+                attempt_id=attempt_id,
+                strategy=strategy,
+                error=error,
+            )
+        )
+
+    def _coerce_completion(self, value, strategy=None, error=None):
+        """Normalize typed and legacy worker results into one immutable object."""
+        if isinstance(value, SendCompletion):
+            return value
+        if strategy is None and error is None:
+            try:
+                attempt_id, strategy, error = value
+            except (TypeError, ValueError):
+                return None
+        return SendCompletion.from_result(
+            attempt_id=value,
+            strategy=strategy,
+            error=error,
+        )
 
     def _poll_results(self) -> None:
         try:
             while True:
-                attempt_id, strategy, error = self._result_q.get_nowait()
-                self._send_finished(attempt_id, strategy, error)
+                value = self._result_q.get_nowait()
+                completion = self._coerce_completion(value)
+                if completion is None:
+                    trace.trace("ignoring malformed worker completion")
+                    continue
+                self._send_finished(completion)
         except queue.Empty:
             pass
         self.after(80, self._poll_results)
 
-    def _send_finished(self, attempt_id: int, strategy: str, error) -> None:
+    def _send_finished(self, completion_or_attempt_id, strategy=None, error=None) -> None:
+        completion = self._coerce_completion(
+            completion_or_attempt_id,
+            strategy=strategy,
+            error=error,
+        )
+        if completion is None:
+            trace.trace("ignoring malformed send completion")
+            return
+
+        attempt_id = completion.attempt_id
+        strategy = completion.strategy
+        error = completion.error
         if attempt_id != self._active_attempt_id:
             trace.trace(
                 f"ignoring stale send result attempt={attempt_id}; "
@@ -442,7 +480,9 @@ class OrbRelayWindow(tk.Tk):
 
         active_text = self._active_send_text
         self._active_send_text = ""
-        evidence = _classify_send_result(strategy, error)
+        evidence = completion.evidence_state
+        if evidence is None:
+            evidence = _classify_send_result(strategy, error)
 
         if evidence.state is EvidenceState.FAILED:
             if evidence.retryable and active_text:
