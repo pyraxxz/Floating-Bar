@@ -9,9 +9,9 @@ Run from the repo root:
 
 The default and --preflight forms are completely read-only: they inspect
 window geometry, control identifiers, focus ownership, and safety evidence —
-never message content. The --send form performs the same read-only preflight
-used by the production orb, then sends text with the same context-aware,
-scope-guarded injector family.
+never message content. The --send form performs the same transaction
+preparation used by the production orb, then sends text with the same
+context-aware, scope-guarded injector family.
 """
 
 import argparse
@@ -23,10 +23,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from floatingbar import trace
 from floatingbar import winapi
-from floatingbar.bound_target import BoundTelegramTarget
-from floatingbar.context import capture
 from floatingbar.context_injector import ContextGuardedRecoveryInjector
 from floatingbar.preflight import run as run_preflight
+from floatingbar.bound_target import BoundTelegramTarget
+from floatingbar.transaction_coordinator import SendTransactionCoordinator, TransactionRejected
 from floatingbar.target import TelegramTarget, TelegramNotFound
 import config
 
@@ -252,23 +252,32 @@ def _run_full_diagnostic(target: TelegramTarget, hwnd: int) -> int:
 
 
 def _run_guarded_send(target: TelegramTarget, text: str, preferred_hwnd: int) -> int:
-    """Run the production-equivalent preflight, lease binding, and guarded send."""
+    """Use the same transaction preparation and guarded injector as production."""
     bound = BoundTelegramTarget(target)
     preferred = preferred_hwnd if _is_telegram_window(preferred_hwnd) else 0
-    preflight = run_preflight(bound, preferred_hwnd=preferred)
-    _print_preflight(preflight)
-    if not preflight.ready:
-        print("\n  -> SEND REFUSED: preflight is blocked.")
-        return 3
-
+    coordinator = SendTransactionCoordinator(bound)
     try:
-        if bound.select_for_send(preferred_hwnd=preflight.hwnd) != preflight.hwnd:
-            print("\n  -> SEND REFUSED: preflight target could not be leased safely.")
+        try:
+            prepared = coordinator.prepare(
+                text=text,
+                attempt_id=1,
+                preferred_hwnd=preferred,
+                restore_hwnd=preferred_hwnd,
+            )
+        except TransactionRejected as exc:
+            if exc.preflight is not None:
+                _print_preflight(exc.preflight)
+            print("\n  -> SEND REFUSED: transaction preparation was blocked safely.")
+            print(f"  -> reason: {exc}")
             return 3
-        context = preflight.context or capture(preflight.hwnd)
+
+        _print_preflight(prepared.preflight)
         injector = ContextGuardedRecoveryInjector(bound)
-        injector.set_window_context(context)
-        result = injector.send(text, restore_hwnd=preferred_hwnd)
+        injector.set_window_context(prepared.attempt.context)
+        result = injector.send(
+            prepared.attempt.text,
+            restore_hwnd=prepared.attempt.restore_hwnd,
+        )
         print(f"  -> OK, context-guarded strategy used: {result}")
         return 0
     except Exception as e:
