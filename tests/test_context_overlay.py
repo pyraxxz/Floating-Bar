@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from floatingbar.context_overlay import OrbRelayWindow
-from floatingbar.transaction import SendAttempt, TargetScope
+from floatingbar.transaction import SendAttempt, SendCompletion, TargetScope
 from floatingbar.transaction_coordinator import PreparedTransaction, TransactionRejected
 
 
@@ -78,27 +78,38 @@ class ContextOverlayTests(unittest.TestCase):
         )
         execute_attempt.assert_called_once_with("hello", 700, 8)
 
-    def test_transaction_rejection_is_returned_as_safe_failure(self):
+    def test_transaction_rejection_is_returned_as_typed_safe_failure(self):
         window = self._window()
         window.coordinator.prepare.side_effect = TransactionRejected("blocked")
 
         window._send_worker("hello", 111, 9)
 
-        attempt_id, strategy, error = window._result_q.get_nowait()
-        self.assertEqual(attempt_id, 9)
-        self.assertIsNone(strategy)
-        self.assertEqual(error, "blocked")
+        completion = window._result_q.get_nowait()
+        self.assertIsInstance(completion, SendCompletion)
+        self.assertEqual(completion.attempt_id, 9)
+        self.assertIsNone(completion.strategy)
+        self.assertEqual(completion.error, "blocked")
 
-    def test_unexpected_coordinator_failure_is_returned_as_safe_failure(self):
+    def test_unexpected_coordinator_failure_is_returned_as_typed_safe_failure(self):
         window = self._window()
         window.coordinator.prepare.side_effect = RuntimeError("unexpected")
 
         window._send_worker("hello", 111, 10)
 
-        attempt_id, strategy, error = window._result_q.get_nowait()
-        self.assertEqual(attempt_id, 10)
-        self.assertIsNone(strategy)
-        self.assertIn("unexpected", error)
+        completion = window._result_q.get_nowait()
+        self.assertIsInstance(completion, SendCompletion)
+        self.assertEqual(completion.attempt_id, 10)
+        self.assertIsNone(completion.strategy)
+        self.assertIn("unexpected", completion.error)
+
+    def test_queue_completion_maps_evidence_state(self):
+        window = self._window()
+
+        window._queue_completion(11, "posted-enter (VERIFIED)", None)
+
+        completion = window._result_q.get_nowait()
+        self.assertIsInstance(completion, SendCompletion)
+        self.assertEqual(completion.evidence_state.name, "VERIFIED")
 
     def test_active_target_lease_releases_when_completion_raises(self):
         window = self._window()
