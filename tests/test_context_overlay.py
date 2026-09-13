@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch
 
 from floatingbar.context_overlay import OrbRelayWindow
 from floatingbar.context import title_fingerprint
+from floatingbar.transaction import TargetScope
 
 
 class ContextOverlayTests(unittest.TestCase):
@@ -13,6 +14,7 @@ class ContextOverlayTests(unittest.TestCase):
         window.target = Mock()
         window.target.hwnd = 500
         window.target.select_for_send.return_value = 500
+        window.target.scope.return_value = TargetScope(500, 900)
         window.injector = Mock()
         window._attempt_context = None
         window._result_q = queue.Queue()
@@ -96,6 +98,8 @@ class ContextOverlayTests(unittest.TestCase):
     def test_send_binds_to_exact_preflight_window(self):
         window = OrbRelayWindow.__new__(OrbRelayWindow)
         window.target = Mock()
+        window.target.select_for_send.return_value = 700
+        window.target.scope.return_value = TargetScope(700, 900)
         window.injector = Mock()
         window._result_q = queue.Queue()
         window._attempt_context = Mock()
@@ -121,7 +125,51 @@ class ContextOverlayTests(unittest.TestCase):
             window._send_worker("hello", 111, 9)
 
         self.assertEqual(window._work_hwnd, 700)
+        window.target.select_for_send.assert_called_once_with(preferred_hwnd=700)
+        self.assertEqual(window.target.scope.return_value, TargetScope(700, 900))
         base_worker.assert_called_once_with("hello", 700, 9)
+
+    def test_preflight_result_becomes_lease_when_foreground_was_not_telegram(self):
+        window = OrbRelayWindow.__new__(OrbRelayWindow)
+        window.target = Mock()
+        window.target.select_for_send.return_value = 700
+        window.target.scope.return_value = TargetScope(700, 900)
+        window.injector = Mock()
+        window._result_q = queue.Queue()
+        window._attempt_context = None
+        window._work_hwnd = 111
+
+        context = Mock()
+        context.hwnd = 700
+        context.matches.return_value = True
+
+        preflight = SimpleNamespace(
+            ready=True,
+            status="ready-with-degraded-context",
+            hwnd=700,
+            pid=900,
+            submission_path="enter-fallback",
+            context_guard_available=False,
+            reasons=("generic title",),
+        )
+        with patch(
+            "floatingbar.context_overlay.run_preflight",
+            return_value=preflight,
+        ), patch(
+            "floatingbar.context_overlay.capture",
+            return_value=context,
+        ), patch(
+            "floatingbar.context_overlay.OrbRelayWindow._is_telegram_window",
+            return_value=True,
+        ), patch(
+            "floatingbar.recovery_overlay.OrbRelayWindow._send_worker"
+        ) as base_worker:
+            window._send_worker("hello", 111, 10)
+
+        window.target.select_for_send.assert_called_once_with(preferred_hwnd=700)
+        self.assertEqual(window._work_hwnd, 700)
+        self.assertEqual(window._active_transaction.target, TargetScope(700, 900))
+        base_worker.assert_called_once_with("hello", 700, 10)
 
 
 if __name__ == "__main__":
