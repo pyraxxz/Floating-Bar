@@ -24,17 +24,40 @@ class TargetScope(NamedTuple):
         return bool(self.hwnd and self.pid)
 
 
-class SendCandidate(NamedTuple):
-    """Safe Send-button evidence and client-relative click coordinates."""
+class SendCandidate(tuple):
+    """Three-value tuple-compatible Send evidence with a read-only score.
 
-    name: str
-    client_x: int
-    client_y: int
-    evidence_score: float = 0.0
+    The tuple payload deliberately remains `(name, client_x, client_y)` so
+    older injector paths that unpack or slice candidates keep working. The
+    evidence score is auxiliary metadata exposed as an attribute.
+    """
+
+    def __new__(cls, name: str, client_x: int, client_y: int,
+                evidence_score: float = 0.0):
+        obj = super().__new__(cls, (name, client_x, client_y))
+        object.__setattr__(obj, "evidence_score", float(evidence_score))
+        return obj
+
+    def __setattr__(self, name, value):
+        if name == "evidence_score" and hasattr(self, "evidence_score"):
+            raise AttributeError("SendCandidate is immutable")
+        object.__setattr__(self, name, value)
+
+    @property
+    def name(self) -> str:
+        return self[0]
+
+    @property
+    def client_x(self) -> int:
+        return self[1]
+
+    @property
+    def client_y(self) -> int:
+        return self[2]
 
 
 def candidate_parts(candidate) -> Tuple[str, int, int]:
-    """Return name/x/y for a typed SendCandidate or legacy 3-tuple."""
+    """Return name/x/y for a SendCandidate or legacy 3/4-value tuple."""
     if isinstance(candidate, SendCandidate):
         return candidate.name, candidate.client_x, candidate.client_y
     return candidate[0], candidate[1], candidate[2]
