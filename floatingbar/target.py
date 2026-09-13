@@ -17,7 +17,7 @@ from pywinauto.findwindows import ElementNotFoundError
 import config
 from . import trace
 from . import winapi
-from .transaction import TargetScope
+from .transaction import SendCandidate, TargetScope
 
 
 class _Band:
@@ -350,7 +350,7 @@ class TelegramTarget:
             automation_id = ""
         return "send" in automation_id
 
-    def send_button_click(self, near_box=None):
+    def send_button_click(self, near_box=None) -> Optional[SendCandidate]:
         """Locate a safe Send-button candidate, with compose-row evidence."""
         hwnd = self.hwnd
         if not hwnd:
@@ -428,11 +428,12 @@ class TelegramTarget:
             return None
 
         candidates.sort(key=lambda item: (-item[0], item[2].left, item[2].top))
-        _, name, r, _button = candidates[0]
-        return (
-            name,
-            int((r.left + r.right) / 2.0 - wrect.left),
-            int((r.top + r.bottom) / 2.0 - wrect.top),
+        score, name, r, _button = candidates[0]
+        return SendCandidate(
+            name=name,
+            client_x=int((r.left + r.right) / 2.0 - wrect.left),
+            client_y=int((r.top + r.bottom) / 2.0 - wrect.top),
+            evidence_score=score,
         )
 
     @staticmethod
