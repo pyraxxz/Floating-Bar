@@ -50,8 +50,24 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
             trace.trace("window context: captured non-content Telegram title context")
 
     def _expand(self) -> None:
+        retry_context = self._retry_context if self._retry_draft else None
         super()._expand()
-        if self._state == "bar" and self._work_hwnd and self._is_telegram_window(self._work_hwnd):
+        if self._state != "bar":
+            return
+
+        if self._retry_draft and retry_context is not None:
+            # A failed draft keeps the original target until the user edits
+            # the draft. Opening the orb must not replace that lease context
+            # with whichever Telegram window happens to own foreground focus.
+            self._attempt_context = retry_context
+            self._work_hwnd = self._retry_target_hwnd or retry_context.hwnd
+            self.injector.set_window_context(retry_context)
+            trace.trace(
+                "window context: preserving original failed-draft target on orb open"
+            )
+            return
+
+        if self._work_hwnd and self._is_telegram_window(self._work_hwnd):
             self._attempt_context = capture(self._work_hwnd)
             self.injector.set_window_context(self._attempt_context)
             trace.trace("window context: captured non-content Telegram title context")
