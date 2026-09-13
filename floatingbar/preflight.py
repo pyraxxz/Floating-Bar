@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Optional, Tuple
 
 from . import winapi
-from .context import capture
+from .context import WindowContext, capture
 from .target import TelegramNotFound, TelegramTarget
 
 
@@ -29,6 +29,7 @@ class PreflightResult:
     send_evidence_score: float = 0.0
     submission_path: str = "unavailable"
     scope_stable: bool = False
+    context: Optional[WindowContext] = None
     context_guard_available: bool = False
     context_stable: bool = False
 
@@ -102,6 +103,7 @@ def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
     if not scope_stable:
         reasons.append("Telegram target scope changed during preflight.")
 
+    context = None
     context_guard_available = False
     context_stable = False
     try:
@@ -146,6 +148,7 @@ def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
         send_evidence_score=send_evidence_score,
         submission_path=submission_path,
         scope_stable=scope_stable,
+        context=context,
         context_guard_available=context_guard_available,
         context_stable=context_stable,
     )
