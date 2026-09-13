@@ -8,9 +8,9 @@ of loosely related mutable fields.
 """
 
 from dataclasses import dataclass
-from typing import NamedTuple, Optional, Tuple
+from typing import Iterator, NamedTuple, Optional, Tuple
 
-from .evidence import EvidenceState
+from .evidence import EvidenceState, from_result
 
 
 class TargetScope(NamedTuple):
@@ -90,10 +90,38 @@ class SendAttempt:
 
 @dataclass(frozen=True)
 class SendCompletion:
+    """Immutable result crossing the background-worker/UI boundary.
+
+    The iterator is a temporary compatibility bridge for the existing UI
+    consumer. New producers should enqueue the object itself rather than a
+    loosely typed tuple.
+    """
+
     attempt_id: int
     strategy: Optional[str] = None
     error: Optional[str] = None
     evidence_state: Optional[EvidenceState] = None
+
+    @classmethod
+    def from_result(
+        cls,
+        attempt_id: int,
+        strategy: Optional[str] = None,
+        error: Optional[str] = None,
+    ) -> "SendCompletion":
+        evidence = from_result(strategy, error)
+        return cls(
+            attempt_id=attempt_id,
+            strategy=strategy,
+            error=error,
+            evidence_state=evidence.state,
+        )
+
+    def __iter__(self) -> Iterator[object]:
+        """Expose the legacy three-value view while callers migrate."""
+        yield self.attempt_id
+        yield self.strategy
+        yield self.error
 
     @property
     def failed(self) -> bool:
