@@ -171,6 +171,43 @@ class ContextOverlayTests(unittest.TestCase):
         self.assertEqual(window._active_transaction.target, TargetScope(700, 900))
         base_worker.assert_called_once_with("hello", 700, 10)
 
+    def test_fresh_preflight_context_overrides_stale_expanded_context(self):
+        window = OrbRelayWindow.__new__(OrbRelayWindow)
+        window.target = Mock()
+        window.target.select_for_send.return_value = 700
+        window.target.scope.return_value = TargetScope(700, 900)
+        window.injector = Mock()
+        window._result_q = queue.Queue()
+        window._attempt_context = Mock()
+        window._attempt_context.hwnd = 700
+        window._attempt_context.matches.return_value = False
+        window._work_hwnd = 700
+
+        fresh_context = Mock()
+        fresh_context.hwnd = 700
+        fresh_context.matches.return_value = True
+        preflight = SimpleNamespace(
+            ready=True,
+            status="ready",
+            hwnd=700,
+            pid=900,
+            submission_path="send-button",
+            context_guard_available=True,
+            context=fresh_context,
+            reasons=(),
+        )
+        with patch(
+            "floatingbar.context_overlay.run_preflight",
+            return_value=preflight,
+        ), patch(
+            "floatingbar.recovery_overlay.OrbRelayWindow._send_worker"
+        ) as base_worker:
+            window._send_worker("hello", 700, 11)
+
+        self.assertIs(window._attempt_context, fresh_context)
+        fresh_context.matches.assert_called_once_with()
+        base_worker.assert_called_once_with("hello", 700, 11)
+
 
 if __name__ == "__main__":
     unittest.main()
