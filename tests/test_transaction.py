@@ -35,11 +35,11 @@ class TransactionTests(unittest.TestCase):
     def test_completion_can_carry_typed_evidence(self):
         completion = SendCompletion(
             attempt_id=7,
-            strategy="posted-enter",
-            evidence_state=EvidenceState.CONFIRMED,
+            strategy="posted-enter (VERIFIED)",
+            evidence_state=EvidenceState.VERIFIED,
         )
         self.assertFalse(completion.failed)
-        self.assertEqual(completion.evidence_state, EvidenceState.CONFIRMED)
+        self.assertEqual(completion.evidence_state, EvidenceState.VERIFIED)
 
     def test_completion_error_is_explicit_failure(self):
         completion = SendCompletion(
