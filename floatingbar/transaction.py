@@ -9,7 +9,7 @@ the completion result carries the same attempt id back to the UI.
 from dataclasses import dataclass
 from typing import Iterator, NamedTuple, Optional, Tuple
 
-from .evidence import EvidenceState, from_result
+from .evidence import EvidenceState, SubmissionEvidence, from_result
 
 
 class TargetScope(NamedTuple):
@@ -113,15 +113,16 @@ class SendAttempt:
 class SendCompletion:
     """Immutable result crossing the background-worker/UI boundary.
 
-    The iterator is a temporary compatibility bridge for legacy UI consumers.
-    New producers should enqueue the object itself rather than a loosely typed
-    tuple.
+    The full ``SubmissionEvidence`` is retained for new callers. The
+    ``evidence_state`` field remains as a compatibility view for older code
+    and direct test construction.
     """
 
     attempt_id: int
     strategy: Optional[str] = None
     error: Optional[str] = None
     evidence_state: Optional[EvidenceState] = None
+    evidence: Optional[SubmissionEvidence] = None
 
     @classmethod
     def from_result(
@@ -149,7 +150,22 @@ class SendCompletion:
             strategy=strategy,
             error=error,
             evidence_state=evidence.state,
+            evidence=evidence,
         )
+
+    @property
+    def resolved_evidence(self) -> SubmissionEvidence:
+        """Return structured evidence while preserving legacy construction."""
+        if isinstance(self.evidence, SubmissionEvidence):
+            return self.evidence
+        if self.evidence_state is not None:
+            return SubmissionEvidence(
+                state=self.evidence_state,
+                strategy=self.strategy,
+                detail=self.error,
+                retryable=self.evidence_state is EvidenceState.FAILED,
+            )
+        return from_result(self.strategy, self.error)
 
     def __iter__(self) -> Iterator[object]:
         """Expose the legacy three-value view while callers migrate."""
@@ -159,10 +175,7 @@ class SendCompletion:
 
     @property
     def failed(self) -> bool:
-        return bool(
-            self.error is not None or
-            self.evidence_state is EvidenceState.FAILED
-        )
+        return self.resolved_evidence.state is EvidenceState.FAILED
 
 
 __all__ = [
