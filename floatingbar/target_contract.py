@@ -8,7 +8,7 @@ forcing the overlay or injector to know their application-specific UIA model.
 
 from typing import Any, List, Optional, Protocol, Tuple, runtime_checkable
 
-from .transaction import TargetScope
+from .transaction import SendCandidate, TargetScope
 
 
 @runtime_checkable
@@ -36,7 +36,7 @@ class BackgroundTarget(Protocol):
     def remember_compose(self, edit: Any) -> None:
         """Remember a validated compose control for this target session."""
 
-    def send_button_click(self, near_box: Any = None) -> Optional[Tuple[str, int, int]]:
+    def send_button_click(self, near_box: Any = None) -> Optional[SendCandidate]:
         """Return a safe Send candidate or ``None`` when no safe candidate exists."""
 
 
