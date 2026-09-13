@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from floatingbar.target import TelegramTarget
+from floatingbar.transaction import SendCandidate
 
 
 class Rect:
@@ -140,9 +141,10 @@ class TargetResilienceTests(unittest.TestCase):
              patch.object(target, "_window", return_value=window):
             result = target.send_button_click(near_box=box)
 
-        self.assertIsNotNone(result)
+        self.assertIsInstance(result, SendCandidate)
         self.assertEqual(result[0], "Send")
         self.assertEqual(result[1:], (750, 730))
+        self.assertGreater(result.evidence_score, 100.0)
 
     def test_disabled_button_is_not_selected(self):
         target = TelegramTarget()
@@ -161,6 +163,7 @@ class TargetResilienceTests(unittest.TestCase):
              patch.object(target, "_window", return_value=window):
             result = target.send_button_click(near_box=box)
 
+        self.assertIsInstance(result, SendCandidate)
         self.assertEqual(result[0], "Send")
         self.assertEqual(result[1:], (800, 730))
 
@@ -191,8 +194,10 @@ class TargetResilienceTests(unittest.TestCase):
              patch.object(target, "_window", return_value=window):
             result = target.send_button_click(near_box=box)
 
+        self.assertIsInstance(result, SendCandidate)
         self.assertEqual(result[0], "Send message")
         self.assertEqual(result[1:], (740, 785))
+        self.assertGreater(result.evidence_score, 120.0)
 
     def test_named_unrelated_button_is_rejected_even_when_geometrically_plausible(self):
         target = TelegramTarget()
