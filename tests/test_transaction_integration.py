@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from floatingbar.context_overlay import OrbRelayWindow
-from floatingbar.transaction import SendAttempt, TargetScope
+from floatingbar.transaction import SendAttempt, SendCompletion, SendRequest, TargetScope
 from floatingbar.transaction_coordinator import PreparedTransaction, TransactionRejected
 
 
@@ -18,7 +18,10 @@ class TransactionIntegrationTests(unittest.TestCase):
         window._retry_context = None
         window._active_transaction = None
         window._active_attempt_id = 0
-        window._work_hwnd = 0
+        window._retry_draft = None
+        window._retry_target_hwnd = 0
+        window._sending = False
+        window._state = "orb"
         return window
 
     def _prepared(self, attempt_id=12, restore_hwnd=321):
@@ -33,21 +36,20 @@ class TransactionIntegrationTests(unittest.TestCase):
         )
         return PreparedTransaction(attempt=attempt, preflight=Mock())
 
-    def test_send_worker_uses_coordinator_attempt_target(self):
+    def test_send_worker_uses_request_first_coordinator_and_prepared_target(self):
         window = self._window()
         prepared = self._prepared()
-        window.coordinator.prepare.return_value = prepared
+        window.coordinator.prepare_request.return_value = prepared
+        request = SendRequest(12, "hello", 700)
 
         with patch.object(window, "_is_telegram_window", return_value=True), patch.object(
             window, "_execute_prepared_attempt"
         ) as execute_attempt:
-            window._send_worker("hello", 700, 12)
+            window._send_worker_request(request)
 
-        window.coordinator.prepare.assert_called_once_with(
-            text="hello",
-            attempt_id=12,
+        window.coordinator.prepare_request.assert_called_once_with(
+            request,
             preferred_hwnd=700,
-            restore_hwnd=700,
         )
         self.assertEqual(window._active_transaction.target, TargetScope(700, 900))
         self.assertEqual(window._active_transaction.restore_hwnd, 321)
@@ -57,33 +59,34 @@ class TransactionIntegrationTests(unittest.TestCase):
     def test_send_worker_preserves_nontelegram_foreground_for_restore(self):
         window = self._window()
         prepared = self._prepared(attempt_id=13, restore_hwnd=111)
-        window.coordinator.prepare.return_value = prepared
+        window.coordinator.prepare_request.return_value = prepared
+        request = SendRequest(13, "hello", 111)
 
         with patch.object(window, "_is_telegram_window", return_value=False), patch.object(
             window, "_execute_prepared_attempt"
         ) as execute_attempt:
-            window._send_worker("hello", 111, 13)
+            window._send_worker_request(request)
 
-        window.coordinator.prepare.assert_called_once_with(
-            text="hello",
-            attempt_id=13,
+        window.coordinator.prepare_request.assert_called_once_with(
+            request,
             preferred_hwnd=0,
-            restore_hwnd=111,
         )
         self.assertEqual(window._active_transaction.restore_hwnd, 111)
         execute_attempt.assert_called_once_with("hello", 111, 13)
 
     def test_blocked_coordinator_creates_no_active_attempt(self):
         window = self._window()
-        window.coordinator.prepare.side_effect = TransactionRejected("blocked")
+        window.coordinator.prepare_request.side_effect = TransactionRejected("blocked")
 
-        window._send_worker("hello", 700, 14)
+        request = SendRequest(14, "hello", 700)
+        window._send_worker_request(request)
 
         self.assertIsNone(window._active_transaction)
-        attempt_id, strategy, error = window._result_q.get_nowait()
-        self.assertEqual(attempt_id, 14)
-        self.assertIsNone(strategy)
-        self.assertEqual(error, "blocked")
+        completion = window._result_q.get_nowait()
+        self.assertIsInstance(completion, SendCompletion)
+        self.assertEqual(completion.attempt_id, 14)
+        self.assertIsNone(completion.strategy)
+        self.assertEqual(completion.error, "blocked")
 
 
 if __name__ == "__main__":
