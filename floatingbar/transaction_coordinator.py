@@ -76,6 +76,13 @@ class SendTransactionCoordinator:
                     preflight=preflight,
                 )
 
+            if preferred_hwnd and preflight.hwnd != preferred_hwnd:
+                raise TransactionRejected(
+                    "The preferred Telegram window disappeared or was replaced; "
+                    "the send was stopped instead of retargeting another window.",
+                    preflight=preflight,
+                )
+
             selected = self.target.select_for_send(preferred_hwnd=preflight.hwnd)
             if selected != preflight.hwnd:
                 raise TransactionRejected(
