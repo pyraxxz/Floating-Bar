@@ -132,11 +132,17 @@ class SendCompletion:
     ) -> "SendCompletion":
         # Legacy callers may still hand the completion helper the old
         # `(attempt_id, strategy, error)` tuple as a single first argument.
-        if isinstance(attempt_id, tuple) and strategy is None and error is None:
+        if isinstance(attempt_id, tuple):
             try:
-                attempt_id, strategy, error = attempt_id
+                legacy_attempt_id, legacy_strategy, legacy_error = attempt_id
             except (TypeError, ValueError):
                 pass
+            else:
+                attempt_id = legacy_attempt_id
+                if strategy is None:
+                    strategy = legacy_strategy
+                if error is None:
+                    error = legacy_error
         evidence = from_result(strategy, error)
         return cls(
             attempt_id=attempt_id,
