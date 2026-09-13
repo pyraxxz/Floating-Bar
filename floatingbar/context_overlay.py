@@ -165,11 +165,9 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
         work_hwnd = request.restore_hwnd
         preferred = work_hwnd if self._is_telegram_window(work_hwnd) else 0
         try:
-            prepared = self.coordinator.prepare(
-                text=request.text,
-                attempt_id=request.attempt_id,
+            prepared = self.coordinator.prepare_request(
+                request,
                 preferred_hwnd=preferred,
-                restore_hwnd=request.restore_hwnd,
             )
         except TransactionRejected as exc:
             trace.trace(f"transaction: preparation rejected safely: {exc}")
