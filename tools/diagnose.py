@@ -21,10 +21,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from floatingbar import trace
 from floatingbar import winapi
+from floatingbar.bound_target import BoundTelegramTarget
 from floatingbar.context import capture
 from floatingbar.context_injector import ContextGuardedRecoveryInjector
 from floatingbar.preflight import run as run_preflight
 from floatingbar.target import TelegramTarget, TelegramNotFound
+import config
 
 
 def _print_preflight(result) -> None:
@@ -47,7 +49,8 @@ def _print_preflight(result) -> None:
     if result.button_available:
         print(
             f"  send_candidate=name={result.send_name!r} "
-            f"point={result.send_point}"
+            f"point={result.send_point} "
+            f"evidence_score={result.send_evidence_score:.1f}"
         )
     else:
         print("  send_candidate=none (posted Enter fallback is available)")
@@ -57,6 +60,21 @@ def _print_preflight(result) -> None:
             print(f"    - {reason}")
     else:
         print("  notes: none")
+
+
+def _is_telegram_window(hwnd: int) -> bool:
+    if not hwnd:
+        return False
+    try:
+        pid = winapi.get_window_pid(hwnd)
+        image = winapi.get_process_image_name(pid)
+        base = image.rsplit("\\", 1)[-1] if image else ""
+        if base and config.PROCESS_NAME_RE.search(base):
+            return True
+        title = winapi.get_window_title(hwnd)
+        return bool(title and config.TITLE_FALLBACK_RE.search(title))
+    except Exception:
+        return False
 
 
 def _run_full_diagnostic(target: TelegramTarget, hwnd: int) -> int:
@@ -191,18 +209,22 @@ def _run_full_diagnostic(target: TelegramTarget, hwnd: int) -> int:
 
 
 def _run_guarded_send(target: TelegramTarget, text: str, preferred_hwnd: int) -> int:
-    """Run the production-equivalent read-only gate, then guarded injection."""
-    preflight = run_preflight(target, preferred_hwnd=preferred_hwnd)
+    """Run the production-equivalent preflight, lease binding, and guarded send."""
+    bound = BoundTelegramTarget(target)
+    preferred = preferred_hwnd if _is_telegram_window(preferred_hwnd) else 0
+    preflight = run_preflight(bound, preferred_hwnd=preferred)
     _print_preflight(preflight)
     if not preflight.ready:
         print("\n  -> SEND REFUSED: preflight is blocked.")
         return 3
 
-    hwnd = preflight.hwnd
-    context = capture(hwnd)
-    injector = ContextGuardedRecoveryInjector(target)
-    injector.set_window_context(context)
     try:
+        if bound.select_for_send(preferred_hwnd=preflight.hwnd) != preflight.hwnd:
+            print("\n  -> SEND REFUSED: preflight target could not be leased safely.")
+            return 3
+        context = preflight.context or capture(preflight.hwnd)
+        injector = ContextGuardedRecoveryInjector(bound)
+        injector.set_window_context(context)
         result = injector.send(text, restore_hwnd=preferred_hwnd)
         print(f"  -> OK, context-guarded strategy used: {result}")
         return 0
@@ -210,6 +232,8 @@ def _run_guarded_send(target: TelegramTarget, text: str, preferred_hwnd: int) ->
         print(f"  -> FAILED: {e}")
         print(f"  (full stage-by-stage detail in {trace.path()})")
         return 4
+    finally:
+        bound.release()
 
 
 def main() -> int:
