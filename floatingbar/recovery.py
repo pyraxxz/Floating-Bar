@@ -88,10 +88,9 @@ class ScopeGuardedRecoveryInjector(HardenedTelegramInjector):
             ):
                 fixed_scope = getattr(self, "_recovery_scope", None)
                 if fixed_scope and fixed_scope[0] and fixed_scope[1]:
-                    hwnd, pid = fixed_scope
+                    hwnd = fixed_scope[0]
                 else:
                     hwnd = self.target.hwnd or 0
-                    pid = winapi.get_window_pid(hwnd) if hwnd else 0
 
                 self._assert_target_scope(hwnd, "before clipboard recovery")
                 winapi.ensure_restored(hwnd)
