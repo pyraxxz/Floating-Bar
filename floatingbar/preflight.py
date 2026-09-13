@@ -26,6 +26,7 @@ class PreflightResult:
     compose_click: Optional[Tuple[int, int]] = None
     send_name: str = ""
     send_point: Optional[Tuple[int, int]] = None
+    send_evidence_score: float = 0.0
     submission_path: str = "unavailable"
     scope_stable: bool = False
     context_guard_available: bool = False
@@ -69,6 +70,7 @@ def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
     compose_click = None
     send_name = ""
     send_point = None
+    send_evidence_score = 0.0
     submission_path = "unavailable"
 
     try:
@@ -79,8 +81,9 @@ def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
         else:
             info = target.send_button_click(near_box=box)
             if info is not None:
-                send_name = info[0] or ""
-                send_point = (info[1], info[2])
+                send_name = info.name or ""
+                send_point = (info.client_x, info.client_y)
+                send_evidence_score = float(info.evidence_score)
                 submission_path = "send-button"
             else:
                 submission_path = "enter-fallback"
@@ -140,6 +143,7 @@ def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
         compose_click=compose_click,
         send_name=send_name,
         send_point=send_point,
+        send_evidence_score=send_evidence_score,
         submission_path=submission_path,
         scope_stable=scope_stable,
         context_guard_available=context_guard_available,
