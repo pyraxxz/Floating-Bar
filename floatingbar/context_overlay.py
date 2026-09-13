@@ -10,6 +10,7 @@ from .context_injector import ContextGuardedRecoveryInjector
 from .injector import InjectionFailed
 from .recovery_overlay import OrbRelayWindow as _RecoveryOrbRelayWindow
 from .target import TelegramNotFound
+from .transaction import SendCompletion
 from .transaction_coordinator import SendTransactionCoordinator, TransactionRejected
 
 
@@ -90,6 +91,21 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
         self.injector.set_window_context(self._attempt_context)
         return super()._on_enter_key(_event)
 
+    def _queue_completion(
+        self,
+        attempt_id: int,
+        strategy: str = None,
+        error: str = None,
+    ) -> None:
+        """Queue one typed result across the worker/UI thread boundary."""
+        self._result_q.put(
+            SendCompletion.from_result(
+                attempt_id=attempt_id,
+                strategy=strategy,
+                error=error,
+            )
+        )
+
     def _execute_prepared_attempt(self, text: str, restore_hwnd: int, attempt_id: int) -> None:
         """Run an already-prepared transaction without re-selecting its target.
 
@@ -119,7 +135,7 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
                     comtypes.CoUninitialize()
                 except Exception:
                     pass
-        self._result_q.put((attempt_id, strategy, error))
+        self._queue_completion(attempt_id, strategy, error)
 
     def _send_worker(self, text: str, work_hwnd: int, attempt_id: int) -> None:
         # Keep the user's original foreground HWND separate from the Telegram
@@ -135,16 +151,14 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
             )
         except TransactionRejected as exc:
             trace.trace(f"transaction: preparation rejected safely: {exc}")
-            self._result_q.put((attempt_id, None, str(exc)))
+            self._queue_completion(attempt_id, None, str(exc))
             return
         except Exception as exc:
             trace.trace(f"transaction: unexpected preparation failure: {exc}")
-            self._result_q.put(
-                (
-                    attempt_id,
-                    None,
-                    f"Telegram send preflight failed safely: {exc}",
-                )
+            self._queue_completion(
+                attempt_id,
+                None,
+                f"Telegram send preflight failed safely: {exc}",
             )
             return
 
