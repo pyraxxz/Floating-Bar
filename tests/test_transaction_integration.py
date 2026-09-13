@@ -4,12 +4,15 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from floatingbar.context_overlay import OrbRelayWindow
+from floatingbar.transaction import TargetScope
 
 
 class TransactionIntegrationTests(unittest.TestCase):
     def _window(self):
         window = OrbRelayWindow.__new__(OrbRelayWindow)
         window.target = Mock()
+        window.target.select_for_send.return_value = 700
+        window.target.scope.return_value = TargetScope(700, 900)
         window.injector = Mock()
         window._result_q = queue.Queue()
         window._attempt_context = Mock()
