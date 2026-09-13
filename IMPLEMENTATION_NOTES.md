@@ -44,6 +44,22 @@ When the orb opens, it records the top-level window that owned foreground focus.
 
 Send candidates now use a typed immutable `SendCandidate` carrying the accessible name, client-relative coordinates, and evidence score. The underlying tuple shape remains compatible with the legacy `(name, x, y)` consumers. Evidence combines explicit accessible name, automation ID, InvokePattern availability, compose-row alignment, position relative to the compose, and reasonable button geometry. Voice/record/mic/audio controls are rejected, and unnamed buttons are never clicked merely because their geometry looks convincing.
 
+## Runtime context protection
+
+### Non-content context fingerprint
+
+`floatingbar.context` captures a one-way HMAC fingerprint of a non-generic Telegram window title using a per-process secret. The raw title is never logged or persisted. The fingerprint is used only as a change detector between the read-only preflight and later guarded actions.
+
+### Structural compose anchor
+
+When the chosen compose `Edit` exposes a UI Automation runtime ID, the ID is retained as a session-only structural anchor. It is compared only against the current Edit tree; message content is never read for this purpose. This provides an additional context signal when Telegram uses a generic title and also detects a replaced compose control after preflight.
+
+### Preflight drift check
+
+Preflight captures a non-content title snapshot before compose/button discovery and compares it with the final context snapshot. A context/title transition during the preflight itself is treated conservatively as a blocked send when at least one snapshot has usable title evidence. When no usable context anchor exists, the result explicitly reports degraded protection rather than falsely claiming stability.
+
+The combination is intentionally not an assertion of exact chat identity for every Telegram build. Same-window chat switches can remain indistinguishable when Telegram reuses both the same generic title and the same structural compose control. The application must degrade safely and report the boundary rather than infer content.
+
 ## Runtime reliability
 
 ### Delayed-clear verification
@@ -94,9 +110,11 @@ The transaction layer also carries typed immutable `SendCompletion` objects for 
 
 `tools/diagnose.py --preflight` runs a dedicated non-invasive readiness check. It verifies that Telegram exists, is not minimized, has usable compose geometry, and retains a stable `(HWND, PID)` target during discovery. It returns the one captured non-content `WindowContext` snapshot used by production for the send attempt; generic Telegram titles deliberately produce degraded context protection rather than a false claim of chat identity.
 
+`tools/diagnose.py --preflight --json` emits a machine-readable, content-free representation containing readiness/status, target and focus identifiers, compose geometry, submission path, Send evidence score, context-guard booleans, and safe reasons. It deliberately omits Telegram raw titles, message text, and clipboard contents.
+
 `tools/diagnose.py --send` now follows the production transaction boundary: it runs read-only preflight, binds the exact resulting target through `BoundTelegramTarget`, adopts the preflight context snapshot, sends through `ContextGuardedRecoveryInjector`, and always releases the temporary target lease.
 
-The regression suite covers nested compose geometry, pre-filled search fields, voice-button rejection, explicit Send selection, ambiguous-button fallback, focused-child routing, delayed compose clearing, clipboard-write failure, stale runtime-ID invalidation, immutable target leases, preflight context replacement, Send-button row filtering, disabled controls, DPI-awareness bootstrap, stale-target scope aborts, multi-window target preference, failed-draft behavior, typed send-state classification, typed Send candidates, repeated sends, Unicode surrogate-pair handling, opt-in recovery scope aborts, explicit retry-menu behavior, production lease lifecycle, and safe-preflight readiness states.
+The regression suite covers nested compose geometry, pre-filled search fields, voice-button rejection, explicit Send selection, ambiguous-button fallback, focused-child routing, delayed compose clearing, clipboard-write failure, stale runtime-ID invalidation, immutable target leases, preflight context replacement, preflight context drift, Send-button row filtering, disabled controls, DPI-awareness bootstrap, stale-target scope aborts, multi-window target preference, failed-draft behavior, typed send-state classification, typed Send candidates, repeated sends, Unicode surrogate-pair handling, opt-in recovery scope aborts, explicit retry-menu behavior, production lease lifecycle, structural context anchors, machine-readable diagnostic payloads, and safe-preflight readiness states.
 
 ## Release/deployment
 
