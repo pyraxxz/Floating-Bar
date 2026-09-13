@@ -21,6 +21,9 @@ class BackgroundTarget(Protocol):
     def scope(self) -> TargetScope:
         """Return the currently selected immutable HWND/PID scope."""
 
+    def scope_matches(self, hwnd: int, pid: int = 0) -> bool:
+        """Return whether the live target still matches an expected scope."""
+
     def is_available(self) -> bool:
         """Return whether a usable target is currently discoverable."""
 
