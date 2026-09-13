@@ -208,6 +208,41 @@ class ContextOverlayTests(unittest.TestCase):
         fresh_context.matches.assert_called_once_with()
         base_worker.assert_called_once_with("hello", 700, 11)
 
+    def test_active_target_lease_releases_when_completion_raises(self):
+        window = OrbRelayWindow.__new__(OrbRelayWindow)
+        window.target = Mock()
+        window.injector = Mock()
+        window._active_attempt_id = 12
+        window._active_transaction = Mock()
+        window._active_transaction.attempt_id = 12
+        window._active_transaction.context = Mock()
+        window._attempt_context = window._active_transaction.context
+
+        with patch(
+            "floatingbar.recovery_overlay.OrbRelayWindow._send_finished",
+            side_effect=RuntimeError("completion bug"),
+        ):
+            with self.assertRaises(RuntimeError):
+                window._send_finished(12, None, "error")
+
+        window.target.release.assert_called_once_with()
+
+    def test_stale_completion_never_releases_newer_attempt_lease(self):
+        window = OrbRelayWindow.__new__(OrbRelayWindow)
+        window.target = Mock()
+        window.injector = Mock()
+        window._active_attempt_id = 20
+        window._active_transaction = Mock()
+        window._active_transaction.attempt_id = 20
+        window._active_transaction.context = Mock()
+        window._attempt_context = window._active_transaction.context
+
+        with patch("floatingbar.recovery_overlay.OrbRelayWindow._send_finished") as base_finished:
+            window._send_finished(19, None, "old result")
+
+        base_finished.assert_called_once_with(None, None, "old result")
+        window.target.release.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
