@@ -142,8 +142,8 @@ class TargetResilienceTests(unittest.TestCase):
             result = target.send_button_click(near_box=box)
 
         self.assertIsInstance(result, SendCandidate)
-        self.assertEqual(result[0], "Send")
-        self.assertEqual(result[1:], (750, 730))
+        self.assertEqual(result.name, "Send")
+        self.assertEqual((result.client_x, result.client_y), (750, 730))
         self.assertGreater(result.evidence_score, 100.0)
 
     def test_disabled_button_is_not_selected(self):
@@ -164,8 +164,8 @@ class TargetResilienceTests(unittest.TestCase):
             result = target.send_button_click(near_box=box)
 
         self.assertIsInstance(result, SendCandidate)
-        self.assertEqual(result[0], "Send")
-        self.assertEqual(result[1:], (800, 730))
+        self.assertEqual(result.name, "Send")
+        self.assertEqual((result.client_x, result.client_y), (800, 730))
 
     def test_explicit_send_evidence_beats_plausible_unnamed_icon(self):
         target = TelegramTarget()
@@ -195,8 +195,8 @@ class TargetResilienceTests(unittest.TestCase):
             result = target.send_button_click(near_box=box)
 
         self.assertIsInstance(result, SendCandidate)
-        self.assertEqual(result[0], "Send message")
-        self.assertEqual(result[1:], (740, 785))
+        self.assertEqual(result.name, "Send message")
+        self.assertEqual((result.client_x, result.client_y), (740, 785))
         self.assertGreater(result.evidence_score, 120.0)
 
     def test_named_unrelated_button_is_rejected_even_when_geometrically_plausible(self):
