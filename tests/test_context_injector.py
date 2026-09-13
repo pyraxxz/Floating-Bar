@@ -9,23 +9,22 @@ from floatingbar.injector import InjectionFailed
 class ContextInjectorTests(unittest.TestCase):
     def test_changed_context_aborts_before_landing(self):
         injector = ContextGuardedRecoveryInjector(Mock())
-        context = WindowContext(100, 200, "", process_name="telegram.exe")
+        context = Mock(spec=WindowContext)
+        context.matches.return_value = False
         injector.set_window_context(context)
-
-        context_matches = Mock(return_value=False)
-        injector.window_context = Mock(spec=WindowContext)
-        injector.window_context.matches = context_matches
 
         with self.assertRaises(InjectionFailed):
             injector._assert_window_context("test landing")
 
-        context_matches.assert_called_once_with()
+        context.matches.assert_called_once_with()
 
     def test_matching_context_allows_landing_guard(self):
         injector = ContextGuardedRecoveryInjector(Mock())
-        context = WindowContext(100, 200, "", process_name="telegram.exe")
+        context = Mock(spec=WindowContext)
+        context.matches.return_value = True
         injector.set_window_context(context)
         injector._assert_window_context("test landing")
+        context.matches.assert_called_once_with()
 
     def test_malformed_context_is_rejected_and_cleared(self):
         injector = ContextGuardedRecoveryInjector(Mock())
