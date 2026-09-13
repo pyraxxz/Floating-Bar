@@ -67,6 +67,24 @@ class FakeWindow:
 
 
 class TargetResilienceTests(unittest.TestCase):
+    def test_hwnd_reuse_refreshes_when_pid_changes(self):
+        target = TelegramTarget()
+        target._hwnd = 100
+        target._pid = 10
+
+        with patch(
+            "floatingbar.target.winapi.user32.IsWindow", return_value=True
+        ), patch(
+            "floatingbar.target.winapi.get_window_pid", return_value=20
+        ), patch(
+            "floatingbar.target.winapi.find_windows",
+            return_value=[(200, 20, 1000, "Chat", "Telegram.exe")],
+        ):
+            self.assertEqual(target.hwnd, 200)
+
+        self.assertEqual(target._hwnd, 200)
+        self.assertEqual(target._pid, 20)
+
     def test_refresh_clears_remembered_runtime_id_when_window_scope_changes(self):
         target = TelegramTarget()
         target._hwnd = 100
