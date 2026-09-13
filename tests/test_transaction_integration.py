@@ -38,9 +38,9 @@ class TransactionIntegrationTests(unittest.TestCase):
         prepared = self._prepared()
         window.coordinator.prepare.return_value = prepared
 
-        with patch.object(window, "_is_telegram_window", return_value=True), patch(
-            "floatingbar.recovery_overlay.OrbRelayWindow._send_worker"
-        ) as base_worker:
+        with patch.object(window, "_is_telegram_window", return_value=True), patch.object(
+            window, "_execute_prepared_attempt"
+        ) as execute_attempt:
             window._send_worker("hello", 700, 12)
 
         window.coordinator.prepare.assert_called_once_with(
@@ -52,16 +52,16 @@ class TransactionIntegrationTests(unittest.TestCase):
         self.assertEqual(window._active_transaction.target, TargetScope(700, 900))
         self.assertEqual(window._active_transaction.restore_hwnd, 321)
         self.assertEqual(window._work_hwnd, 700)
-        base_worker.assert_called_once_with("hello", 321, 12)
+        execute_attempt.assert_called_once_with("hello", 321, 12)
 
     def test_send_worker_preserves_nontelegram_foreground_for_restore(self):
         window = self._window()
         prepared = self._prepared(attempt_id=13, restore_hwnd=111)
         window.coordinator.prepare.return_value = prepared
 
-        with patch.object(window, "_is_telegram_window", return_value=False), patch(
-            "floatingbar.recovery_overlay.OrbRelayWindow._send_worker"
-        ) as base_worker:
+        with patch.object(window, "_is_telegram_window", return_value=False), patch.object(
+            window, "_execute_prepared_attempt"
+        ) as execute_attempt:
             window._send_worker("hello", 111, 13)
 
         window.coordinator.prepare.assert_called_once_with(
@@ -71,7 +71,7 @@ class TransactionIntegrationTests(unittest.TestCase):
             restore_hwnd=111,
         )
         self.assertEqual(window._active_transaction.restore_hwnd, 111)
-        base_worker.assert_called_once_with("hello", 111, 13)
+        execute_attempt.assert_called_once_with("hello", 111, 13)
 
     def test_blocked_coordinator_creates_no_active_attempt(self):
         window = self._window()
