@@ -62,7 +62,7 @@ class ContextOverlayTests(unittest.TestCase):
 
     def test_send_worker_passes_telegram_foreground_as_exact_preference(self):
         window = self._window()
-        prepared = self._prepared(restore_hwnd=700)
+        prepared = self._prepared(attempt_id=8, restore_hwnd=700)
         window.coordinator.prepare.return_value = prepared
 
         with patch.object(window, "_is_telegram_window", return_value=True), patch.object(
