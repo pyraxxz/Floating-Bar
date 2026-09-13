@@ -1,13 +1,17 @@
 import unittest
-from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from floatingbar.evidence import EvidenceState, from_result
 from floatingbar.overlay import OrbRelayWindow, _classify_send_result
-from floatingbar.transaction import SendCompletion
+from floatingbar.transaction import SendCompletion, SendRequest
 
 
 class OverlayStateTests(unittest.TestCase):
+    def _window(self):
+        window = OrbRelayWindow.__new__(OrbRelayWindow)
+        window._active_request = None
+        return window
+
     def test_error_is_failed_and_retryable(self):
         result = _classify_send_result(None, "Telegram unavailable")
         self.assertEqual(result.state, EvidenceState.FAILED)
@@ -53,7 +57,7 @@ class OverlayStateTests(unittest.TestCase):
         )
 
     def test_completion_normalizer_accepts_typed_object(self):
-        window = OrbRelayWindow.__new__(OrbRelayWindow)
+        window = self._window()
         completion = SendCompletion.from_result(
             4,
             strategy="posted-click (VERIFIED)",
@@ -61,7 +65,7 @@ class OverlayStateTests(unittest.TestCase):
         self.assertIs(window._coerce_completion(completion), completion)
 
     def test_completion_normalizer_preserves_legacy_tuple_compatibility(self):
-        window = OrbRelayWindow.__new__(OrbRelayWindow)
+        window = self._window()
         completion = window._coerce_completion(
             (4, "posted-enter (VERIFIED)", None)
         )
@@ -71,9 +75,10 @@ class OverlayStateTests(unittest.TestCase):
         self.assertEqual(completion.evidence_state, EvidenceState.VERIFIED)
 
     def test_stale_send_result_is_ignored(self):
-        window = OrbRelayWindow.__new__(OrbRelayWindow)
+        window = self._window()
         window._active_attempt_id = 2
         window._sending = True
+        window._active_request = SendRequest(2, "new message", 123)
         window._active_send_text = "new message"
         window._blink_job = None
 
@@ -83,9 +88,10 @@ class OverlayStateTests(unittest.TestCase):
         self.assertEqual(window._active_send_text, "new message")
 
     def test_failed_send_enables_retry_menu_and_preserves_text_and_target(self):
-        window = OrbRelayWindow.__new__(OrbRelayWindow)
+        window = self._window()
         window._active_attempt_id = 1
         window._sending = True
+        window._active_request = SendRequest(1, "retry me", 321)
         window._active_send_text = "retry me"
         window._work_hwnd = 321
         window._blink_job = None
@@ -103,9 +109,10 @@ class OverlayStateTests(unittest.TestCase):
         window._set_retry_menu_enabled.assert_called_once_with(True)
 
     def test_confirmed_send_disables_retry_menu(self):
-        window = OrbRelayWindow.__new__(OrbRelayWindow)
+        window = self._window()
         window._active_attempt_id = 1
         window._sending = True
+        window._active_request = SendRequest(1, "sent", 321)
         window._active_send_text = "sent"
         window._work_hwnd = 321
         window._blink_job = None
@@ -123,9 +130,10 @@ class OverlayStateTests(unittest.TestCase):
         window._set_retry_menu_enabled.assert_called_once_with(False)
 
     def test_uncertain_send_disables_retry_menu_and_drops_draft(self):
-        window = OrbRelayWindow.__new__(OrbRelayWindow)
+        window = self._window()
         window._active_attempt_id = 1
         window._sending = True
+        window._active_request = SendRequest(1, "maybe sent", 321)
         window._active_send_text = "maybe sent"
         window._work_hwnd = 321
         window._blink_job = None
