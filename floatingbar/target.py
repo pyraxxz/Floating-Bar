@@ -11,8 +11,6 @@ cache is invalidated when Telegram's top-level HWND/PID scope changes, and
 remembered compose geometry is revalidated before use.
 """
 
-import re
-
 import pywinauto
 from pywinauto.findwindows import ElementNotFoundError
 
