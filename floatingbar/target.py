@@ -19,6 +19,7 @@ from pywinauto.findwindows import ElementNotFoundError
 import config
 from . import trace
 from . import winapi
+from .transaction import TargetScope
 
 
 class _Band:
@@ -50,13 +51,13 @@ class TelegramTarget:
     def is_available(self) -> bool:
         return self.hwnd != 0
 
-    def scope(self):
-        """Return the currently discovered `(hwnd, pid)` target scope."""
+    def scope(self) -> TargetScope:
+        """Return the currently discovered immutable `(hwnd, pid)` scope."""
         hwnd = self.hwnd
         if not hwnd:
-            return 0, 0
+            return TargetScope(0, 0)
         pid = self._pid or winapi.get_window_pid(hwnd)
-        return hwnd, pid
+        return TargetScope(hwnd, pid)
 
     def scope_matches(self, hwnd: int, pid: int = 0) -> bool:
         """True only when the same Telegram top-level window/process is current."""
