@@ -417,14 +417,12 @@ class TelegramTarget:
         if not candidates:
             return None
 
-        # A named control must identify itself as Send. This prevents unrelated
-        # compose-row controls such as Attach/Emoji from being clicked merely
-        # because they happen to score well geometrically. Unnamed icons may
-        # still qualify through the evidence threshold below.
+        # A Send click must have semantic evidence. Geometry and InvokePattern
+        # are supporting signals, never sufficient by themselves; this avoids
+        # accidentally clicking an unnamed Emoji/Attach/Mic icon.
         candidates = [
             item for item in candidates
             if self._button_has_explicit_send_semantics(item[3], item[1])
-            or (not item[1] and item[0] >= 35.0)
         ]
         if not candidates:
             return None
