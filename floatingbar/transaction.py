@@ -8,7 +8,7 @@ of loosely related mutable fields.
 """
 
 from dataclasses import dataclass
-from typing import NamedTuple, Optional
+from typing import NamedTuple, Optional, Tuple
 
 from .evidence import EvidenceState
 
@@ -31,6 +31,13 @@ class SendCandidate(NamedTuple):
     client_x: int
     client_y: int
     evidence_score: float = 0.0
+
+
+def candidate_parts(candidate) -> Tuple[str, int, int]:
+    """Return name/x/y for a typed SendCandidate or legacy 3-tuple."""
+    if isinstance(candidate, SendCandidate):
+        return candidate.name, candidate.client_x, candidate.client_y
+    return candidate[0], candidate[1], candidate[2]
 
 
 @dataclass(frozen=True)
@@ -68,6 +75,7 @@ class SendCompletion:
 __all__ = [
     "TargetScope",
     "SendCandidate",
+    "candidate_parts",
     "SendAttempt",
     "SendCompletion",
 ]
