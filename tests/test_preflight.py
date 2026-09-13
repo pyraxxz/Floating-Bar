@@ -2,7 +2,8 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from floatingbar.preflight import run
+from floatingbar.context import WindowContext, title_fingerprint
+from floatingbar.preflight import _context_transition_stable, run
 from floatingbar.transaction import SendCandidate
 
 
@@ -39,6 +40,8 @@ class PreflightTests(unittest.TestCase):
             "floatingbar.preflight.winapi.user32.IsWindow", return_value=True
         ), patch(
             "floatingbar.context.compose_runtime_id_present", return_value=True
+        ), patch(
+            "floatingbar.context._selected_chat_anchor", return_value=((), "")
         ):
             result = run(target)
 
@@ -126,6 +129,8 @@ class PreflightTests(unittest.TestCase):
             "floatingbar.preflight.winapi.get_window_title", return_value="Telegram"
         ), patch(
             "floatingbar.preflight.winapi.user32.IsWindow", return_value=True
+        ), patch(
+            "floatingbar.context._selected_chat_anchor", return_value=((), "")
         ):
             result = run(target)
 
@@ -136,6 +141,61 @@ class PreflightTests(unittest.TestCase):
         self.assertIsNotNone(result.context)
         self.assertEqual(result.context.title_fp, "")
         self.assertEqual(result.context.compose_runtime_id, ())
+
+    def test_context_transition_stability_rejects_changed_selected_chat(self):
+        name_fp = title_fingerprint("Chat A")
+        initial = WindowContext(
+            100,
+            200,
+            "",
+            chat_runtime_id=(7, 8, 9),
+            chat_name_fp=name_fp,
+        )
+        final = WindowContext(
+            100,
+            200,
+            "",
+            chat_runtime_id=(10, 11, 12),
+            chat_name_fp=title_fingerprint("Chat B"),
+        )
+        self.assertFalse(_context_transition_stable(initial, final))
+
+    def test_selected_chat_change_during_preflight_is_blocking(self):
+        target = self._target()
+        initial = WindowContext(
+            100,
+            200,
+            "",
+            chat_runtime_id=(7, 8, 9),
+            chat_name_fp=title_fingerprint("Chat A"),
+        )
+        final = WindowContext(
+            100,
+            200,
+            "",
+            chat_runtime_id=(10, 11, 12),
+            chat_name_fp=title_fingerprint("Chat B"),
+        )
+        with patch("floatingbar.preflight.capture", side_effect=[initial, final]), patch(
+            "floatingbar.preflight.winapi.is_minimized", return_value=False
+        ), patch(
+            "floatingbar.preflight.winapi.get_focused_hwnd", return_value=101
+        ), patch(
+            "floatingbar.preflight.winapi.get_window_pid", return_value=200
+        ), patch(
+            "floatingbar.preflight.winapi.user32.IsWindow", return_value=True
+        ), patch(
+            "floatingbar.context._selected_chat_anchor", return_value=(
+                final.chat_runtime_id,
+                final.chat_name_fp,
+            )
+        ):
+            result = run(target)
+
+        self.assertFalse(result.ready)
+        self.assertEqual(result.status, "blocked")
+        self.assertFalse(result.context_stable)
+        self.assertTrue(any("context changed" in reason for reason in result.reasons))
 
     def test_context_title_change_is_blocking(self):
         target = self._target()
@@ -162,7 +222,8 @@ class PreflightTests(unittest.TestCase):
             "floatingbar.preflight.winapi.get_focused_hwnd", return_value=101
         ), patch("floatingbar.preflight.winapi.get_window_pid", return_value=200), patch(
             "floatingbar.preflight.winapi.get_window_title", return_value="Chat A - Telegram"
-        ), patch("floatingbar.preflight.winapi.user32.IsWindow", return_value=True):
+        ), patch("floatingbar.preflight.winapi.user32.IsWindow", return_value=True
+        ):
             result = run(target)
 
         self.assertFalse(result.ready)
