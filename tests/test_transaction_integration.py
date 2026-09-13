@@ -55,7 +55,7 @@ class TransactionIntegrationTests(unittest.TestCase):
 
     def test_send_worker_preserves_nontelegram_foreground_for_restore(self):
         window = self._window()
-        prepared = self._prepared(restore_hwnd=111)
+        prepared = self._prepared(attempt_id=13, restore_hwnd=111)
         window.coordinator.prepare.return_value = prepared
 
         with patch.object(window, "_is_telegram_window", return_value=False), patch(
@@ -70,7 +70,7 @@ class TransactionIntegrationTests(unittest.TestCase):
             restore_hwnd=111,
         )
         self.assertEqual(window._active_transaction.restore_hwnd, 111)
-        base_worker.assert_called_once_with("hello", 700, 13)
+        base_worker.assert_called_once_with("hello", 111, 13)
 
     def test_blocked_coordinator_creates_no_active_attempt(self):
         window = self._window()
