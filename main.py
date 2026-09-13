@@ -21,8 +21,9 @@ def main() -> None:
     dpi.enable_per_monitor_awareness()
 
     # Production overlay: hardened invisible injection, guarded opt-in
-    # recovery, explicit retry UX, and non-content Telegram context checks.
-    from floatingbar.context_overlay import OrbRelayWindow
+    # recovery, explicit retry UX, non-content Telegram context checks, and
+    # an immutable per-attempt Telegram target lease.
+    from floatingbar.bound_context_overlay import OrbRelayWindow
 
     app = OrbRelayWindow()
     try:
