@@ -19,6 +19,30 @@ class EvidenceState(str, Enum):
         """Compatibility view for older result consumers."""
         return self
 
+    @property
+    def confirmed(self) -> bool:
+        """Compatibility view matching SubmissionEvidence.confirmed."""
+        return self is EvidenceState.VERIFIED
+
+    @property
+    def uncertain(self) -> bool:
+        """Compatibility view matching SubmissionEvidence.uncertain."""
+        return self in (
+            EvidenceState.SUBMITTED,
+            EvidenceState.UNAVAILABLE,
+            EvidenceState.UNKNOWN,
+        )
+
+    @property
+    def retryable(self) -> bool:
+        """Compatibility view matching SubmissionEvidence.retryable."""
+        return self is EvidenceState.FAILED
+
+    @property
+    def detail(self):
+        """No enum member can carry a per-attempt error detail."""
+        return None
+
 
 @dataclass(frozen=True)
 class SubmissionEvidence:
