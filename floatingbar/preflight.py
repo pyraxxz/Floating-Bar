@@ -114,14 +114,18 @@ def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
     try:
         context = capture(hwnd, compose_runtime_id=compose_runtime_id)
         context_guard_available = context.guard_available
-        context_stable = context.matches()
-        if not context_stable:
-            if context_guard_available:
+        if context_guard_available:
+            context_stable = context.matches()
+            if not context_stable:
                 reasons.append("Telegram conversation context changed during preflight.")
-            else:
-                reasons.append(
-                    "Telegram conversation context could not be verified safely."
-                )
+        else:
+            # No content-free anchor is available, so this state is not a
+            # claim that context remained stable; it means context could not
+            # be verified and the send is intentionally degraded rather than blocked.
+            context_stable = False
+            reasons.append(
+                "Telegram conversation context could not be verified safely."
+            )
     except Exception:
         reasons.append("Telegram conversation context could not be inspected safely.")
 
