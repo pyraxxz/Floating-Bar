@@ -12,7 +12,7 @@ from . import trace
 from .context import capture
 from .preflight import PreflightResult, run as run_preflight
 from .target_contract import BackgroundTarget
-from .transaction import SendAttempt, TargetScope
+from .transaction import SendAttempt, SendRequest, TargetScope
 
 
 class TransactionRejected(Exception):
@@ -45,6 +45,21 @@ class SendTransactionCoordinator:
                 release()
             except Exception as exc:
                 trace.trace(f"transaction: lease release after rejection failed: {exc}")
+
+    def prepare_request(
+        self,
+        request: SendRequest,
+        preferred_hwnd: int = 0,
+    ) -> PreparedTransaction:
+        """Prepare one immutable request without unpacking its state at the call site."""
+        if not isinstance(request, SendRequest) or not request.valid:
+            raise TransactionRejected("The send request is invalid.")
+        return self.prepare(
+            text=request.text,
+            attempt_id=request.attempt_id,
+            preferred_hwnd=preferred_hwnd,
+            restore_hwnd=request.restore_hwnd,
+        )
 
     def prepare(
         self,
