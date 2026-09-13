@@ -120,9 +120,13 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
         self._work_hwnd = transaction.target.hwnd
         self._attempt_context = transaction.context
         self.injector.set_window_context(transaction.context)
+        # The base worker uses its work_hwnd argument as the restore foreground
+        # handle when invoking the injector. The target itself is already bound,
+        # so pass the transaction's original restore handle rather than the
+        # Telegram target HWND.
         super()._send_worker(
             transaction.text,
-            transaction.target.hwnd,
+            transaction.restore_hwnd,
             transaction.attempt_id,
         )
 
