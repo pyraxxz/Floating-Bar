@@ -1,21 +1,19 @@
-"""Production overlay that enforces immutable Telegram target binding."""
+"""Compatibility entry point for the production context-aware overlay.
 
-from .bound_target import BoundTelegramTarget
+Target binding and completion lifecycle are already owned by
+``context_overlay.OrbRelayWindow``. This module intentionally stays as a
+thin import-compatible subclass so the executable entry point does not need
+to change while avoiding a second BoundTelegramTarget wrapper around the
+coordinator's lease.
+"""
+
 from .context_overlay import OrbRelayWindow as _ContextOrbRelayWindow
-from .transaction import SendCompletion
 
 
 class OrbRelayWindow(_ContextOrbRelayWindow):
-    """Context-aware overlay with an exact target lease per send attempt."""
+    """Production overlay; target binding is owned by the parent class."""
 
-    def __init__(self):
-        super().__init__()
-        self.target = BoundTelegramTarget(self.target)
-        self.injector.target = self.target
+    pass
 
-    def _send_finished(self, completion: SendCompletion) -> None:
-        try:
-            super()._send_finished(completion)
-        finally:
-            # A transaction binding must never leak into the next attempt.
-            self.target.release()
+
+__all__ = ["OrbRelayWindow"]
