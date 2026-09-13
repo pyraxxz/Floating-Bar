@@ -1,16 +1,17 @@
 """Non-content Telegram window context used to detect conversation switches.
 
-The title is read only to derive a one-way, per-process HMAC fingerprint. The
-raw title and the HMAC key are never logged, stored on disk, or exposed in
-diagnostics. The fingerprint is kept only for the lifetime of a send attempt
-and is an additional guard on top of the authoritative Telegram `(HWND, PID)`
-scope.
+The title is read only to derive a one-way, per-process HMAC fingerprint. A
+session-scoped compose-control runtime ID is also captured when available;
+it is used only as an in-memory structural anchor and is never logged or
+persisted. Raw title text, message content, and the HMAC key are never logged,
+stored on disk, or exposed in diagnostics.
 """
 
 from dataclasses import dataclass
 from hashlib import sha256
 import hmac
 import secrets
+from typing import Optional, Tuple
 
 from . import winapi
 
@@ -34,14 +35,40 @@ def title_fingerprint(title: str) -> str:
     ).hexdigest()
 
 
+def compose_runtime_id_present(hwnd: int, runtime_id: Tuple[int, ...]) -> bool:
+    """Return whether a content-free UIA Edit anchor still exists on the window."""
+    if not hwnd or not runtime_id:
+        return False
+    try:
+        from pywinauto import Application
+
+        app = Application(backend="uia").connect(handle=hwnd)
+        window = app.window(handle=hwnd).wrapper_object()
+        for edit in window.descendants(control_type="Edit"):
+            try:
+                if tuple(edit.element_info.runtime_id) == tuple(runtime_id):
+                    return True
+            except Exception:
+                continue
+    except Exception:
+        return False
+    return False
+
+
 @dataclass(frozen=True)
 class WindowContext:
     hwnd: int
     pid: int
     title_fp: str
+    compose_runtime_id: Tuple[int, ...] = ()
+
+    @property
+    def guard_available(self) -> bool:
+        """Whether at least one non-content context anchor is available."""
+        return bool(self.title_fp or self.compose_runtime_id)
 
     def matches(self) -> bool:
-        """Check HWND/PID and, when available, the title fingerprint."""
+        """Check HWND/PID plus every context anchor captured for this attempt."""
         if not self.hwnd or not self.pid:
             return False
         if winapi.get_window_pid(self.hwnd) != self.pid:
@@ -49,12 +76,25 @@ class WindowContext:
         if not winapi.user32.IsWindow(self.hwnd):
             return False
         if self.title_fp:
-            return title_fingerprint(winapi.get_window_title(self.hwnd)) == self.title_fp
+            if title_fingerprint(winapi.get_window_title(self.hwnd)) != self.title_fp:
+                return False
+        if self.compose_runtime_id:
+            if not compose_runtime_id_present(self.hwnd, self.compose_runtime_id):
+                return False
         return True
 
 
-def capture(hwnd: int) -> WindowContext:
+def capture(
+    hwnd: int,
+    compose_runtime_id: Optional[Tuple[int, ...]] = None,
+) -> WindowContext:
     """Capture non-content identity for one Telegram top-level window."""
     pid = winapi.get_window_pid(hwnd) if hwnd else 0
     title = winapi.get_window_title(hwnd) if hwnd else ""
-    return WindowContext(hwnd=hwnd or 0, pid=pid, title_fp=title_fingerprint(title))
+    rid = tuple(compose_runtime_id or ())
+    return WindowContext(
+        hwnd=hwnd or 0,
+        pid=pid,
+        title_fp=title_fingerprint(title),
+        compose_runtime_id=rid,
+    )
