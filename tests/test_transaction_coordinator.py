@@ -38,6 +38,7 @@ class TransactionCoordinatorTests(unittest.TestCase):
 
         self.assertEqual(str(raised.exception), "The send text is empty.")
         target.select_for_send.assert_not_called()
+        target.release.assert_not_called()
 
     def test_prepare_builds_immutable_attempt_from_preflight(self):
         target = self._target()
@@ -65,6 +66,7 @@ class TransactionCoordinatorTests(unittest.TestCase):
         self.assertIs(prepared.attempt.context, context)
         target.select_for_send.assert_called_once_with(preferred_hwnd=700)
         context.matches.assert_called_once_with()
+        target.release.assert_not_called()
 
     def test_prepare_rejects_blocked_preflight(self):
         target = self._target()
@@ -81,6 +83,7 @@ class TransactionCoordinatorTests(unittest.TestCase):
         self.assertIs(raised.exception.preflight, preflight)
         self.assertEqual(str(raised.exception), "blocked")
         target.select_for_send.assert_not_called()
+        target.release.assert_called_once_with()
 
     def test_prepare_rejects_silent_retarget_after_preflight(self):
         target = self._target()
@@ -99,6 +102,7 @@ class TransactionCoordinatorTests(unittest.TestCase):
                 coordinator.prepare("hello", 12, preferred_hwnd=700)
 
         target.select_for_send.assert_called_once_with(preferred_hwnd=700)
+        target.release.assert_called_once_with()
 
     def test_prepare_rejects_context_change_before_worker(self):
         target = self._target()
@@ -117,6 +121,7 @@ class TransactionCoordinatorTests(unittest.TestCase):
 
         self.assertIn("changed", str(raised.exception).lower())
         target.scope.assert_not_called()
+        target.release.assert_called_once_with()
 
     def test_prepare_rejects_bound_scope_mismatch(self):
         target = self._target()
@@ -134,6 +139,8 @@ class TransactionCoordinatorTests(unittest.TestCase):
             with self.assertRaises(TransactionRejected):
                 coordinator.prepare("hello", 12, preferred_hwnd=700)
 
+        target.release.assert_called_once_with()
+
     def test_prepare_accepts_degraded_context_snapshot(self):
         target = self._target()
         context = Mock()
@@ -149,6 +156,7 @@ class TransactionCoordinatorTests(unittest.TestCase):
             prepared = coordinator.prepare("hello", 12, preferred_hwnd=700)
 
         self.assertEqual(prepared.attempt.target, TargetScope(700, 900))
+        target.release.assert_not_called()
 
 
 if __name__ == "__main__":
