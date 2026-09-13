@@ -17,7 +17,7 @@ class TransactionTests(unittest.TestCase):
         name, x, y = candidate
         self.assertEqual((name, x, y), ("Send", 40, 50))
 
-    def test_send_candidate_carries_read_only_evidence_metadata(self):
+    def test_send_candidate_carries_immutable_evidence_metadata(self):
         candidate = SendCandidate("Send", 40, 50, 137.5)
         self.assertEqual(candidate.name, "Send")
         self.assertEqual(candidate.client_x, 40)
@@ -25,6 +25,10 @@ class TransactionTests(unittest.TestCase):
         self.assertEqual(candidate.evidence_score, 137.5)
         with self.assertRaises(AttributeError):
             candidate.evidence_score = 20.0
+        with self.assertRaises(AttributeError):
+            candidate.extra = True
+        with self.assertRaises(AttributeError):
+            del candidate.evidence_score
 
     def test_send_attempt_is_immutable_and_valid(self):
         attempt = SendAttempt(
