@@ -15,31 +15,33 @@ Tk overlay
   |
   +--> attempt state / retry draft / evidence state
   |
-  +--> preflight gate
+  +--> read-only preflight gate
   |      |
   |      +--> TelegramTarget discovery
   |      +--> compose discovery
   |      +--> Send-button evidence
   |      +--> HWND/PID stability
-  |      +--> optional conversation-context fingerprint
+  |      +--> non-content context snapshot
   |
-  +--> ContextGuardedRecoveryInjector
+  +--> BoundTelegramTarget (exact HWND/PID lease)
          |
-         +--> HardenedTelegramInjector
+         +--> ContextGuardedRecoveryInjector
                 |
-                +--> ScopeGuardedRecoveryInjector
+                +--> HardenedTelegramInjector
                        |
-                       +--> existing injector cascade
+                       +--> ScopeGuardedRecoveryInjector
                               |
-                              +--> invisible WM_CHAR posting
-                              +--> audit / re-target
-                              +--> safe Send click
-                              +--> Enter fallback
-                              +--> optional focus-steal recovery
-                              +--> optional clipboard recovery
+                              +--> existing injector cascade
+                                     |
+                                     +--> invisible WM_CHAR posting
+                                     +--> audit / re-target
+                                     +--> safe Send click
+                                     +--> Enter fallback
+                                     +--> optional focus-steal recovery
+                                     +--> optional clipboard recovery
 ```
 
-The inheritance is historical: the hardening layers intentionally preserve the established injector while adding guards. A later cleanup phase should move toward composition/interfaces so the generic send transaction does not depend on Telegram-specific implementation classes.
+The inheritance is historical: the hardening layers intentionally preserve the established injector while adding guards. The target lease now provides composition at the outer production boundary, while the existing inheritance remains intentionally stable until Telegram behavior is proven across the desktop smoke-test matrix.
 
 ## 3. Target discovery
 
@@ -66,7 +68,9 @@ The Send-button selector uses multiple evidence sources:
 - horizontal proximity to the compose control;
 - plausible button dimensions.
 
-Voice/record/microphone/audio controls are always rejected. Named controls that do not identify themselves as Send are rejected even when their geometry is plausible. Weak unnamed icons do not get clicked and fall through to Enter submission.
+The public result is an immutable `SendCandidate` carrying the semantic name, client-relative point, and evidence score while preserving the legacy three-value tuple shape for older injector consumers.
+
+Voice/record/microphone/audio controls are always rejected. Named controls that do not identify themselves as Send are rejected even when their geometry is plausible. Unnamed icons do not get clicked merely because their geometry is plausible and fall through to Enter submission.
 
 ## 4. Preflight contract
 
@@ -77,34 +81,40 @@ Voice/record/microphone/audio controls are always rejected. Named controls that 
 - read message content;
 - modify the clipboard.
 
-The result captures the exact Telegram HWND/PID selected for the operation, compose geometry, submission path, scope stability, and optional context-guard availability.
+The result captures the exact Telegram HWND/PID selected for the operation, compose geometry, Send evidence, submission path, scope stability, and a non-content `WindowContext` snapshot.
 
 A Send is blocked when the hard prerequisites are not safe: Telegram missing, minimized, compose geometry unavailable, or the HWND/PID scope changes during preflight.
 
-A generic Telegram title does not automatically block the operation. In that configuration the system reports degraded context protection while retaining the stronger HWND/PID guard.
+Preflight also captures a context snapshot before UIA discovery and compares title fingerprints afterward. A title/context transition occurring during the preflight is treated conservatively as a blocked send when useful title evidence exists.
+
+A generic Telegram title does not automatically block the operation. When a compose runtime ID is available, that session-scoped structural anchor can provide context protection without reading message content. When neither title nor structural anchor is available, the result explicitly reports degraded context protection.
 
 ## 5. Send transaction invariants
 
 Every production send should satisfy these invariants:
 
-1. **Exact target binding.** The HWND/PID selected by preflight is the target for the transaction. A later discovery pass must not silently retarget another Telegram window.
-2. **Context binding when available.** When Telegram exposes useful title context, the title fingerprint is compared before critical actions. Raw title text is not retained or logged.
-3. **Minimized-target refusal.** A minimized Telegram window is not treated as a viable invisible target.
-4. **No accidental mic click.** Voice/record/mic/audio controls are never considered a safe Send target.
-5. **No ambiguous named-button click.** A named control must explicitly identify itself as Send; otherwise the transaction falls back to Enter or stops safely.
-6. **Content-free diagnostics.** Logs contain lengths, identifiers, geometry, labels, stage names, scores, and booleans rather than message content.
-7. **No automatic uncertain retry.** A submission that cannot be confirmed is represented as uncertain and is not automatically resent.
-8. **Session-only failed drafts.** Retry text is held only for the current application session and is never persisted as history.
-9. **Recovery remains opt-in.** Focus-steal and clipboard recovery are disabled unless explicitly configured, and target scope is checked before critical actions.
-10. **Foreground restoration.** If a recovery path raises Telegram, the user's prior foreground window is restored afterward when possible.
+1. **Exact target binding.** The HWND/PID selected by preflight is the target for the transaction. `BoundTelegramTarget` prevents later discovery from silently retargeting another Telegram window.
+2. **Context binding when available.** The final preflight context snapshot is carried into the send transaction. Title fingerprints and, when available, compose runtime IDs are checked before critical actions. Raw title text is not retained or logged.
+3. **Preflight drift refusal.** A title/context transition observed during the read-only preflight blocks the send instead of silently adopting a changing context.
+4. **Minimized-target refusal.** A minimized Telegram window is not treated as a viable invisible target.
+5. **No accidental mic click.** Voice/record/mic/audio controls are never considered a safe Send target.
+6. **No ambiguous named-button click.** A named control must explicitly identify itself as Send; otherwise the transaction falls back to Enter or stops safely.
+7. **Content-free diagnostics.** Logs contain lengths, identifiers, geometry, labels, stage names, scores, and booleans rather than message content.
+8. **No automatic uncertain retry.** A submission that cannot be confirmed is represented as uncertain and is not automatically resent.
+9. **Session-only failed drafts.** Retry text is held only for the current application session and is never persisted as history.
+10. **Recovery remains opt-in.** Focus-steal and clipboard recovery are disabled unless explicitly configured, and target scope is checked before critical actions.
+11. **Lease lifecycle safety.** The exact target lease is released for the active attempt even if completion handling raises; stale completions cannot release a newer attempt's lease.
+12. **Legacy compatibility.** Typed Send evidence enriches the target contract without breaking the existing three-value `(name, x, y)` injector interface.
 
 ## 6. Context protection
 
 `floatingbar.context` captures a one-way HMAC fingerprint of the Telegram window title using a per-process secret. The purpose is not to identify the user or expose the chat name; it is only to detect a title change between the start of a send and later interaction.
 
-The context model intentionally degrades when the title is empty or generic. In that case HWND/PID remains protected, but a chat switch inside the same Telegram window cannot be inferred from the title alone.
+When the selected compose Edit exposes a UI Automation runtime ID, the context also keeps that identifier as a session-only structural anchor. It is checked only against the current Edit tree and is never used to read message text.
 
-This is an important boundary: the application must never claim stronger conversation protection than the available UI evidence supports.
+The context guard combines every available non-content anchor. `guard_available` reports whether at least one anchor exists; `context_stable=False` means no stability proof was established, not that a context switch was definitely observed.
+
+This remains a conservative signal rather than a universal exact-chat identity guarantee. A Telegram build that reuses both a generic title and the same compose runtime ID across chat switches can remain indistinguishable without reading message content, which the product deliberately refuses to do.
 
 ## 7. Injection stages
 
@@ -152,6 +162,8 @@ Stale worker results are ignored through an attempt ID so an older background se
 
 `tools/diagnose.py --preflight` is intended as the primary support tool. Preflight diagnostics should remain read-only and should be safe to run while the user is working.
 
+`tools/diagnose.py --preflight --json` is the machine-readable support form. It reports only safe state: status, target/focus identifiers, geometry, submission path, Send evidence score, context-guard booleans, structural-anchor availability, and safe reasons. It deliberately omits raw Telegram titles, message text, and clipboard contents.
+
 The trace file is session-scoped and reset at application startup. The trace contract is:
 
 - message content: never logged;
@@ -165,10 +177,12 @@ Windows CI is the authoritative automated gate. The workflow compiles Python sou
 
 The regression suite currently covers:
 
-- conversation fingerprint semantics;
-- context-aware aborts;
-- preflight blocking/degraded modes;
-- exact preflight target binding;
+- conversation title fingerprint semantics;
+- structural compose runtime anchors;
+- context-aware aborts and preflight drift;
+- preflight blocking/degraded modes and side-effect freedom;
+- exact preflight target binding and lease lifecycle;
+- typed Send candidates and legacy tuple compatibility;
 - DPI API behavior;
 - evidence classification;
 - compose targeting and nested Edit behavior;
@@ -177,7 +191,8 @@ The regression suite currently covers:
 - overlay retry and stale-result handling;
 - recovery target-scope guards;
 - Telegram target cache/geometry resilience;
-- UTF-16 text posting.
+- UTF-16 text posting;
+- machine-readable preflight diagnostic payloads.
 
 ## 11. Release policy
 
@@ -192,13 +207,14 @@ The 0.2.0 release gate is:
 3. invisible send works in the intended chat;
 4. multiple Telegram windows remain correctly targeted;
 5. Telegram restart is refused safely;
-6. conversation-switch protection works when useful title context exists;
-7. degraded generic-title behavior is accurately reported;
+6. conversation-switch protection works when useful title or structural context evidence exists;
+7. degraded no-anchor behavior is accurately reported;
 8. failed-send retry is explicit and never automatic;
 9. Send-button safety is validated against unrelated and voice controls;
 10. mixed-DPI/multi-monitor behavior is validated;
 11. emoji and intentional whitespace survive intact;
-12. opt-in recovery stops safely when the original target is replaced.
+12. opt-in recovery stops safely when the original target is replaced;
+13. diagnostic JSON is usable for collecting comparable support snapshots without content leakage.
 
 Only after those gates pass should `v0.2.0` be tagged and published.
 
@@ -210,37 +226,17 @@ Current phase. Finish automated edge cases, keep the Windows build green, and va
 
 ### Phase B — Separate target interface
 
-Introduce a small target contract such as:
+The first target-contract layer is now implemented in `floatingbar.target_contract.BackgroundTarget`, with `BoundTelegramTarget` providing the transaction lease around Telegram. The next cleanup is to move more coordinator behavior from inheritance into composition without changing proven Telegram behavior.
 
-```python
-class BackgroundTarget(Protocol):
-    def discover(self, preferred_hwnd: int = 0) -> TargetScope: ...
-    def preflight(self, scope: TargetScope) -> PreflightResult: ...
-    def locate_compose(self, scope: TargetScope) -> ComposeTarget: ...
-    def submit(self, scope: TargetScope, compose: ComposeTarget) -> SubmissionResult: ...
-```
-
-Telegram-specific UIA/window discovery stays inside `TelegramTarget`; the overlay and transaction state machine should depend on the interface, not on Telegram details.
-
-Do not generalize prematurely. The contract should only abstract behavior that is already proven stable in the Telegram implementation.
+The stable abstraction boundary should cover only behavior already proven in Telegram: exact target selection, compose location, content-free audit, Send evidence, and submission/recovery capabilities.
 
 ### Phase C — Generic background-app adapters
 
 Add adapters for one or two non-Telegram desktop applications using the same target contract. Prefer deterministic Windows UI automation patterns and per-app safety evidence over a universal "click whatever looks right" strategy.
 
-### Phase D — Transaction object and explicit state machine
+### Phase D — Transaction coordinator and explicit state machine
 
-Replace scattered mutable fields with a send-attempt object containing:
-
-- immutable attempt ID;
-- target scope;
-- optional context fingerprint;
-- compose target identity/geometry;
-- draft text lifetime;
-- submission strategy;
-- evidence state.
-
-The goal is to make invalid state transitions difficult to represent rather than merely checked after the fact.
+The data primitives (`TargetScope`, `SendCandidate`, `SendAttempt`, and `SendCompletion`) now exist. The next step is to centralize the send lifecycle around those objects so preflight, lease binding, injection, evidence mapping, retry, and completion cannot drift into inconsistent state transitions.
 
 ### Phase E — Packaging and release engineering
 
