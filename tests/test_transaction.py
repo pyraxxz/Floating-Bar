@@ -57,6 +57,21 @@ class TransactionTests(unittest.TestCase):
             SendAttempt(7, "", TargetScope(10, 20)).valid
         )
 
+    def test_send_attempt_rejects_boolean_attempt_id(self):
+        self.assertFalse(
+            SendAttempt(True, "hello", TargetScope(10, 20)).valid
+        )
+
+    def test_send_attempt_rejects_non_string_text(self):
+        self.assertFalse(
+            SendAttempt(7, 123, TargetScope(10, 20)).valid
+        )
+
+    def test_send_attempt_rejects_non_target_scope(self):
+        self.assertFalse(
+            SendAttempt(7, "hello", (10, 20)).valid
+        )
+
     def test_completion_can_carry_typed_evidence(self):
         completion = SendCompletion(
             attempt_id=7,
