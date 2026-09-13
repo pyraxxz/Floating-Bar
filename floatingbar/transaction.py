@@ -36,12 +36,16 @@ class SendCandidate(tuple):
                 evidence_score: float = 0.0):
         obj = super().__new__(cls, (name, client_x, client_y))
         object.__setattr__(obj, "evidence_score", float(evidence_score))
+        object.__setattr__(obj, "_immutable", True)
         return obj
 
     def __setattr__(self, name, value):
-        if name == "evidence_score" and hasattr(self, "evidence_score"):
+        if getattr(self, "_immutable", False):
             raise AttributeError("SendCandidate is immutable")
         object.__setattr__(self, name, value)
+
+    def __delattr__(self, name):
+        raise AttributeError("SendCandidate is immutable")
 
     @property
     def name(self) -> str:
