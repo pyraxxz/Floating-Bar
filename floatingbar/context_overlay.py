@@ -105,9 +105,14 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
                 self._result_q.put((attempt_id, None, error))
                 return
 
-            # The target wrapper has already bound the exact `(HWND, PID)`
-            # during preferred selection; retain that lease for the whole
-            # transaction rather than allowing any later rescan to retarget.
+            # Convert the read-only preflight selection into an exact target
+            # lease. This also handles the case where the orb opened while a
+            # non-Telegram application owned the foreground focus.
+            selected = self.target.select_for_send(preferred_hwnd=preflight.hwnd)
+            if selected != preflight.hwnd:
+                raise TelegramNotFound(
+                    "Telegram's preflight target could not be bound safely."
+                )
             work_hwnd = preflight.hwnd
             self._work_hwnd = work_hwnd
             if self._attempt_context is None or self._attempt_context.hwnd != work_hwnd:
