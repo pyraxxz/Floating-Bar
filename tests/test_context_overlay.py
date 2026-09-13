@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 
 from floatingbar.bound_context_overlay import OrbRelayWindow as BoundContextOverlay
 from floatingbar.context_overlay import OrbRelayWindow
-from floatingbar.transaction import SendAttempt, SendCompletion, TargetScope
+from floatingbar.transaction import SendAttempt, SendCompletion, SendRequest, TargetScope
 from floatingbar.transaction_coordinator import PreparedTransaction, TransactionRejected
 
 
@@ -87,6 +87,45 @@ class ContextOverlayTests(unittest.TestCase):
         self.assertIs(window._attempt_context, prepared.attempt.context)
         window.injector.set_window_context.assert_called_once_with(prepared.attempt.context)
         execute_attempt.assert_called_once_with("hello", 111, 7)
+
+    def test_send_worker_request_uses_immutable_request_directly(self):
+        window = self._window()
+        prepared = self._prepared(attempt_id=14, restore_hwnd=333)
+        window.coordinator.prepare.return_value = prepared
+
+        request = SendRequest(
+            attempt_id=14,
+            text="payload",
+            restore_hwnd=333,
+        )
+        with patch.object(window, "_is_telegram_window", return_value=False), patch.object(
+            window, "_execute_prepared_attempt"
+        ) as execute_attempt:
+            window._send_worker_request(request)
+
+        window.coordinator.prepare.assert_called_once_with(
+            text="payload",
+            attempt_id=14,
+            preferred_hwnd=0,
+            restore_hwnd=333,
+        )
+        execute_attempt.assert_called_once_with("hello", 333, 14)
+
+    def test_send_worker_request_rejects_invalid_request(self):
+        window = self._window()
+        request = SendRequest(
+            attempt_id=0,
+            text="payload",
+            restore_hwnd=333,
+        )
+
+        window._send_worker_request(request)
+
+        window.coordinator.prepare.assert_not_called()
+        completion = window._result_q.get_nowait()
+        self.assertIsInstance(completion, SendCompletion)
+        self.assertEqual(completion.attempt_id, 0)
+        self.assertIn("invalid", completion.error.lower())
 
     def test_send_worker_passes_telegram_foreground_as_exact_preference(self):
         window = self._window()
