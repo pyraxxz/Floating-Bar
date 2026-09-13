@@ -46,6 +46,8 @@ class ContextOverlayTests(unittest.TestCase):
     def test_changed_context_is_returned_as_safe_failure(self):
         window = OrbRelayWindow.__new__(OrbRelayWindow)
         window.target = Mock()
+        window.target.select_for_send.return_value = 500
+        window.target.scope.return_value = TargetScope(500, 900)
         window._result_q = queue.Queue()
         context = Mock()
         context.hwnd = 500
