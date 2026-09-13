@@ -3,7 +3,6 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from floatingbar.preflight import run
-from floatingbar.context import title_fingerprint
 
 
 class PreflightTests(unittest.TestCase):
@@ -91,7 +90,7 @@ class PreflightTests(unittest.TestCase):
         self.assertFalse(result.context_guard_available)
         self.assertFalse(result.context_stable)
 
-    def test_context_title_change_is_reported(self):
+    def test_context_title_change_is_blocking(self):
         target = self._target()
         titles = iter(["Chat A - Telegram", "Chat B - Telegram"])
         with patch("floatingbar.preflight.winapi.is_minimized", return_value=False), patch(
@@ -105,7 +104,8 @@ class PreflightTests(unittest.TestCase):
         ):
             result = run(target)
 
-        self.assertTrue(result.ready)
+        self.assertFalse(result.ready)
+        self.assertEqual(result.status, "blocked")
         self.assertFalse(result.context_stable)
         self.assertTrue(any("context changed" in reason for reason in result.reasons))
 
