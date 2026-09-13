@@ -47,6 +47,28 @@ class PreflightResult:
         return "ready"
 
 
+def _context_transition_stable(
+    initial: Optional[WindowContext],
+    final: WindowContext,
+) -> bool:
+    """Return whether every initially-available non-content anchor survived.
+
+    A later-discovered anchor is allowed; an anchor that was already available
+    but then disappears or changes is treated as context drift.
+    """
+    if initial is None:
+        return True
+    if initial.process_name and final.process_name != initial.process_name:
+        return False
+    if initial.title_fp and final.title_fp != initial.title_fp:
+        return False
+    if initial.chat_runtime_id and final.chat_runtime_id != initial.chat_runtime_id:
+        return False
+    if initial.chat_name_fp and final.chat_name_fp != initial.chat_name_fp:
+        return False
+    return True
+
+
 def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
     """Perform a non-invasive readiness check for a Telegram send."""
     reasons = []
@@ -69,8 +91,9 @@ def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
         reasons.append("Telegram does not currently own the focused child HWND.")
 
     # Capture a non-content context snapshot before touching the UIA tree. A
-    # title change during preflight itself is unsafe to ignore: it means the
-    # user/application context moved while we were deciding whether to send.
+    # context anchor disappearing or changing during discovery is unsafe to
+    # ignore: it means the user/application context moved while we were
+    # deciding whether to send.
     initial_context = None
     try:
         initial_context = capture(hwnd)
@@ -124,17 +147,13 @@ def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
         context = capture(hwnd, compose_runtime_id=compose_runtime_id)
         context_guard_available = context.guard_available
 
-        # When the initial title produced a fingerprint, require the final
-        # title to agree. This catches a chat/window context change that occurs
-        # during the read-only compose/button discovery itself.
-        if initial_context is not None:
-            initial_fp = initial_context.title_fp
-            final_fp = context.title_fp
-            if initial_fp != final_fp and (initial_fp or final_fp):
-                reasons.append("Telegram conversation context changed during preflight.")
-                context_stable = False
-            elif context_guard_available:
-                context_stable = context.matches()
+        if not _context_transition_stable(initial_context, context):
+            reasons.append("Telegram conversation context changed during preflight.")
+            context_stable = False
+        elif context_guard_available:
+            # A fresh final snapshot must also still match the live window.
+            context_stable = context.matches()
+
         if context_guard_available and not context_stable:
             if not any("context changed" in reason for reason in reasons):
                 context_stable = context.matches()
@@ -152,8 +171,8 @@ def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
         reasons.append("Telegram conversation context could not be inspected safely.")
 
     # Any available context anchor is useful: a non-generic window title can
-    # detect a chat-name change, while a session-scoped compose runtime ID can
-    # detect a structural compose replacement without reading message content.
+    # detect a chat-name change, while session-scoped structural anchors can
+    # detect a replaced chat/compose control without reading message content.
     context_ok = not context_guard_available or context_stable
 
     ready = bool(
