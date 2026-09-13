@@ -11,7 +11,6 @@ from typing import Optional
 from . import trace
 from .context import capture
 from .preflight import PreflightResult, run as run_preflight
-from .target import TelegramNotFound
 from .target_contract import BackgroundTarget
 from .transaction import SendAttempt, TargetScope
 
@@ -55,6 +54,8 @@ class SendTransactionCoordinator:
         restore_hwnd: int = 0,
     ) -> PreparedTransaction:
         """Run preflight and bind the exact target without performing I/O side effects."""
+        if not isinstance(attempt_id, int) or isinstance(attempt_id, bool) or attempt_id <= 0:
+            raise TransactionRejected("The send attempt id is invalid.")
         if not (text or "").strip():
             raise TransactionRejected("The send text is empty.")
 
