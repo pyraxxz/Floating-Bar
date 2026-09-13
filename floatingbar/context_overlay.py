@@ -197,11 +197,7 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
         ) else self._attempt_context
         release = getattr(self.target, "release", None)
         try:
-            super()._send_finished(
-                completion.attempt_id,
-                completion.strategy,
-                completion.error,
-            )
+            super()._send_finished(completion)
             if not is_current:
                 return
             if self._retry_draft and context is not None:
