@@ -115,12 +115,19 @@ def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
     except Exception:
         reasons.append("Telegram conversation context could not be inspected safely.")
 
+    # A detected context change is a hard preflight failure when the title
+    # gives us enough information to detect it. Generic/empty titles remain a
+    # degraded-but-usable state because the evidence is insufficient to assert
+    # a conversation switch either way.
+    context_ok = not context_guard_available or context_stable
+
     ready = bool(
         hwnd and
         pid and
         not minimized and
         compose_click is not None and
-        scope_stable
+        scope_stable and
+        context_ok
     )
     return PreflightResult(
         ready=ready,
