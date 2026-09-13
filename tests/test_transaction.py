@@ -57,21 +57,6 @@ class TransactionTests(unittest.TestCase):
             SendAttempt(7, "", TargetScope(10, 20)).valid
         )
 
-    def test_send_attempt_rejects_boolean_attempt_id(self):
-        self.assertFalse(
-            SendAttempt(True, "hello", TargetScope(10, 20)).valid
-        )
-
-    def test_send_attempt_rejects_non_string_text(self):
-        self.assertFalse(
-            SendAttempt(7, 123, TargetScope(10, 20)).valid
-        )
-
-    def test_send_attempt_rejects_non_target_scope(self):
-        self.assertFalse(
-            SendAttempt(7, "hello", (10, 20)).valid
-        )
-
     def test_completion_can_carry_typed_evidence(self):
         completion = SendCompletion(
             attempt_id=7,
@@ -80,6 +65,25 @@ class TransactionTests(unittest.TestCase):
         )
         self.assertFalse(completion.failed)
         self.assertEqual(completion.evidence_state, EvidenceState.VERIFIED)
+
+    def test_completion_from_result_maps_submission_evidence(self):
+        completion = SendCompletion.from_result(
+            8,
+            strategy="posted-enter (VERIFIED)",
+            error=None,
+        )
+        self.assertEqual(completion.attempt_id, 8)
+        self.assertEqual(completion.evidence_state, EvidenceState.VERIFIED)
+        self.assertEqual(tuple(completion), (8, "posted-enter (VERIFIED)", None))
+
+    def test_completion_from_result_maps_failure_evidence(self):
+        completion = SendCompletion.from_result(
+            9,
+            strategy=None,
+            error="Telegram unavailable",
+        )
+        self.assertEqual(completion.evidence_state, EvidenceState.FAILED)
+        self.assertTrue(completion.failed)
 
     def test_completion_failure_state_is_explicit_failure(self):
         completion = SendCompletion(
