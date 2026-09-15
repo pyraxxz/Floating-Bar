@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch
 from floatingbar.context_overlay import OrbRelayWindow
 from floatingbar.transaction import SendAttempt, SendCompletion, SendRequest, TargetScope
 from floatingbar.transaction_coordinator import PreparedTransaction, TransactionRejected
+from floatingbar.transaction_state import TransactionState
 
 
 class TransactionIntegrationTests(unittest.TestCase):
@@ -17,6 +18,7 @@ class TransactionIntegrationTests(unittest.TestCase):
         window._attempt_context = None
         window._retry_context = None
         window._active_transaction = None
+        window._active_lifecycle = None
         window._active_attempt_id = 0
         window._retry_draft = None
         window._retry_target_hwnd = 0
@@ -54,6 +56,7 @@ class TransactionIntegrationTests(unittest.TestCase):
         self.assertEqual(window._active_transaction.target, TargetScope(700, 900))
         self.assertEqual(window._active_transaction.restore_hwnd, 321)
         self.assertEqual(window._work_hwnd, 700)
+        self.assertEqual(window._active_lifecycle.state, TransactionState.SENDING)
         execute_attempt.assert_called_once_with("hello", 321, 12)
 
     def test_send_worker_preserves_nontelegram_foreground_for_restore(self):
@@ -72,9 +75,10 @@ class TransactionIntegrationTests(unittest.TestCase):
             preferred_hwnd=0,
         )
         self.assertEqual(window._active_transaction.restore_hwnd, 111)
+        self.assertEqual(window._active_lifecycle.state, TransactionState.SENDING)
         execute_attempt.assert_called_once_with("hello", 111, 13)
 
-    def test_blocked_coordinator_creates_no_active_attempt(self):
+    def test_blocked_coordinator_marks_lifecycle_rejected(self):
         window = self._window()
         window.coordinator.prepare_request.side_effect = TransactionRejected("blocked")
 
@@ -82,6 +86,7 @@ class TransactionIntegrationTests(unittest.TestCase):
         window._send_worker_request(request)
 
         self.assertIsNone(window._active_transaction)
+        self.assertEqual(window._active_lifecycle.state, TransactionState.REJECTED)
         completion = window._result_q.get_nowait()
         self.assertIsInstance(completion, SendCompletion)
         self.assertEqual(completion.attempt_id, 14)
