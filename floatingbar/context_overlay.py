@@ -13,6 +13,7 @@ from .recovery_overlay import OrbRelayWindow as _RecoveryOrbRelayWindow
 from .target import TelegramNotFound
 from .transaction import SendCompletion, SendRequest
 from .transaction_coordinator import SendTransactionCoordinator, TransactionRejected
+from .transaction_state import TransactionLifecycle
 
 
 class OrbRelayWindow(_RecoveryOrbRelayWindow):
@@ -26,6 +27,7 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
         self._attempt_context = None
         self._retry_context = None
         self._active_transaction = None
+        self._active_lifecycle = None
 
     @staticmethod
     def _is_telegram_window(hwnd: int) -> bool:
@@ -162,6 +164,10 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
             )
             return
 
+        lifecycle = TransactionLifecycle(request.attempt_id)
+        lifecycle.begin_prepare()
+        self._active_lifecycle = lifecycle
+
         work_hwnd = request.restore_hwnd
         preferred = work_hwnd if self._is_telegram_window(work_hwnd) else 0
         try:
@@ -170,11 +176,19 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
                 preferred_hwnd=preferred,
             )
         except TransactionRejected as exc:
-            trace.trace(f"transaction: preparation rejected safely: {exc}")
+            lifecycle.reject()
+            trace.trace(
+                f"transaction: preparation rejected safely: {exc}; "
+                f"state={lifecycle.state.value}"
+            )
             self._queue_completion(request.attempt_id, None, str(exc))
             return
         except Exception as exc:
-            trace.trace(f"transaction: unexpected preparation failure: {exc}")
+            lifecycle.reject()
+            trace.trace(
+                f"transaction: unexpected preparation failure: {exc}; "
+                f"state={lifecycle.state.value}"
+            )
             self._queue_completion(
                 request.attempt_id,
                 None,
@@ -182,11 +196,17 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
             )
             return
 
+        lifecycle.mark_ready()
         transaction = prepared.attempt
         self._active_transaction = transaction
         self._work_hwnd = transaction.target.hwnd
         self._attempt_context = transaction.context
         self.injector.set_window_context(transaction.context)
+        lifecycle.begin_send()
+        trace.trace(
+            f"transaction: attempt={transaction.attempt_id} "
+            f"state={lifecycle.state.value}"
+        )
         self._execute_prepared_attempt(
             transaction.text,
             transaction.restore_hwnd,
@@ -225,10 +245,26 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
             self._active_transaction.attempt_id == completion.attempt_id
         ) else self._attempt_context
         release = getattr(self.target, "release", None)
+        lifecycle = self._active_lifecycle if (
+            self._active_lifecycle is not None and
+            self._active_lifecycle.attempt_id == completion.attempt_id
+        ) else None
         try:
             super()._send_finished(completion)
             if not is_current:
                 return
+            if lifecycle is not None and lifecycle.state.value == "sending":
+                evidence_state = completion.resolved_evidence.state
+                if evidence_state.value == "verified":
+                    lifecycle.complete_verified()
+                elif evidence_state.value in ("submitted", "verification-unavailable", "unknown"):
+                    lifecycle.complete_uncertain()
+                elif evidence_state.value == "failed":
+                    lifecycle.complete_failed()
+                trace.trace(
+                    f"transaction: attempt={completion.attempt_id} "
+                    f"state={lifecycle.state.value}"
+                )
             if self._retry_draft and context is not None:
                 self._retry_context = context
             elif not self._retry_draft:
@@ -236,6 +272,7 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
                 self._attempt_context = None
                 self.injector.set_window_context(None)
             self._active_transaction = None
+            self._active_lifecycle = None
         finally:
             if is_current and callable(release):
                 release()
