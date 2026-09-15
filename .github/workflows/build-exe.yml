@@ -45,22 +45,42 @@ jobs:
           "tag=$tag" >> $env:GITHUB_OUTPUT
           Write-Host "Release tag: $tag"
 
-      - name: Check tag and source version
+      - name: Lock workspace to release tag
+        id: source
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          git fetch origin "refs/tags/$env:RELEASE_TAG:refs/tags/$env:RELEASE_TAG"
+          git checkout --detach "refs/tags/$env:RELEASE_TAG"
+          $sha = (git rev-parse HEAD).Trim()
+          if ($LASTEXITCODE -ne 0 -or -not $sha) {
+            throw "Could not resolve the release tag commit in the build workspace."
+          }
+          "sha=$sha" >> $env:GITHUB_OUTPUT
+          Write-Host "Release workspace locked to commit $sha"
+
+      - name: Check tag, source commit, and package version
         id: release
         uses: actions/github-script@v9
         env:
           RELEASE_TAG: ${{ steps.tag.outputs.tag }}
+          CHECKED_OUT_SHA: ${{ steps.source.outputs.sha }}
         with:
           script: |
             const tag = process.env.RELEASE_TAG;
+            const checkedOutSha = process.env.CHECKED_OUT_SHA;
             const { owner, repo } = context.repo;
 
-            const tagRef = await github.rest.git.getRef({
+            const commit = await github.rest.repos.getCommit({
               owner,
               repo,
-              ref: `tags/${tag}`,
+              ref: tag,
             });
-            const tagSha = tagRef.data.object.sha;
+            const tagSha = commit.data.sha;
+            if (tagSha !== checkedOutSha) {
+              throw new Error(`Workspace commit ${checkedOutSha} does not match tag ${tag} commit ${tagSha}.`);
+            }
 
             const packageFile = await github.rest.repos.getContent({
               owner,
@@ -114,20 +134,22 @@ jobs:
       - name: Confirm tag source before publication
         if: steps.release.outputs.publish == 'true'
         id: confirm
-        uses: actions/github-script@v9
+        shell: pwsh
         env:
           RELEASE_TAG: ${{ steps.tag.outputs.tag }}
           EXPECTED_SHA: ${{ steps.release.outputs.sha }}
-        with:
-          script: |
-            const tag = process.env.RELEASE_TAG;
-            const expected = process.env.EXPECTED_SHA;
-            const { owner, repo } = context.repo;
-            const ref = await github.rest.git.getRef({ owner, repo, ref: `tags/${tag}` });
-            if (ref.data.object.sha !== expected) {
-              throw new Error(`Release tag ${tag} moved during build from ${expected} to ${ref.data.object.sha}.`);
-            }
-            core.setOutput('current', 'true');
+        run: |
+          git fetch origin "refs/tags/$env:RELEASE_TAG:refs/tags/$env:RELEASE_TAG"
+          $workspaceSha = (git rev-parse HEAD).Trim()
+          $tagSha = (git rev-parse "refs/tags/$env:RELEASE_TAG^{commit}").Trim()
+          if ($workspaceSha -ne $env:EXPECTED_SHA) {
+            throw "Workspace source moved during build from $env:EXPECTED_SHA to $workspaceSha."
+          }
+          if ($tagSha -ne $env:EXPECTED_SHA) {
+            throw "Release tag $env:RELEASE_TAG moved during build from $env:EXPECTED_SHA to $tagSha."
+          }
+          "current=true" >> $env:GITHUB_OUTPUT
+          Write-Host "Release source remained pinned to $env:EXPECTED_SHA"
 
       - name: Calculate SHA256
         if: steps.release.outputs.publish == 'true' && steps.confirm.outputs.current == 'true'
@@ -145,7 +167,7 @@ jobs:
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: Floating Bar ${{ steps.tag.outputs.tag }}
-          body: "Milestone Windows build for Floating Bar ${{ steps.tag.outputs.tag }}. SHA256: ${{ steps.sha256.outputs.hash }}. Source validated by the Windows CI suite before publication."
+          body: "Milestone Windows build for Floating Bar ${{ steps.tag.outputs.tag }}. SHA256: ${{ steps.sha256.outputs.hash }}. Source validated and pinned to the tag commit before publication."
           files: |
             dist/FloatingBar.exe
             dist/FloatingBar.exe.sha256
