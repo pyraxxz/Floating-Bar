@@ -10,16 +10,7 @@ Current milestone: **0.2.0 Reliability** (GitHub Issue #2)
 
 The production Telegram path now has explicit immutable transaction data plus a monotonic `TransactionLifecycle` state machine. A send attempt moves through `PREPARING -> READY -> SENDING` and then terminates as `VERIFIED`, `UNCERTAIN`, `FAILED`, or `REJECTED`. Overlay integration is guarded so stale completions cannot advance or release a newer attempt.
 
-The production boundary also includes:
-
-- exact HWND/PID target binding through `BoundTelegramTarget`;
-- read-only preflight and content-free diagnostics;
-- non-content context protection using title fingerprints and structural UIA anchors where available;
-- typed Send-button evidence and submission evidence;
-- explicit failed-draft retry with no automatic resend after uncertainty;
-- target-scope checks around recovery;
-- per-monitor-v2 DPI bootstrap;
-- UTF-16 WM_CHAR posting with surrogate-pair support.
+The production boundary also includes exact HWND/PID target binding, read-only preflight, content-free diagnostics, non-content context protection, typed Send/submission evidence, explicit failed-draft retry, target-scope checks around recovery, per-monitor-v2 DPI bootstrap, and UTF-16 WM_CHAR posting with surrogate-pair support.
 
 ## Validation discipline
 
