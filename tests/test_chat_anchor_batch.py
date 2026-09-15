@@ -47,7 +47,7 @@ class ChatAnchorBatchTests(unittest.TestCase):
         app.window.return_value.wrapper_object.return_value = window
         return patch("pywinauto.Application", return_value=app)
 
-    def test_unique_selected_left_chat_exposes_runtime_name_and_automation_anchors(self):
+    def test_unique_selected_left_chat_exposes_runtime_and_name_anchors(self):
         item = _Item(
             _Rect(20, 100, 420, 180),
             True,
@@ -60,7 +60,28 @@ class ChatAnchorBatchTests(unittest.TestCase):
 
         self.assertEqual(result[0], (1, 2, 3))
         self.assertEqual(result[1], title_fingerprint("Private Chat"))
-        self.assertEqual(result[2], title_fingerprint("chat-row-17"))
+
+    def test_automation_id_is_ignored_as_a_content_source(self):
+        named = _Item(
+            _Rect(20, 100, 420, 180),
+            True,
+            runtime_id=(1, 2, 3),
+            name="Private Chat",
+            automation_id="chat-row-17",
+        )
+        renamed = _Item(
+            _Rect(20, 100, 420, 180),
+            True,
+            runtime_id=(1, 2, 3),
+            name="Private Chat",
+            automation_id="different-id",
+        )
+        with self._app_patch(self._window([named])):
+            first = _selected_chat_anchor(123)
+        with self._app_patch(self._window([renamed])):
+            second = _selected_chat_anchor(123)
+
+        self.assertEqual(first, second)
 
     def test_unselected_left_chat_is_not_an_anchor(self):
         item = _Item(
@@ -73,7 +94,7 @@ class ChatAnchorBatchTests(unittest.TestCase):
         with self._app_patch(self._window([item])):
             result = _selected_chat_anchor(123)
 
-        self.assertEqual(result, ((), "", ""))
+        self.assertEqual(result, ((), ""))
 
     def test_selected_right_side_control_is_not_an_anchor(self):
         item = _Item(
@@ -86,7 +107,7 @@ class ChatAnchorBatchTests(unittest.TestCase):
         with self._app_patch(self._window([item])):
             result = _selected_chat_anchor(123)
 
-        self.assertEqual(result, ((), "", ""))
+        self.assertEqual(result, ((), ""))
 
     def test_multiple_selected_left_rows_are_ambiguous(self):
         items = [
@@ -108,9 +129,9 @@ class ChatAnchorBatchTests(unittest.TestCase):
         with self._app_patch(self._window(items)):
             result = _selected_chat_anchor(123)
 
-        self.assertEqual(result, ((), "", ""))
+        self.assertEqual(result, ((), ""))
 
-    def test_runtime_id_can_be_missing_when_name_or_automation_id_exists(self):
+    def test_runtime_id_can_be_missing_when_name_exists(self):
         item = _Item(
             _Rect(20, 100, 420, 180),
             True,
@@ -123,7 +144,6 @@ class ChatAnchorBatchTests(unittest.TestCase):
 
         self.assertEqual(result[0], ())
         self.assertTrue(result[1])
-        self.assertTrue(result[2])
 
     def test_exception_during_enumeration_degrades_to_empty_anchor(self):
         window = self._window([])
@@ -131,13 +151,13 @@ class ChatAnchorBatchTests(unittest.TestCase):
         with self._app_patch(window):
             result = _selected_chat_anchor(123)
 
-        self.assertEqual(result, ((), "", ""))
+        self.assertEqual(result, ((), ""))
 
     def test_zero_window_is_content_free_and_side_effect_free(self):
         with patch("pywinauto.Application") as application:
             result = _selected_chat_anchor(0)
 
-        self.assertEqual(result, ((), "", ""))
+        self.assertEqual(result, ((), ""))
         application.assert_not_called()
 
 
