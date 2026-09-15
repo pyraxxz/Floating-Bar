@@ -1,4 +1,6 @@
+import sys
 import unittest
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from floatingbar.context import _selected_chat_anchor, title_fingerprint
@@ -22,7 +24,7 @@ class _Item:
     def __init__(self, rect, selected, runtime_id=(), name="", automation_id=""):
         self._rect = rect
         self._selected = selected
-        self.element_info = Mock(
+        self.element_info = SimpleNamespace(
             runtime_id=runtime_id,
             name=name,
             automation_id=automation_id,
@@ -45,7 +47,8 @@ class ChatAnchorBatchTests(unittest.TestCase):
     def _app_patch(self, window):
         application = Mock()
         application.return_value.connect.return_value.window.return_value.wrapper_object.return_value = window
-        return patch("pywinauto.Application", application)
+        fake_pywinauto = SimpleNamespace(Application=application)
+        return patch.dict(sys.modules, {"pywinauto": fake_pywinauto})
 
     def test_unique_selected_left_chat_exposes_runtime_and_name_anchors(self):
         item = _Item(
