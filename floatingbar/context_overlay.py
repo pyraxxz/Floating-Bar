@@ -240,9 +240,10 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
             self._active_transaction.attempt_id == completion.attempt_id
         ) else self._attempt_context
         release = getattr(self.target, "release", None)
-        lifecycle = self._active_lifecycle if (
-            self._active_lifecycle is not None and
-            self._active_lifecycle.attempt_id == completion.attempt_id
+        active_lifecycle = getattr(self, "_active_lifecycle", None)
+        lifecycle = active_lifecycle if (
+            active_lifecycle is not None and
+            active_lifecycle.attempt_id == completion.attempt_id
         ) else None
         try:
             super()._send_finished(completion)
