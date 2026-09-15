@@ -16,6 +16,12 @@ The coordinator therefore requires all of the following before constructing the 
 
 Any mismatch releases the partially acquired lease and refuses the send instead of rediscovering another Telegram window.
 
+## Exact bound-target operations
+
+Once `BoundTelegramTarget` owns a lease, normal compose/UIA operations must not trigger a fresh Telegram discovery on every safety check. The wrapper first compares the wrapped `TelegramTarget`'s cached `(HWND/PID)` directly with the immutable lease. Only when that cached state has drifted does it attempt one exact preferred-window resynchronization, and the operation fails closed unless the exact leased scope is restored.
+
+This keeps the inner UIA facade aligned with the lease without allowing a routine safety check to wander onto another Telegram window during a restart or HWND-reuse race.
+
 ## Final injection boundary
 
 A prepared send already carries the exact Telegram target and the non-content `WindowContext` captured by preflight. The context-aware injector revalidates both immediately before delegating to the underlying send implementation.
@@ -41,6 +47,8 @@ The transaction regression suite verifies that:
 - stale target scope blocks the send during preflight preparation;
 - a silent retarget after preflight is rejected;
 - a target replacement during context validation is rejected;
+- a bound Telegram target skips redundant rediscovery while its cached scope is exact;
+- bound-target resynchronization fails closed when the original scope cannot be restored;
 - changed conversation context blocks the send before the worker reaches injection;
 - a valid target/context reaches the established injector unchanged;
 - lease release occurs on every rejected preparation path.
