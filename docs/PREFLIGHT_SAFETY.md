@@ -14,7 +14,7 @@ The preflight therefore has three meaningful outcomes:
 - `ready-with-degraded-context` — no usable context anchor exists, but target scope and compose safety remain valid.
 - `blocked` — target inspection, scope validation, compose inspection, or required context validation failed.
 
-Every result also carries stable, content-free `reason_codes` for automated smoke tests. The first code is exposed as `primary_reason_code`; a fully successful guarded preflight reports `ok`. These codes are deliberately independent of the human-readable notes so test tooling does not need to parse prose. The JSON diagnostic schema is version `2`.
+Every result also carries stable, content-free `reason_codes` for automated smoke tests. `primary_reason_code` identifies the dominant signal: a blocked result prefers the first fatal safety code over non-blocking warnings such as missing Send-button evidence; otherwise the first reported code is retained. A fully successful guarded preflight reports `ok`. These codes are deliberately independent of the human-readable notes so test tooling does not need to parse prose. The JSON diagnostic schema is version `2`.
 
 Current codes include:
 

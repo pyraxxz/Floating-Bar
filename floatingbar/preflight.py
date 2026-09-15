@@ -14,6 +14,24 @@ from .context import WindowContext, capture
 from .target import TelegramNotFound, TelegramTarget
 
 
+_BLOCKING_REASON_CODES = frozenset({
+    "TARGET_NOT_FOUND",
+    "TARGET_INSPECTION_FAILED",
+    "TARGET_SCOPE_INSPECTION_FAILED",
+    "MINIMIZED_INSPECTION_FAILED",
+    "TARGET_MINIMIZED",
+    "TARGET_SCOPE_REVALIDATION_FAILED",
+    "TARGET_SCOPE_CHANGED",
+    "INITIAL_CONTEXT_INSPECTION_FAILED",
+    "FINAL_CONTEXT_INSPECTION_FAILED",
+    "CONTEXT_CHANGED",
+    "CONTEXT_VERIFICATION_FAILED",
+    "COMPOSE_NOT_FOUND",
+    "COMPOSE_INSPECTION_FAILED",
+    "COMPOSE_GEOMETRY_UNAVAILABLE",
+})
+
+
 @dataclass(frozen=True)
 class PreflightResult:
     ready: bool
@@ -58,8 +76,19 @@ class PreflightResult:
 
     @property
     def primary_reason_code(self) -> str:
-        """Return the first stable machine-readable reason, or ``ok``."""
-        return self.reason_codes[0] if self.reason_codes else "ok"
+        """Return the dominant machine-readable reason, or ``ok``.
+
+        When blocked, fatal safety codes take precedence over non-blocking
+        diagnostics such as missing Send-button evidence or degraded context.
+        Otherwise the first reported code remains the primary signal.
+        """
+        if not self.reason_codes:
+            return "ok"
+        if not self.ready:
+            for code in self.reason_codes:
+                if code in _BLOCKING_REASON_CODES:
+                    return code
+        return self.reason_codes[0]
 
 
 def _context_transition_stable(
