@@ -1,59 +1,52 @@
 # Development status
 
-## Stable release
+Stable public release: `v0.1.20`
 
-`v0.1.20` remains the current public/stable release. Small changes on `main`
-do not create public releases.
+Current milestone: **0.2.0 Reliability** (GitHub Issue #2)
 
-## Current milestone
+`main` is the development line. The 0.2.0 tag is intentionally withheld until both the automated Windows gate and the real desktop acceptance matrix pass.
 
-`0.2.0 Reliability` is tracked in GitHub Issue #2. The code-side reliability
-work is substantially implemented and the Windows CI pipeline validates both
-the regression suite and the Windows executable build.
+## Current architecture
 
-## Latest architecture work
+The production Telegram path now has explicit immutable transaction data plus a monotonic `TransactionLifecycle` state machine. A send attempt moves through `PREPARING -> READY -> SENDING` and then terminates as `VERIFIED`, `UNCERTAIN`, `FAILED`, or `REJECTED`. Overlay integration is guarded so stale completions cannot advance or release a newer attempt.
 
-The development line now includes:
+The production boundary also includes:
 
-- immutable `TargetScope`, `SendRequest`, `SendAttempt`, and `SendCompletion` models;
-- a runtime-checkable `BackgroundTarget` protocol with explicit target-scope guarding;
-- a runtime-checkable `BackgroundInjector` protocol for the common `send()` capability;
-- `TelegramTarget.scope()` returning the tuple-compatible `TargetScope`;
-- production preflight and non-content context guards;
-- exact target binding and guarded recovery;
-- explicit retry state and typed submission evidence;
-- prepared-send execution that consumes the immutable transaction target without
-  repeating target selection;
-- early transaction-identity validation before any preflight or target lease
-  acquisition;
-- content-free UIA context diagnostics and machine-readable preflight output.
+- exact HWND/PID target binding through `BoundTelegramTarget`;
+- read-only preflight and content-free diagnostics;
+- non-content context protection using title fingerprints and structural UIA anchors where available;
+- typed Send-button evidence and submission evidence;
+- explicit failed-draft retry with no automatic resend after uncertainty;
+- target-scope checks around recovery;
+- per-monitor-v2 DPI bootstrap;
+- UTF-16 WM_CHAR posting with surrogate-pair support.
 
-The target and injector contracts are intentionally incremental. Compose and
-submission interfaces should only be generalized further after real Telegram
-desktop validation.
+## Validation discipline
 
-## Validation status
+Windows CI is the authoritative automated gate. A change is not considered complete merely because it compiles; the regression suite and Windows executable build must pass together.
 
-Windows CI run `#314` passed all 147 regression tests and the Windows executable
-build after the evidence/completion compatibility fixes. Subsequent contract
-changes are each running through the same Windows gate on `main`.
+Recent lifecycle work exposed a compatibility edge in the Tk overlay test doubles. That failure is being treated as a test-contract defect to fix at the source, rather than repeatedly rerunning or stacking speculative commits.
 
-The remaining acceptance gap is real-desktop validation against the current
-Telegram Desktop environment. Automated CI cannot prove actual message landing,
-chat-switch behavior, mixed-DPI interaction, or UIA behavior on the user's
-machine.
+The repository is now being worked in single-change slices: diagnose the current CI result, make the smallest targeted correction, verify the replacement run, then proceed. This avoids repeated failing notifications while the mobile GitHub client is enabled.
 
-## Release rule
+## Next engineering target
 
-Do not tag a new version because a single fix was added. Tag `v0.2.0` only when
-Issue #2's automated and real-desktop acceptance gates are satisfied together.
+Finish the reliability phase by improving context-guard observability and desktop smoke coverage without reading message content or adding speculative chat-identification heuristics. After that, continue the planned composition cleanup and only then begin a generic non-Telegram adapter.
 
-## Next work
+## Release gate
 
-1. Complete real-desktop Telegram smoke validation.
-2. Continue transaction-state migration so mutable overlay fields gradually
-   become data from `SendAttempt` rather than parallel sources of truth.
-3. Generalize the compose/submission target capabilities only where Telegram
-   behavior is proven and the contract remains small.
-4. Only then begin the first non-Telegram adapter using the `BackgroundTarget`
-   and `BackgroundInjector` boundaries.
+Before `v0.2.0`:
+
+1. exact release source passes Windows CI;
+2. read-only preflight passes on the real Windows/Telegram environment;
+3. invisible send works in the intended chat;
+4. multiple Telegram windows remain correctly targeted;
+5. Telegram restart is refused safely;
+6. conversation-switch protection works when useful title or structural context evidence exists;
+7. degraded no-anchor behavior is accurately reported;
+8. failed-send retry is explicit and never automatic;
+9. Send-button safety is validated against unrelated and voice controls;
+10. mixed-DPI/multi-monitor behavior is validated;
+11. emoji and intentional whitespace survive intact;
+12. opt-in recovery stops safely when the original target is replaced;
+13. diagnostic JSON remains content-free and useful for support snapshots.
