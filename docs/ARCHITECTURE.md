@@ -15,6 +15,11 @@ Tk overlay
   |
   +--> attempt state / retry draft / evidence state
   |
+  +--> explicit TransactionLifecycle
+  |      |
+  |      +--> PREPARING -> READY -> SENDING
+  |      +--> VERIFIED / UNCERTAIN / FAILED / REJECTED
+  |
   +--> read-only preflight gate
   |      |
   |      +--> TelegramTarget discovery
@@ -94,17 +99,18 @@ A generic Telegram title does not automatically block the operation. When a comp
 Every production send should satisfy these invariants:
 
 1. **Exact target binding.** The HWND/PID selected by preflight is the target for the transaction. `BoundTelegramTarget` prevents later discovery from silently retargeting another Telegram window.
-2. **Context binding when available.** The final preflight context snapshot is carried into the send transaction. Title fingerprints and, when available, compose runtime IDs are checked before critical actions. Raw title text is not retained or logged.
-3. **Preflight drift refusal.** A title/context transition observed during the read-only preflight blocks the send instead of silently adopting a changing context.
-4. **Minimized-target refusal.** A minimized Telegram window is not treated as a viable invisible target.
-5. **No accidental mic click.** Voice/record/mic/audio controls are never considered a safe Send target.
-6. **No ambiguous named-button click.** A named control must explicitly identify itself as Send; otherwise the transaction falls back to Enter or stops safely.
-7. **Content-free diagnostics.** Logs contain lengths, identifiers, geometry, labels, stage names, scores, and booleans rather than message content.
-8. **No automatic uncertain retry.** A submission that cannot be confirmed is represented as uncertain and is not automatically resent.
-9. **Session-only failed drafts.** Retry text is held only for the current application session and is never persisted as history.
-10. **Recovery remains opt-in.** Focus-steal and clipboard recovery are disabled unless explicitly configured, and target scope is checked before critical actions.
-11. **Lease lifecycle safety.** The exact target lease is released for the active attempt even if completion handling raises; stale completions cannot release a newer attempt's lease.
-12. **Legacy compatibility.** Typed Send evidence enriches the target contract without breaking the existing three-value `(name, x, y)` injector interface.
+2. **Explicit lifecycle.** Every attempt advances through one monotonic `TransactionLifecycle`; terminal results cannot re-enter preparation or sending.
+3. **Context binding when available.** The final preflight context snapshot is carried into the send transaction. Title fingerprints and, when available, compose runtime IDs are checked before critical actions. Raw title text is not retained or logged.
+4. **Preflight drift refusal.** A title/context transition observed during the read-only preflight blocks the send instead of silently adopting a changing context.
+5. **Minimized-target refusal.** A minimized Telegram window is not treated as a viable invisible target.
+6. **No accidental mic click.** Voice/record/mic/audio controls are never considered a safe Send target.
+7. **No ambiguous named-button click.** A named control must explicitly identify itself as Send; otherwise the transaction falls back to Enter or stops safely.
+8. **Content-free diagnostics.** Logs contain lengths, identifiers, geometry, labels, stage names, scores, and booleans rather than message content.
+9. **No automatic uncertain retry.** A submission that cannot be confirmed is represented as uncertain and is not automatically resent.
+10. **Session-only failed drafts.** Retry text is held only for the current application session and is never persisted as history.
+11. **Recovery remains opt-in.** Focus-steal and clipboard recovery are disabled unless explicitly configured, and target scope is checked before critical actions.
+12. **Lease lifecycle safety.** The exact target lease is released for the active attempt even if completion handling raises; stale completions cannot release a newer attempt's lease.
+13. **Legacy compatibility.** Typed Send evidence enriches the target contract without breaking the existing three-value `(name, x, y)` injector interface.
 
 ## 6. Context protection
 
@@ -192,7 +198,10 @@ The regression suite currently covers:
 - recovery target-scope guards;
 - Telegram target cache/geometry resilience;
 - UTF-16 text posting;
-- machine-readable preflight diagnostic payloads.
+- machine-readable preflight diagnostic payloads;
+- explicit transaction lifecycle transitions and overlay integration.
+
+A development push is not considered complete until the relevant Windows CI run is green. Avoid chaining multiple CI-triggering commits for the same failure: diagnose the failed run, fix the specific defect, and validate the replacement before starting the next change.
 
 ## 11. Release policy
 
@@ -236,7 +245,7 @@ Add adapters for one or two non-Telegram desktop applications using the same tar
 
 ### Phase D — Transaction coordinator and explicit state machine
 
-The data primitives (`TargetScope`, `SendCandidate`, `SendAttempt`, and `SendCompletion`) now exist. The next step is to centralize the send lifecycle around those objects so preflight, lease binding, injection, evidence mapping, retry, and completion cannot drift into inconsistent state transitions.
+The data primitives (`TargetScope`, `SendCandidate`, `SendAttempt`, and `SendCompletion`) now exist, and `TransactionLifecycle` now enforces the runtime state transitions around them. The next step is to finish migrating remaining overlay/coordinator decisions onto that single lifecycle so preflight, lease binding, injection, evidence, retry, and completion have one source of truth.
 
 ### Phase E — Packaging and release engineering
 
