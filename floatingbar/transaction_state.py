@@ -9,6 +9,8 @@ states.
 from enum import Enum
 from typing import FrozenSet, Mapping
 
+from .evidence import EvidenceState
+
 
 class TransactionState(str, Enum):
     """Stable phases visible across coordinator, worker, and UI layers."""
@@ -111,6 +113,25 @@ class TransactionLifecycle:
 
     def reject(self) -> TransactionState:
         return self.transition(TransactionState.REJECTED)
+
+    def complete_from_evidence(self, evidence_state: EvidenceState) -> TransactionState:
+        """Map one typed submission result to the only legal terminal state."""
+        if not isinstance(evidence_state, EvidenceState):
+            raise TypeError("evidence_state must be an EvidenceState")
+        if evidence_state is EvidenceState.VERIFIED:
+            return self.complete_verified()
+        if evidence_state in (
+            EvidenceState.SUBMITTED,
+            EvidenceState.UNAVAILABLE,
+            EvidenceState.UNKNOWN,
+        ):
+            return self.complete_uncertain()
+        if evidence_state is EvidenceState.FAILED:
+            return self.complete_failed()
+        raise InvalidTransactionTransition(
+            f"attempt {self._attempt_id}: unsupported evidence state "
+            f"{evidence_state!r}"
+        )
 
 
 __all__ = [

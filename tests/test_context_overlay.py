@@ -6,6 +6,7 @@ from floatingbar.bound_context_overlay import OrbRelayWindow as BoundContextOver
 from floatingbar.context_overlay import OrbRelayWindow
 from floatingbar.transaction import SendAttempt, SendCompletion, SendRequest, TargetScope
 from floatingbar.transaction_coordinator import PreparedTransaction, TransactionRejected
+from floatingbar.transaction_state import TransactionLifecycle, TransactionState
 
 
 class ContextOverlayTests(unittest.TestCase):
@@ -18,6 +19,7 @@ class ContextOverlayTests(unittest.TestCase):
         window._attempt_context = None
         window._retry_context = None
         window._active_transaction = None
+        window._active_lifecycle = None
         window._active_attempt_id = 0
         window._work_hwnd = 0
         window._retry_draft = None
@@ -88,6 +90,8 @@ class ContextOverlayTests(unittest.TestCase):
         self.assertEqual(window._active_transaction.restore_hwnd, 111)
         self.assertEqual(window._work_hwnd, 700)
         self.assertIs(window._attempt_context, prepared.attempt.context)
+        self.assertIsNotNone(window._active_lifecycle)
+        self.assertEqual(window._active_lifecycle.state, TransactionState.SENDING)
         window.injector.set_window_context.assert_called_once_with(prepared.attempt.context)
         execute_attempt.assert_called_once_with("hello", 111, 7)
 
@@ -156,6 +160,8 @@ class ContextOverlayTests(unittest.TestCase):
         self.assertEqual(completion.attempt_id, 9)
         self.assertIsNone(completion.strategy)
         self.assertEqual(completion.error, "blocked")
+        self.assertIsNotNone(window._active_lifecycle)
+        self.assertEqual(window._active_lifecycle.state, TransactionState.REJECTED)
 
     def test_unexpected_coordinator_failure_is_returned_as_typed_safe_failure(self):
         window = self._window()
@@ -168,6 +174,8 @@ class ContextOverlayTests(unittest.TestCase):
         self.assertEqual(completion.attempt_id, 10)
         self.assertIsNone(completion.strategy)
         self.assertIn("unexpected", completion.error)
+        self.assertIsNotNone(window._active_lifecycle)
+        self.assertEqual(window._active_lifecycle.state, TransactionState.REJECTED)
 
     def test_queue_completion_maps_evidence_state(self):
         window = self._window()
@@ -203,6 +211,52 @@ class ContextOverlayTests(unittest.TestCase):
 
         window._send_finished.assert_not_called()
         window.after.assert_called_once_with(80, window._poll_results)
+
+    def test_completion_transitions_active_lifecycle_from_evidence(self):
+        for strategy, expected_state in (
+            ("posted-enter (VERIFIED)", TransactionState.VERIFIED),
+            ("posted-enter (unverified)", TransactionState.UNCERTAIN),
+            ("posted-enter", TransactionState.UNCERTAIN),
+        ):
+            with self.subTest(strategy=strategy):
+                window = self._window()
+                window._active_attempt_id = 12
+                window._active_transaction = self._prepared(attempt_id=12).attempt
+                lifecycle = TransactionLifecycle(12)
+                lifecycle.begin_prepare()
+                lifecycle.mark_ready()
+                lifecycle.begin_send()
+                window._active_lifecycle = lifecycle
+
+                with patch(
+                    "floatingbar.recovery_overlay.OrbRelayWindow._send_finished"
+                ) as base_finished:
+                    completion = SendCompletion.from_result(12, strategy=strategy)
+                    window._send_finished(completion)
+
+                base_finished.assert_called_once_with(completion)
+                self.assertEqual(lifecycle.state, expected_state)
+                window.target.release.assert_called_once_with()
+
+    def test_failed_completion_transitions_active_lifecycle_to_failed(self):
+        window = self._window()
+        window._active_attempt_id = 13
+        window._active_transaction = self._prepared(attempt_id=13).attempt
+        lifecycle = TransactionLifecycle(13)
+        lifecycle.begin_prepare()
+        lifecycle.mark_ready()
+        lifecycle.begin_send()
+        window._active_lifecycle = lifecycle
+
+        with patch(
+            "floatingbar.recovery_overlay.OrbRelayWindow._send_finished"
+        ) as base_finished:
+            completion = SendCompletion.from_result(13, error="injection failed")
+            window._send_finished(completion)
+
+        base_finished.assert_called_once_with(completion)
+        self.assertEqual(lifecycle.state, TransactionState.FAILED)
+        window.target.release.assert_called_once_with()
 
     def test_active_target_lease_releases_when_completion_raises(self):
         window = self._window()

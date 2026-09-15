@@ -1,5 +1,6 @@
 import unittest
 
+from floatingbar.evidence import EvidenceState
 from floatingbar.transaction_state import (
     InvalidTransactionTransition,
     TransactionLifecycle,
@@ -75,6 +76,34 @@ class TransactionStateTests(unittest.TestCase):
             with self.subTest(value=value):
                 with self.assertRaises(ValueError):
                     TransactionLifecycle(value)
+
+    def test_evidence_mapping_covers_verified_uncertain_and_failed(self):
+        cases = (
+            (EvidenceState.VERIFIED, TransactionState.VERIFIED),
+            (EvidenceState.SUBMITTED, TransactionState.UNCERTAIN),
+            (EvidenceState.UNAVAILABLE, TransactionState.UNCERTAIN),
+            (EvidenceState.UNKNOWN, TransactionState.UNCERTAIN),
+            (EvidenceState.FAILED, TransactionState.FAILED),
+        )
+        for evidence_state, expected_state in cases:
+            with self.subTest(evidence_state=evidence_state):
+                lifecycle = TransactionLifecycle(100 + len(evidence_state.value))
+                lifecycle.begin_prepare()
+                lifecycle.mark_ready()
+                lifecycle.begin_send()
+                self.assertEqual(
+                    lifecycle.complete_from_evidence(evidence_state),
+                    expected_state,
+                )
+                self.assertTrue(lifecycle.terminal)
+
+    def test_evidence_mapping_rejects_wrong_type(self):
+        lifecycle = TransactionLifecycle(20)
+        lifecycle.begin_prepare()
+        lifecycle.mark_ready()
+        lifecycle.begin_send()
+        with self.assertRaises(TypeError):
+            lifecycle.complete_from_evidence("verified")
 
 
 if __name__ == "__main__":

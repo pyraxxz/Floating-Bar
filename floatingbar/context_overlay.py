@@ -8,7 +8,6 @@ from . import winapi
 from .bound_target import BoundTelegramTarget
 from .context import capture
 from .context_injector import ContextGuardedRecoveryInjector
-from .evidence import EvidenceState
 from .injector import InjectionFailed
 from .recovery_overlay import OrbRelayWindow as _RecoveryOrbRelayWindow
 from .target import TelegramNotFound
@@ -251,17 +250,7 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
             if not is_current:
                 return
             if lifecycle is not None and lifecycle.state is TransactionState.SENDING:
-                evidence_state = completion.resolved_evidence.state
-                if evidence_state is EvidenceState.VERIFIED:
-                    lifecycle.complete_verified()
-                elif evidence_state in (
-                    EvidenceState.SUBMITTED,
-                    EvidenceState.UNAVAILABLE,
-                    EvidenceState.UNKNOWN,
-                ):
-                    lifecycle.complete_uncertain()
-                elif evidence_state is EvidenceState.FAILED:
-                    lifecycle.complete_failed()
+                lifecycle.complete_from_evidence(completion.resolved_evidence.state)
                 trace.trace(
                     f"transaction: attempt={completion.attempt_id} "
                     f"state={lifecycle.state.value}"

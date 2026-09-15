@@ -82,6 +82,10 @@ The UI attaches a monotonic attempt ID to send operations and ignores a result b
 
 Message text is not trimmed before injection. Intentional leading and trailing whitespace is preserved, while whitespace-only input is still skipped. UTF-16 conversion retains surrogate pairs for emoji and other astral Unicode.
 
+### Authoritative transaction lifecycle
+
+The transaction lifecycle now owns evidence-to-terminal-state mapping. Production completion handling passes the typed `EvidenceState` into `TransactionLifecycle.complete_from_evidence()` rather than duplicating that policy in the UI layer. This keeps verified, uncertain, and failed outcomes aligned with one state machine and gives regression tests one place to enforce the safety contract.
+
 ## Recovery UX
 
 A genuinely failed send keeps the unsent text as a **session-only retry draft**. The next time the orb opens, the draft is restored and selected. Typing a replacement clears the old draft. The draft remains in process memory only.
@@ -114,7 +118,7 @@ The transaction layer also carries typed immutable `SendCompletion` objects for 
 
 `tools/diagnose.py --send` now follows the production transaction boundary: it runs read-only preflight, binds the exact resulting target through `BoundTelegramTarget`, adopts the preflight context snapshot, sends through `ContextGuardedRecoveryInjector`, and always releases the temporary target lease.
 
-The regression suite covers nested compose geometry, pre-filled search fields, voice-button rejection, explicit Send selection, ambiguous-button fallback, focused-child routing, delayed compose clearing, clipboard-write failure, stale runtime-ID invalidation, immutable target leases, preflight context replacement, preflight context drift, Send-button row filtering, disabled controls, DPI-awareness bootstrap, stale-target scope aborts, multi-window target preference, failed-draft behavior, typed send-state classification, typed Send candidates, repeated sends, Unicode surrogate-pair handling, opt-in recovery scope aborts, explicit retry-menu behavior, production lease lifecycle, structural context anchors, machine-readable diagnostic payloads, and safe-preflight readiness states.
+The regression suite covers nested compose geometry, pre-filled search fields, voice-button rejection, explicit Send selection, ambiguous-button fallback, focused-child routing, delayed compose clearing, clipboard-write failure, stale runtime-ID invalidation, immutable target leases, preflight context replacement, preflight context drift, Send-button row filtering, disabled controls, DPI-awareness bootstrap, stale-target scope aborts, multi-window target preference, failed-draft behavior, typed send-state classification, typed Send candidates, repeated sends, Unicode surrogate-pair handling, opt-in recovery scope aborts, explicit retry-menu behavior, production lease lifecycle, structural context anchors, machine-readable diagnostic payloads, safe-preflight readiness states, and authoritative transaction/evidence lifecycle mapping.
 
 ## Release/deployment
 
@@ -123,6 +127,8 @@ The project now follows **milestone-based releases**. Ordinary pushes to `main` 
 Release publishing is serialized and superseded runs are cancelled. A release build validates the exact tag source, checks that the package version matches the tag, runs the complete Windows regression suite, builds the PyInstaller executable, confirms the tag did not move during the build, calculates SHA-256, then publishes `FloatingBar.exe` and `FloatingBar.exe.sha256`.
 
 Published releases are not rebuilt automatically. This keeps downloadable artifacts tied to intentional milestones rather than every small improvement pushed to `main`.
+
+The development CI workflow is also concurrency-limited per branch/ref and cancels superseded runs. A rapid implementation burst therefore keeps only the newest Windows validation run instead of creating a backlog of stale runs and duplicate failure notifications.
 
 The CI workflows use current Node 24-compatible GitHub Actions lines: `actions/checkout@v6`, `actions/setup-python@v7`, `actions/github-script@v9`, `softprops/action-gh-release@v3`, and `actions/upload-artifact@v4`.
 
