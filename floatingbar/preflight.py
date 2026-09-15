@@ -46,6 +46,15 @@ class PreflightResult:
             return "ready-with-degraded-context"
         return "ready"
 
+    @property
+    def context_protection(self) -> str:
+        """Return the conservative context-protection level for this result."""
+        if not self.ready:
+            return "blocked"
+        if self.context_guard_available and self.context_stable:
+            return "guarded"
+        return "degraded"
+
 
 def _context_transition_stable(
     initial: Optional[WindowContext],

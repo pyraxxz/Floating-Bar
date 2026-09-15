@@ -24,7 +24,13 @@ For machine-readable support output, use:
 python tools/diagnose.py --preflight --json
 ```
 
-The JSON form contains only content-free readiness data: status, target HWND/PID, focus ownership, compose geometry, submission path, Send evidence score, context-guard state, and safe diagnostic reasons. It never includes Telegram's raw title, message text, or clipboard contents.
+The JSON form is content-free and carries a stable `schema_version` plus readiness state. The key safety fields are `status`, `context_protection`, target HWND/PID, focus ownership, compose geometry, submission path, Send evidence score, context-guard state, and safe diagnostic reasons. It never includes Telegram's raw title, message text, or clipboard contents.
+
+`context_protection` has three meanings:
+
+- `guarded`: a non-content context anchor was captured and remained stable through preflight.
+- `degraded`: no useful non-content context anchor was exposed, so the transaction relies on HWND/PID protection rather than claiming exact chat protection.
+- `blocked`: a safety-critical inspection failed or another hard prerequisite was not met.
 
 Expected hard prerequisites:
 
@@ -36,6 +42,8 @@ Expected hard prerequisites:
 - Either a safe Send candidate or an explicit Enter-fallback note.
 
 The reported status should normally be `ready`. `ready-with-degraded-context` is acceptable only when Telegram exposes no useful content-free context anchor. When a non-generic title is available, the title is fingerprinted. When the title is generic, an available compose-control runtime ID can still provide structural context protection without reading message content.
+
+A safety-critical failure while re-inspecting an anchor is **not** treated as degraded; it must produce `status=blocked` so the send path fails closed instead of guessing that the context is still safe.
 
 The command must not change foreground focus, type, click, or touch the clipboard.
 

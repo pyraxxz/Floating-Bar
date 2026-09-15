@@ -1,9 +1,10 @@
+import json
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from floatingbar.context import WindowContext, title_fingerprint
-from floatingbar.preflight import run
+from floatingbar.preflight import PreflightResult, run
 from floatingbar.transaction import SendCandidate
 
 
@@ -42,6 +43,7 @@ class PreflightContextFailureBatchTests(unittest.TestCase):
 
         self.assertFalse(result.ready)
         self.assertEqual(result.status, "blocked")
+        self.assertEqual(result.context_protection, "blocked")
         self.assertFalse(result.context_guard_available)
         self.assertFalse(result.context_stable)
         self.assertTrue(
@@ -64,9 +66,36 @@ class PreflightContextFailureBatchTests(unittest.TestCase):
 
         self.assertTrue(result.ready)
         self.assertEqual(result.status, "ready-with-degraded-context")
+        self.assertEqual(result.context_protection, "degraded")
         self.assertIsNotNone(result.context)
         self.assertFalse(result.context_guard_available)
         self.assertFalse(result.context_stable)
+
+    def test_guarded_context_reports_guarded_protection(self):
+        result = PreflightResult(
+            ready=True,
+            reasons=(),
+            context_guard_available=True,
+            context_stable=True,
+        )
+        self.assertEqual(result.status, "ready")
+        self.assertEqual(result.context_protection, "guarded")
+
+    def test_blocked_json_shape_stays_content_free(self):
+        result = PreflightResult(
+            ready=False,
+            reasons=("Telegram conversation context could not be inspected safely.",),
+        )
+        payload = {
+            "schema_version": 1,
+            "status": result.status,
+            "context_protection": result.context_protection,
+            "reasons": list(result.reasons),
+        }
+        encoded = json.dumps(payload, sort_keys=True)
+        self.assertIn('"schema_version": 1', encoded)
+        self.assertNotIn("Chat A", encoded)
+        self.assertNotIn("message", encoded.lower())
 
 
 if __name__ == "__main__":

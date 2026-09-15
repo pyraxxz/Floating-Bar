@@ -33,10 +33,15 @@ from floatingbar.target import TelegramTarget, TelegramNotFound
 import config
 
 
+PREFLIGHT_JSON_SCHEMA_VERSION = 1
+
+
 def _preflight_payload(result) -> dict:
     """Return only content-free fields suitable for machine processing."""
     payload = {
+        "schema_version": PREFLIGHT_JSON_SCHEMA_VERSION,
         "status": result.status,
+        "context_protection": result.context_protection,
         "ready": bool(result.ready),
         "telegram_hwnd": int(result.hwnd),
         "pid": int(result.pid),
@@ -72,6 +77,7 @@ def _print_preflight(result, json_output: bool = False) -> None:
 
     print("Safe-send preflight")
     print(f"  status={result.status}  ready={result.ready}")
+    print(f"  context_protection={result.context_protection}")
     print(f"  telegram_hwnd={result.hwnd}  pid={result.pid}")
     print(
         f"  minimized={result.minimized}  scope_stable={result.scope_stable}"
@@ -436,16 +442,8 @@ def main() -> int:
         '\nAll good. Run a read-only readiness check with:  '
         'python tools/diagnose.py --preflight'
     )
-    print(
-        'Or test a guarded live send with:  '
-        'python tools/diagnose.py --send "test 123"'
-    )
-    print(
-        'To inspect chat-list structure without reading chat/message text:  '
-        'python tools/diagnose.py --context'
-    )
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())
