@@ -22,6 +22,39 @@ class PreflightContextFailureBatchTests(unittest.TestCase):
         target.send_button_click = lambda near_box=None: SendCandidate("Send", 80, 30, 123.5)
         return target
 
+    def _stable_windows(self):
+        return [
+            patch("floatingbar.preflight.winapi.is_minimized", return_value=False),
+            patch("floatingbar.preflight.winapi.get_focused_hwnd", return_value=101),
+            patch("floatingbar.preflight.winapi.get_window_pid", return_value=200),
+            patch("floatingbar.preflight.winapi.user32.IsWindow", return_value=True),
+        ]
+
+    def test_initial_context_inspection_failure_blocks_instead_of_continuing(self):
+        target = self._target()
+        final = WindowContext(
+            100,
+            200,
+            title_fingerprint("Chat A - Telegram"),
+            compose_runtime_id=(7, 8, 9),
+        )
+        with patch("floatingbar.preflight.capture", side_effect=[RuntimeError("initial uia failure"), final]):
+            patches = self._stable_windows()
+            for item in patches:
+                item.start()
+            try:
+                result = run(target)
+            finally:
+                for item in reversed(patches):
+                    item.stop()
+
+        self.assertFalse(result.ready)
+        self.assertEqual(result.status, "blocked")
+        self.assertEqual(result.context_protection, "blocked")
+        self.assertTrue(
+            any("before preflight" in reason for reason in result.reasons)
+        )
+
     def test_final_context_inspection_failure_blocks_instead_of_degrading(self):
         target = self._target()
         initial = WindowContext(
@@ -30,16 +63,15 @@ class PreflightContextFailureBatchTests(unittest.TestCase):
             title_fingerprint("Chat A - Telegram"),
             compose_runtime_id=(7, 8, 9),
         )
-        with patch("floatingbar.preflight.capture", side_effect=[initial, RuntimeError("uia failure")]), patch(
-            "floatingbar.preflight.winapi.is_minimized", return_value=False
-        ), patch(
-            "floatingbar.preflight.winapi.get_focused_hwnd", return_value=101
-        ), patch(
-            "floatingbar.preflight.winapi.get_window_pid", return_value=200
-        ), patch(
-            "floatingbar.preflight.winapi.user32.IsWindow", return_value=True
-        ):
-            result = run(target)
+        with patch("floatingbar.preflight.capture", side_effect=[initial, RuntimeError("uia failure")]):
+            patches = self._stable_windows()
+            for item in patches:
+                item.start()
+            try:
+                result = run(target)
+            finally:
+                for item in reversed(patches):
+                    item.stop()
 
         self.assertFalse(result.ready)
         self.assertEqual(result.status, "blocked")
@@ -53,16 +85,15 @@ class PreflightContextFailureBatchTests(unittest.TestCase):
     def test_generic_context_without_anchors_remains_supported_degraded_state(self):
         target = self._target()
         context = WindowContext(100, 200, "")
-        with patch("floatingbar.preflight.capture", side_effect=[context, context]), patch(
-            "floatingbar.preflight.winapi.is_minimized", return_value=False
-        ), patch(
-            "floatingbar.preflight.winapi.get_focused_hwnd", return_value=101
-        ), patch(
-            "floatingbar.preflight.winapi.get_window_pid", return_value=200
-        ), patch(
-            "floatingbar.preflight.winapi.user32.IsWindow", return_value=True
-        ):
-            result = run(target)
+        with patch("floatingbar.preflight.capture", side_effect=[context, context]):
+            patches = self._stable_windows()
+            for item in patches:
+                item.start()
+            try:
+                result = run(target)
+            finally:
+                for item in reversed(patches):
+                    item.stop()
 
         self.assertTrue(result.ready)
         self.assertEqual(result.status, "ready-with-degraded-context")

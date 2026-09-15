@@ -120,10 +120,14 @@ def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
         reasons.append("Telegram does not currently own the focused child HWND.")
 
     initial_context = None
+    initial_context_inspection_ok = True
     try:
         initial_context = capture(hwnd)
     except Exception:
-        pass
+        initial_context_inspection_ok = False
+        reasons.append(
+            "Telegram conversation context could not be inspected safely before preflight."
+        )
 
     compose_click = None
     compose_runtime_id = ()
@@ -199,6 +203,7 @@ def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
         reasons.append("Telegram conversation context could not be inspected safely.")
 
     context_ok = (
+        initial_context_inspection_ok and
         context_inspection_ok and
         (not context_guard_available or context_stable)
     )
