@@ -47,6 +47,8 @@ class PreflightTests(unittest.TestCase):
 
         self.assertTrue(result.ready)
         self.assertEqual(result.status, "ready")
+        self.assertEqual(result.primary_reason_code, "ok")
+        self.assertEqual(result.reason_codes, ())
         self.assertEqual(result.hwnd, 100)
         self.assertEqual(result.pid, 200)
         self.assertEqual(result.compose_click, (20, 30))
@@ -98,6 +100,8 @@ class PreflightTests(unittest.TestCase):
 
         self.assertFalse(result.ready)
         self.assertEqual(result.status, "blocked")
+        self.assertEqual(result.primary_reason_code, "TARGET_MINIMIZED")
+        self.assertIn("TARGET_MINIMIZED", result.reason_codes)
         self.assertTrue(any("minimized" in reason for reason in result.reasons))
 
     def test_missing_send_button_is_warning_but_not_hard_failure(self):
@@ -116,6 +120,8 @@ class PreflightTests(unittest.TestCase):
         self.assertTrue(result.ready)
         self.assertEqual(result.submission_path, "enter-fallback")
         self.assertEqual(result.send_evidence_score, 0.0)
+        self.assertEqual(result.primary_reason_code, "SEND_BUTTON_UNAVAILABLE")
+        self.assertEqual(result.reason_codes, ("SEND_BUTTON_UNAVAILABLE",))
         self.assertTrue(result.context_guard_available)
         self.assertTrue(any("Enter fallback" in reason for reason in result.reasons))
 
@@ -136,6 +142,8 @@ class PreflightTests(unittest.TestCase):
 
         self.assertTrue(result.ready)
         self.assertEqual(result.status, "ready-with-degraded-context")
+        self.assertEqual(result.primary_reason_code, "CONTEXT_GUARD_UNAVAILABLE")
+        self.assertEqual(result.reason_codes, ("CONTEXT_GUARD_UNAVAILABLE",))
         self.assertFalse(result.context_guard_available)
         self.assertFalse(result.context_stable)
         self.assertIsNotNone(result.context)
@@ -194,6 +202,8 @@ class PreflightTests(unittest.TestCase):
 
         self.assertFalse(result.ready)
         self.assertEqual(result.status, "blocked")
+        self.assertEqual(result.primary_reason_code, "CONTEXT_CHANGED")
+        self.assertIn("CONTEXT_CHANGED", result.reason_codes)
         self.assertFalse(result.context_stable)
         self.assertTrue(any("context changed" in reason for reason in result.reasons))
 
@@ -211,6 +221,8 @@ class PreflightTests(unittest.TestCase):
 
         self.assertFalse(result.ready)
         self.assertEqual(result.status, "blocked")
+        self.assertEqual(result.primary_reason_code, "CONTEXT_CHANGED")
+        self.assertEqual(result.reason_codes, ("CONTEXT_CHANGED",))
         self.assertFalse(result.context_stable)
         self.assertTrue(any("context changed" in reason for reason in result.reasons))
 
@@ -228,8 +240,23 @@ class PreflightTests(unittest.TestCase):
 
         self.assertFalse(result.ready)
         self.assertEqual(result.status, "blocked")
+        self.assertEqual(result.primary_reason_code, "TARGET_SCOPE_CHANGED")
+        self.assertEqual(result.reason_codes, ("TARGET_SCOPE_CHANGED",))
         self.assertFalse(result.scope_stable)
         self.assertTrue(any("scope changed" in reason for reason in result.reasons))
+
+    def test_initial_context_inspection_failure_blocks_with_code(self):
+        target = self._target()
+        with patch("floatingbar.preflight.capture", side_effect=RuntimeError("uia")), patch(
+            "floatingbar.preflight.winapi.is_minimized", return_value=False
+        ), patch("floatingbar.preflight.winapi.get_focused_hwnd", return_value=101), patch(
+            "floatingbar.preflight.winapi.get_window_pid", return_value=200
+        ), patch("floatingbar.preflight.winapi.user32.IsWindow", return_value=True):
+            result = run(target)
+
+        self.assertFalse(result.ready)
+        self.assertEqual(result.primary_reason_code, "INITIAL_CONTEXT_INSPECTION_FAILED")
+        self.assertIn("INITIAL_CONTEXT_INSPECTION_FAILED", result.reason_codes)
 
     def test_missing_telegram_is_not_ready(self):
         target = self._target(hwnd=0)
@@ -241,6 +268,8 @@ class PreflightTests(unittest.TestCase):
 
         self.assertFalse(result.ready)
         self.assertEqual(result.status, "blocked")
+        self.assertEqual(result.primary_reason_code, "TARGET_NOT_FOUND")
+        self.assertEqual(result.reason_codes, ("TARGET_NOT_FOUND",))
         self.assertEqual(result.reasons, ("Telegram Desktop was not found.",))
 
 

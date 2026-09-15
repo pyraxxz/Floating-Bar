@@ -33,7 +33,7 @@ from floatingbar.target import TelegramTarget, TelegramNotFound
 import config
 
 
-PREFLIGHT_JSON_SCHEMA_VERSION = 1
+PREFLIGHT_JSON_SCHEMA_VERSION = 2
 
 
 def _context_protection_for_result(result) -> str:
@@ -50,6 +50,20 @@ def _context_protection_for_result(result) -> str:
     return "degraded"
 
 
+def _reason_codes_for_result(result):
+    """Return stable machine-readable reason codes, including legacy doubles."""
+    return list(getattr(result, "reason_codes", ()) or ())
+
+
+def _primary_reason_code_for_result(result) -> str:
+    """Return the first machine-readable reason, or ``ok``."""
+    value = getattr(result, "primary_reason_code", None)
+    if isinstance(value, str) and value:
+        return value
+    codes = _reason_codes_for_result(result)
+    return codes[0] if codes else "ok"
+
+
 def _preflight_payload(result) -> dict:
     """Return only content-free fields suitable for machine processing."""
     payload = {
@@ -57,6 +71,8 @@ def _preflight_payload(result) -> dict:
         "status": result.status,
         "context_protection": _context_protection_for_result(result),
         "ready": bool(result.ready),
+        "primary_reason_code": _primary_reason_code_for_result(result),
+        "reason_codes": _reason_codes_for_result(result),
         "telegram_hwnd": int(result.hwnd),
         "pid": int(result.pid),
         "minimized": bool(result.minimized),
@@ -92,6 +108,8 @@ def _print_preflight(result, json_output: bool = False) -> None:
     print("Safe-send preflight")
     print(f"  status={result.status}  ready={result.ready}")
     print(f"  context_protection={_context_protection_for_result(result)}")
+    print(f"  primary_reason_code={_primary_reason_code_for_result(result)}")
+    print(f"  reason_codes={_reason_codes_for_result(result)}")
     print(f"  telegram_hwnd={result.hwnd}  pid={result.pid}")
     print(
         f"  minimized={result.minimized}  scope_stable={result.scope_stable}"
@@ -183,6 +201,11 @@ def _run_context_diagnostic(hwnd: int) -> int:
             selected = bool(item.is_selected())
         except Exception:
             selected = None
+            try:
+                selection = item.iface_selection_item
+                selected = bool(selection.CurrentIsSelected)
+            except Exception:
+                pass
 
         left_pane_candidate = rect.left < left_cutoff and rect.width() > 80
         if selected or left_pane_candidate:
