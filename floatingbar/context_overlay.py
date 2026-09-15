@@ -8,6 +8,7 @@ from . import winapi
 from .bound_target import BoundTelegramTarget
 from .context import capture
 from .context_injector import ContextGuardedRecoveryInjector
+from .evidence import EvidenceState
 from .injector import InjectionFailed
 from .recovery_overlay import OrbRelayWindow as _RecoveryOrbRelayWindow
 from .target import TelegramNotFound
@@ -123,13 +124,7 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
         )
 
     def _execute_prepared_attempt(self, text: str, restore_hwnd: int, attempt_id: int) -> None:
-        """Run an already-prepared transaction without re-selecting its target.
-
-        The coordinator has already converted the Telegram target into an
-        immutable HWND/PID lease. The worker therefore receives only the
-        transaction's restore HWND here; target selection is intentionally not
-        repeated from the restore handle.
-        """
+        """Run an already-prepared transaction without re-selecting its target."""
         comtypes = None
         try:
             import comtypes
@@ -253,13 +248,17 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
             super()._send_finished(completion)
             if not is_current:
                 return
-            if lifecycle is not None and lifecycle.state.value == "sending":
+            if lifecycle is not None and lifecycle.state is not None:
                 evidence_state = completion.resolved_evidence.state
-                if evidence_state.value == "verified":
+                if evidence_state is EvidenceState.VERIFIED:
                     lifecycle.complete_verified()
-                elif evidence_state.value in ("submitted", "verification-unavailable", "unknown"):
+                elif evidence_state in (
+                    EvidenceState.SUBMITTED,
+                    EvidenceState.UNAVAILABLE,
+                    EvidenceState.UNKNOWN,
+                ):
                     lifecycle.complete_uncertain()
-                elif evidence_state.value == "failed":
+                elif evidence_state is EvidenceState.FAILED:
                     lifecycle.complete_failed()
                 trace.trace(
                     f"transaction: attempt={completion.attempt_id} "
