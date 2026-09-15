@@ -88,11 +88,17 @@ class BoundTargetTests(unittest.TestCase):
         inner = TelegramTarget()
         inner._hwnd = 200
         inner._pid = 8
-        inner.select_for_send = Mock(return_value=100)
         inner.compose_box = Mock(return_value=object())
         target = BoundTelegramTarget(inner)
         target._bound_scope = TargetScope(100, 7)
 
+        def resync(preferred_hwnd=0):
+            self.assertEqual(preferred_hwnd, 100)
+            inner._hwnd = 100
+            inner._pid = 7
+            return 100
+
+        inner.select_for_send = Mock(side_effect=resync)
         with patch("floatingbar.bound_target.winapi.user32.IsWindow", return_value=True), patch(
             "floatingbar.bound_target.winapi.get_window_pid", side_effect=[7, 7, 7]
         ):
