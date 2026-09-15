@@ -110,10 +110,6 @@ def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
     if focused_hwnd and focused_pid and focused_pid != pid:
         reasons.append("Telegram does not currently own the focused child HWND.")
 
-    # Capture a non-content context snapshot before touching the UIA tree. A
-    # context anchor disappearing or changing during discovery is unsafe to
-    # ignore: it means the user/application context moved while we were
-    # deciding whether to send.
     initial_context = None
     try:
         initial_context = capture(hwnd)
@@ -169,6 +165,7 @@ def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
     context = None
     context_guard_available = False
     context_stable = False
+    context_inspection_ok = True
     try:
         context = capture(hwnd, compose_runtime_id=compose_runtime_id)
         context_guard_available = context.guard_available
@@ -177,7 +174,6 @@ def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
             reasons.append("Telegram conversation context changed during preflight.")
             context_stable = False
         elif context_guard_available:
-            # A fresh final snapshot must also still match the live window.
             context_stable = context.matches()
 
         if context_guard_available and not context_stable:
@@ -185,20 +181,18 @@ def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
                 if not context.matches():
                     reasons.append("Telegram conversation context changed during preflight.")
         elif not context_guard_available:
-            # No content-free anchor is available, so this state is not a
-            # claim that context remained stable; it means context could not
-            # be verified and the send is intentionally degraded rather than blocked.
             context_stable = False
             reasons.append(
                 "Telegram conversation context could not be verified safely."
             )
     except Exception:
+        context_inspection_ok = False
         reasons.append("Telegram conversation context could not be inspected safely.")
 
-    # Any available context anchor is useful: a non-generic window title can
-    # detect a chat-name change, while session-scoped structural anchors can
-    # detect a replaced chat/compose control without reading message content.
-    context_ok = not context_guard_available or context_stable
+    context_ok = (
+        context_inspection_ok and
+        (not context_guard_available or context_stable)
+    )
 
     ready = bool(
         hwnd and
