@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from floatingbar.bound_target import BoundTelegramTarget
-from floatingbar.target import TelegramNotFound
+from floatingbar.target import TelegramNotFound, TelegramTarget
 from floatingbar.target_contract import BackgroundTarget
 from floatingbar.transaction import TargetScope
 
@@ -67,6 +67,55 @@ class BoundTargetTests(unittest.TestCase):
 
         self.assertEqual(selected, 0)
         inner.select_for_send.assert_not_called()
+
+    def test_bound_telegram_target_avoids_discovery_when_cached_scope_is_exact(self):
+        inner = TelegramTarget()
+        inner._hwnd = 100
+        inner._pid = 7
+        inner.compose_box = Mock(return_value=object())
+        target = BoundTelegramTarget(inner)
+
+        with patch("floatingbar.bound_target.winapi.user32.IsWindow", return_value=True), patch(
+            "floatingbar.bound_target.winapi.get_window_pid", return_value=7
+        ), patch.object(inner, "select_for_send", wraps=inner.select_for_send) as select:
+            target._bound_scope = TargetScope(100, 7)
+            result = target.compose_box()
+
+        self.assertIsNotNone(result)
+        select.assert_not_called()
+
+    def test_bound_target_resynchronizes_only_after_cached_scope_drift(self):
+        inner = TelegramTarget()
+        inner._hwnd = 200
+        inner._pid = 8
+        inner.select_for_send = Mock(return_value=100)
+        inner.compose_box = Mock(return_value=object())
+        target = BoundTelegramTarget(inner)
+        target._bound_scope = TargetScope(100, 7)
+
+        with patch("floatingbar.bound_target.winapi.user32.IsWindow", return_value=True), patch(
+            "floatingbar.bound_target.winapi.get_window_pid", side_effect=[7, 7, 7]
+        ):
+            result = target.compose_box()
+
+        self.assertIsNotNone(result)
+        inner.select_for_send.assert_called_once_with(preferred_hwnd=100)
+
+    def test_bound_target_fails_closed_when_resynchronization_lands_elsewhere(self):
+        inner = TelegramTarget()
+        inner._hwnd = 200
+        inner._pid = 8
+        inner.select_for_send = Mock(return_value=200)
+        target = BoundTelegramTarget(inner)
+        target._bound_scope = TargetScope(100, 7)
+
+        with patch("floatingbar.bound_target.winapi.user32.IsWindow", return_value=True), patch(
+            "floatingbar.bound_target.winapi.get_window_pid", return_value=7
+        ):
+            with self.assertRaises(TelegramNotFound):
+                target.compose_box()
+
+        inner.select_for_send.assert_called_once_with(preferred_hwnd=100)
 
     def test_release_allows_a_fresh_target_selection(self):
         inner = self._inner()
