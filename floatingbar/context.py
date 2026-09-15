@@ -133,30 +133,37 @@ class WindowContext:
         )
 
     def matches(self) -> bool:
-        """Check HWND/PID plus every context anchor captured for this attempt."""
-        if not self.hwnd or not self.pid:
+        """Check HWND/PID plus every context anchor captured for this attempt.
+
+        Context validation is a safety gate. Any unexpected Windows/UIA failure
+        therefore fails closed instead of escaping as an unchecked exception.
+        """
+        try:
+            if not self.hwnd or not self.pid:
+                return False
+            if winapi.get_window_pid(self.hwnd) != self.pid:
+                return False
+            if not winapi.user32.IsWindow(self.hwnd):
+                return False
+            if self.process_name and _process_basename(self.pid) != self.process_name:
+                return False
+            if self.title_fp:
+                if title_fingerprint(winapi.get_window_title(self.hwnd)) != self.title_fp:
+                    return False
+            if self.compose_runtime_id:
+                if not compose_runtime_id_present(self.hwnd, self.compose_runtime_id):
+                    return False
+            if self.chat_runtime_id or self.chat_name_fp:
+                current_runtime_id, current_name_fp = _selected_chat_anchor(self.hwnd)
+                if not current_runtime_id and not current_name_fp:
+                    return False
+                if self.chat_runtime_id and current_runtime_id != self.chat_runtime_id:
+                    return False
+                if self.chat_name_fp and current_name_fp != self.chat_name_fp:
+                    return False
+            return True
+        except Exception:
             return False
-        if winapi.get_window_pid(self.hwnd) != self.pid:
-            return False
-        if not winapi.user32.IsWindow(self.hwnd):
-            return False
-        if self.process_name and _process_basename(self.pid) != self.process_name:
-            return False
-        if self.title_fp:
-            if title_fingerprint(winapi.get_window_title(self.hwnd)) != self.title_fp:
-                return False
-        if self.compose_runtime_id:
-            if not compose_runtime_id_present(self.hwnd, self.compose_runtime_id):
-                return False
-        if self.chat_runtime_id or self.chat_name_fp:
-            current_runtime_id, current_name_fp = _selected_chat_anchor(self.hwnd)
-            if not current_runtime_id and not current_name_fp:
-                return False
-            if self.chat_runtime_id and current_runtime_id != self.chat_runtime_id:
-                return False
-            if self.chat_name_fp and current_name_fp != self.chat_name_fp:
-                return False
-        return True
 
 
 def capture(

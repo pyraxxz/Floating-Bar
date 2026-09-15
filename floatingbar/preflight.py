@@ -69,24 +69,44 @@ def _context_transition_stable(
     return True
 
 
+def _blocked(reason: str) -> PreflightResult:
+    """Return a deterministic blocked result for an unsafe inspection failure."""
+    return PreflightResult(ready=False, reasons=(reason,))
+
+
 def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
     """Perform a non-invasive readiness check for a Telegram send."""
     reasons = []
 
-    hwnd = target.select_for_send(preferred_hwnd=preferred_hwnd)
-    if not hwnd:
-        return PreflightResult(
-            ready=False,
-            reasons=("Telegram Desktop was not found.",),
-        )
+    try:
+        hwnd = target.select_for_send(preferred_hwnd=preferred_hwnd)
+    except TelegramNotFound:
+        return _blocked("Telegram Desktop was not found.")
+    except Exception:
+        return _blocked("Telegram target could not be inspected safely.")
 
-    pid = target.scope()[1]
-    minimized = winapi.is_minimized(hwnd)
+    if not hwnd:
+        return _blocked("Telegram Desktop was not found.")
+
+    try:
+        pid = target.scope()[1]
+    except Exception:
+        return _blocked("Telegram target scope could not be inspected safely.")
+
+    try:
+        minimized = winapi.is_minimized(hwnd)
+    except Exception:
+        return _blocked("Telegram minimized state could not be inspected safely.")
     if minimized:
         reasons.append("Telegram is minimized; background client clicks are unsafe.")
 
-    focused_hwnd = winapi.get_focused_hwnd(hwnd)
-    focused_pid = winapi.get_window_pid(focused_hwnd) if focused_hwnd else 0
+    focused_hwnd = 0
+    focused_pid = 0
+    try:
+        focused_hwnd = winapi.get_focused_hwnd(hwnd)
+        focused_pid = winapi.get_window_pid(focused_hwnd) if focused_hwnd else 0
+    except Exception:
+        reasons.append("Telegram focus state could not be inspected safely.")
     if focused_hwnd and focused_pid and focused_pid != pid:
         reasons.append("Telegram does not currently own the focused child HWND.")
 
@@ -130,14 +150,20 @@ def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
                 )
     except TelegramNotFound as exc:
         reasons.append(str(exc))
+    except Exception:
+        reasons.append("Telegram compose controls could not be inspected safely.")
 
-    current_hwnd, current_pid = target.scope()
+    try:
+        current_hwnd, current_pid = target.scope()
+    except Exception:
+        current_hwnd, current_pid = 0, 0
+        reasons.append("Telegram target scope could not be revalidated safely.")
     scope_stable = (
         current_hwnd == hwnd and
         current_pid == pid and
         bool(current_hwnd and current_pid)
     )
-    if not scope_stable:
+    if not scope_stable and not any("scope" in reason for reason in reasons):
         reasons.append("Telegram target scope changed during preflight.")
 
     context = None
@@ -156,8 +182,7 @@ def run(target: TelegramTarget, preferred_hwnd: int = 0) -> PreflightResult:
 
         if context_guard_available and not context_stable:
             if not any("context changed" in reason for reason in reasons):
-                context_stable = context.matches()
-                if not context_stable:
+                if not context.matches():
                     reasons.append("Telegram conversation context changed during preflight.")
         elif not context_guard_available:
             # No content-free anchor is available, so this state is not a
