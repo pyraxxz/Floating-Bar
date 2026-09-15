@@ -107,6 +107,15 @@ def _print_preflight(result, json_output: bool = False) -> None:
         print("  notes: none")
 
 
+def _window_context_summary(hwnd: int) -> dict:
+    """Return content-free window context metadata for diagnostics output."""
+    title = winapi.get_window_title(hwnd) or ""
+    return {
+        "title_present": bool(title.strip()),
+        "title_fingerprint": title_fingerprint(title),
+    }
+
+
 def _is_telegram_window(hwnd: int) -> bool:
     if not hwnd:
         return False
@@ -200,11 +209,15 @@ def _run_context_diagnostic(hwnd: int) -> int:
 
 
 def _run_full_diagnostic(target: TelegramTarget, hwnd: int) -> int:
-    title = winapi.get_window_title(hwnd)
+    context_summary = _window_context_summary(hwnd)
     pid = winapi.get_window_pid(hwnd)
     focused = winapi.get_focused_hwnd(hwnd)
     focused_pid = winapi.get_window_pid(focused) if focused else 0
-    print(f"  hwnd={hwnd}  pid={pid}  title={title!r}")
+    print(f"  hwnd={hwnd}  pid={pid}")
+    print(
+        "  title_present={title_present}  title_fingerprint={title_fingerprint}"
+        .format(**context_summary)
+    )
     print(f"  focused_hwnd={focused}  focused_pid={focused_pid}")
     if focused and focused_pid != pid:
         print("  WARNING: focus is currently owned by another process.")
