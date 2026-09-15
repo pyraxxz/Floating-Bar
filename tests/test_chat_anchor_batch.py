@@ -43,9 +43,9 @@ class ChatAnchorBatchTests(unittest.TestCase):
         return window
 
     def _app_patch(self, window):
-        app = Mock()
-        app.window.return_value.wrapper_object.return_value = window
-        return patch("pywinauto.Application", return_value=app)
+        application = Mock()
+        application.return_value.connect.return_value.window.return_value.wrapper_object.return_value = window
+        return patch("pywinauto.Application", application)
 
     def test_unique_selected_left_chat_exposes_runtime_and_name_anchors(self):
         item = _Item(
