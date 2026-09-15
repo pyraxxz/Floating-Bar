@@ -233,14 +233,15 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
 
     def _send_finished(self, completion: SendCompletion) -> None:
         is_current = (
-            completion.attempt_id == getattr(self, "_active_attempt_id", 0)
+            completion.attempt_id == self.__dict__.get("_active_attempt_id", 0)
         )
-        context = self._active_transaction.context if (
-            self._active_transaction is not None and
-            self._active_transaction.attempt_id == completion.attempt_id
-        ) else self._attempt_context
+        active_transaction = self.__dict__.get("_active_transaction")
+        context = active_transaction.context if (
+            active_transaction is not None and
+            active_transaction.attempt_id == completion.attempt_id
+        ) else self.__dict__.get("_attempt_context")
         release = getattr(self.target, "release", None)
-        active_lifecycle = getattr(self, "_active_lifecycle", None)
+        active_lifecycle = self.__dict__.get("_active_lifecycle")
         lifecycle = active_lifecycle if (
             active_lifecycle is not None and
             active_lifecycle.attempt_id == completion.attempt_id
