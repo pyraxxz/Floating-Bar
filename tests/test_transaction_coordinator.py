@@ -116,6 +116,7 @@ class TransactionCoordinatorTests(unittest.TestCase):
         self.assertIs(prepared.attempt.context, context)
         target.select_for_send.assert_called_once_with(preferred_hwnd=700)
         context.matches.assert_called_once_with()
+        target.scope.assert_called()
         target.release.assert_not_called()
 
     def test_prepare_rejects_preflight_retarget_of_explicit_preferred_window(self):
@@ -190,7 +191,7 @@ class TransactionCoordinatorTests(unittest.TestCase):
                 coordinator.prepare("hello", 12, preferred_hwnd=700)
 
         self.assertIn("changed", str(raised.exception).lower())
-        target.scope.assert_not_called()
+        target.scope.assert_called_once_with()
         target.release.assert_called_once_with()
 
     def test_prepare_rejects_bound_scope_mismatch(self):
@@ -209,6 +210,28 @@ class TransactionCoordinatorTests(unittest.TestCase):
             with self.assertRaises(TransactionRejected):
                 coordinator.prepare("hello", 12, preferred_hwnd=700)
 
+        target.release.assert_called_once_with()
+
+    def test_prepare_rejects_target_replacement_during_context_validation(self):
+        target = self._target()
+        context = Mock()
+        context.hwnd = 700
+        context.matches.return_value = True
+        preflight = self._preflight(context=context)
+        coordinator = SendTransactionCoordinator(target)
+        target.scope.side_effect = [
+            TargetScope(700, 900),
+            TargetScope(701, 901),
+        ]
+
+        with patch(
+            "floatingbar.transaction_coordinator.run_preflight",
+            return_value=preflight,
+        ):
+            with self.assertRaises(TransactionRejected) as raised:
+                coordinator.prepare("hello", 12, preferred_hwnd=700)
+
+        self.assertIn("target changed", str(raised.exception).lower())
         target.release.assert_called_once_with()
 
     def test_prepare_accepts_degraded_context_snapshot(self):

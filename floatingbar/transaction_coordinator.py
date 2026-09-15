@@ -105,6 +105,14 @@ class SendTransactionCoordinator:
                     preflight=preflight,
                 )
 
+            target_scope = TargetScope(preflight.hwnd, preflight.pid)
+            bound_scope = self.target.scope()
+            if bound_scope != target_scope:
+                raise TransactionRejected(
+                    "The send transaction target lease did not match preflight; the send was stopped.",
+                    preflight=preflight,
+                )
+
             context = preflight.context
             if context is None:
                 try:
@@ -122,8 +130,17 @@ class SendTransactionCoordinator:
                     preflight=preflight,
                 )
 
-            bound_scope = self.target.scope()
-            target_scope = TargetScope(preflight.hwnd, preflight.pid)
+            # Context/UIA inspection above can itself span enough time for a
+            # Telegram window to be restarted or replaced. Re-check the lease
+            # after context validation so a matching snapshot can never
+            # authorize a transaction against a changed live target.
+            if self.target.scope() != target_scope:
+                raise TransactionRejected(
+                    "Telegram's target changed while the transaction context was being validated; "
+                    "the send was stopped instead of retargeting.",
+                    preflight=preflight,
+                )
+
             attempt = SendAttempt(
                 attempt_id=attempt_id,
                 text=text,
@@ -134,11 +151,6 @@ class SendTransactionCoordinator:
             if not attempt.valid:
                 raise TransactionRejected(
                     "The send transaction could not be safely constructed; the send was stopped.",
-                    preflight=preflight,
-                )
-            if bound_scope != target_scope:
-                raise TransactionRejected(
-                    "The send transaction target lease did not match preflight; the send was stopped.",
                     preflight=preflight,
                 )
 
