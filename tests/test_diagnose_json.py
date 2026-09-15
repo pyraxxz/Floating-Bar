@@ -25,6 +25,7 @@ class DiagnoseJsonTests(unittest.TestCase):
             context_guard_available=True,
             context_stable=True,
             context=SimpleNamespace(compose_runtime_id=(7, 8, 9)),
+            reason_codes=(),
             reasons=("example diagnostic note",),
         )
 
@@ -32,9 +33,11 @@ class DiagnoseJsonTests(unittest.TestCase):
         encoded = json.dumps(payload, sort_keys=True)
         decoded = json.loads(encoded)
 
-        self.assertEqual(decoded["schema_version"], 1)
+        self.assertEqual(decoded["schema_version"], 2)
         self.assertEqual(decoded["status"], "ready")
         self.assertEqual(decoded["context_protection"], "guarded")
+        self.assertEqual(decoded["primary_reason_code"], "ok")
+        self.assertEqual(decoded["reason_codes"], [])
         self.assertTrue(decoded["ready"])
         self.assertEqual(decoded["telegram_hwnd"], 100)
         self.assertEqual(decoded["pid"], 200)
@@ -65,12 +68,15 @@ class DiagnoseJsonTests(unittest.TestCase):
             context_guard_available=False,
             context_stable=False,
             context=None,
+            reason_codes=("CONTEXT_GUARD_UNAVAILABLE",),
             reasons=("generic title",),
         )
 
         payload = _preflight_payload(result)
 
-        self.assertEqual(payload["schema_version"], 1)
+        self.assertEqual(payload["schema_version"], 2)
+        self.assertEqual(payload["primary_reason_code"], "CONTEXT_GUARD_UNAVAILABLE")
+        self.assertEqual(payload["reason_codes"], ["CONTEXT_GUARD_UNAVAILABLE"])
         self.assertEqual(payload["context_protection"], "degraded")
         self.assertIsNone(payload["send_candidate"])
         self.assertFalse(payload["context_guard_available"])
@@ -101,6 +107,8 @@ class DiagnoseJsonTests(unittest.TestCase):
         payload = _preflight_payload(result)
 
         self.assertEqual(payload["context_protection"], "blocked")
+        self.assertEqual(payload["primary_reason_code"], "ok")
+        self.assertEqual(payload["reason_codes"], [])
 
 
 if __name__ == "__main__":
