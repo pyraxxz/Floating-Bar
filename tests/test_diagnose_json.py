@@ -32,7 +32,9 @@ class DiagnoseJsonTests(unittest.TestCase):
         encoded = json.dumps(payload, sort_keys=True)
         decoded = json.loads(encoded)
 
+        self.assertEqual(decoded["schema_version"], 1)
         self.assertEqual(decoded["status"], "ready")
+        self.assertEqual(decoded["context_protection"], "guarded")
         self.assertTrue(decoded["ready"])
         self.assertEqual(decoded["telegram_hwnd"], 100)
         self.assertEqual(decoded["pid"], 200)
@@ -68,9 +70,37 @@ class DiagnoseJsonTests(unittest.TestCase):
 
         payload = _preflight_payload(result)
 
+        self.assertEqual(payload["schema_version"], 1)
+        self.assertEqual(payload["context_protection"], "degraded")
         self.assertIsNone(payload["send_candidate"])
         self.assertFalse(payload["context_guard_available"])
         self.assertFalse(payload["compose_runtime_anchor_available"])
+
+    def test_preflight_payload_uses_blocked_for_incomplete_legacy_result(self):
+        result = SimpleNamespace(
+            status="blocked",
+            ready=False,
+            hwnd=0,
+            pid=0,
+            minimized=False,
+            scope_stable=False,
+            focused_hwnd=0,
+            focused_pid=0,
+            compose_click=None,
+            submission_path="unavailable",
+            send_name="",
+            send_point=None,
+            send_evidence_score=0.0,
+            button_available=False,
+            context_guard_available=False,
+            context_stable=False,
+            context=None,
+            reasons=("unsafe inspection",),
+        )
+
+        payload = _preflight_payload(result)
+
+        self.assertEqual(payload["context_protection"], "blocked")
 
 
 if __name__ == "__main__":

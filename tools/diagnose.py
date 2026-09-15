@@ -36,12 +36,26 @@ import config
 PREFLIGHT_JSON_SCHEMA_VERSION = 1
 
 
+def _context_protection_for_result(result) -> str:
+    """Derive the context protection level, including legacy result doubles."""
+    value = getattr(result, "context_protection", None)
+    if value in {"guarded", "degraded", "blocked"}:
+        return value
+    if not bool(getattr(result, "ready", False)):
+        return "blocked"
+    if bool(getattr(result, "context_guard_available", False)) and bool(
+        getattr(result, "context_stable", False)
+    ):
+        return "guarded"
+    return "degraded"
+
+
 def _preflight_payload(result) -> dict:
     """Return only content-free fields suitable for machine processing."""
     payload = {
         "schema_version": PREFLIGHT_JSON_SCHEMA_VERSION,
         "status": result.status,
-        "context_protection": result.context_protection,
+        "context_protection": _context_protection_for_result(result),
         "ready": bool(result.ready),
         "telegram_hwnd": int(result.hwnd),
         "pid": int(result.pid),
@@ -77,7 +91,7 @@ def _print_preflight(result, json_output: bool = False) -> None:
 
     print("Safe-send preflight")
     print(f"  status={result.status}  ready={result.ready}")
-    print(f"  context_protection={result.context_protection}")
+    print(f"  context_protection={_context_protection_for_result(result)}")
     print(f"  telegram_hwnd={result.hwnd}  pid={result.pid}")
     print(
         f"  minimized={result.minimized}  scope_stable={result.scope_stable}"
