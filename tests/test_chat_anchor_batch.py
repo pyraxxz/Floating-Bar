@@ -3,7 +3,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from floatingbar.context import _selected_chat_anchor, title_fingerprint
+from floatingbar.context import _is_selected_chat_row, _selected_chat_anchor, title_fingerprint
 
 
 class _Rect:
@@ -21,7 +21,7 @@ class _Rect:
 
 
 class _Item:
-    def __init__(self, rect, selected, runtime_id=(), name="", automation_id=""):
+    def __init__(self, rect, selected, runtime_id=(), name="", automation_id="", selection_pattern=None):
         self._rect = rect
         self._selected = selected
         self.element_info = SimpleNamespace(
@@ -29,11 +29,14 @@ class _Item:
             name=name,
             automation_id=automation_id,
         )
+        self.iface_selection_item = selection_pattern
 
     def rectangle(self):
         return self._rect
 
     def is_selected(self):
+        if self._selected is None:
+            raise RuntimeError("convenience selector unavailable")
         return self._selected
 
 
@@ -63,6 +66,36 @@ class ChatAnchorBatchTests(unittest.TestCase):
 
         self.assertEqual(result[0], (1, 2, 3))
         self.assertEqual(result[1], title_fingerprint("Private Chat"))
+
+    def test_ui_automation_selection_pattern_is_used_when_convenience_selector_is_missing(self):
+        selection = SimpleNamespace(CurrentIsSelected=True)
+        item = _Item(
+            _Rect(20, 100, 420, 180),
+            None,
+            runtime_id=(1, 2, 3),
+            name="Private Chat",
+            selection_pattern=selection,
+        )
+        self.assertTrue(_is_selected_chat_row(item))
+        with self._app_patch(self._window([item])):
+            result = _selected_chat_anchor(123)
+
+        self.assertEqual(result[0], (1, 2, 3))
+        self.assertEqual(result[1], title_fingerprint("Private Chat"))
+
+    def test_missing_selection_pattern_degrades_to_unselected(self):
+        item = _Item(
+            _Rect(20, 100, 420, 180),
+            None,
+            runtime_id=(1, 2, 3),
+            name="Private Chat",
+            selection_pattern=None,
+        )
+        self.assertFalse(_is_selected_chat_row(item))
+        with self._app_patch(self._window([item])):
+            result = _selected_chat_anchor(123)
+
+        self.assertEqual(result, ((), ""))
 
     def test_automation_id_is_ignored_as_a_content_source(self):
         named = _Item(

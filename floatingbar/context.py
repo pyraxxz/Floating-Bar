@@ -49,6 +49,19 @@ def _process_basename(pid: int) -> str:
         return ""
 
 
+def _is_selected_chat_row(item) -> bool:
+    """Read selected state through pywinauto or the UIA SelectionItem pattern."""
+    try:
+        return bool(item.is_selected())
+    except Exception:
+        pass
+    try:
+        selection = item.iface_selection_item
+        return bool(selection.CurrentIsSelected)
+    except Exception:
+        return False
+
+
 def _selected_chat_anchor(hwnd: int) -> Tuple[Tuple[int, ...], str]:
     """Return a unique selected left-pane chat anchor when UIA exposes one."""
     if not hwnd:
@@ -68,10 +81,7 @@ def _selected_chat_anchor(hwnd: int) -> Tuple[Tuple[int, ...], str]:
                 continue
             if rect.width() <= 80 or rect.left >= cutoff:
                 continue
-            try:
-                if not item.is_selected():
-                    continue
-            except Exception:
+            if not _is_selected_chat_row(item):
                 continue
             try:
                 runtime_id = tuple(item.element_info.runtime_id)
