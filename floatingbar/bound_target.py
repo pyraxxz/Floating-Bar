@@ -47,6 +47,43 @@ class BoundTelegramTarget:
             return TargetScope(0, 0)
         return scope
 
+    def _inner_cached_scope(self) -> Optional[TargetScope]:
+        """Read the wrapped Telegram target's cached scope without discovery."""
+        if not isinstance(self._inner, TelegramTarget):
+            return None
+        try:
+            hwnd = int(self._inner.__dict__.get("_hwnd") or 0)
+            pid = int(self._inner.__dict__.get("_pid") or 0)
+        except Exception:
+            return None
+        return TargetScope(hwnd, pid) if hwnd and pid else TargetScope(0, 0)
+
+    def _ensure_inner_aligned(self) -> None:
+        """Keep Telegram UIA state on the leased scope, failing closed on drift."""
+        bound = self._validate_bound()
+        if not bound.valid:
+            raise TelegramNotFound(
+                "The original Telegram target window is no longer available."
+            )
+
+        cached = self._inner_cached_scope()
+        if cached is not None and cached == bound:
+            return
+
+        # A normal bound operation should already be aligned. If the wrapped
+        # target lost that cached state, it may attempt one exact preferred
+        # selection, but the result must still equal the immutable lease.
+        selected = self._inner.select_for_send(preferred_hwnd=bound.hwnd)
+        if selected != bound.hwnd:
+            raise TelegramNotFound(
+                "The original Telegram target could not be retained safely."
+            )
+        cached = self._inner_cached_scope()
+        if cached is not None and cached != bound:
+            raise TelegramNotFound(
+                "Telegram's target process changed during the send."
+            )
+
     @property
     def hwnd(self) -> int:
         """Return only the bound HWND when a transaction lease is active."""
@@ -101,32 +138,32 @@ class BoundTelegramTarget:
         return selected
 
     def compose_box(self) -> Any:
-        self._ensure_bound_for_operation()
+        self._ensure_inner_aligned()
         value = self._inner.compose_box()
-        self._ensure_bound_for_operation()
+        self._ensure_inner_aligned()
         return value
 
     def compose_click_point(self, compose_box: Any) -> Optional[Tuple[int, int]]:
-        self._ensure_bound_for_operation()
+        self._ensure_inner_aligned()
         point = self._inner.compose_click_point(compose_box)
-        self._ensure_bound_for_operation()
+        self._ensure_inner_aligned()
         return point
 
     def edit_audit(self) -> Tuple[Optional[Any], List[Tuple[Any, str]]]:
-        self._ensure_bound_for_operation()
+        self._ensure_inner_aligned()
         result = self._inner.edit_audit()
-        self._ensure_bound_for_operation()
+        self._ensure_inner_aligned()
         return result
 
     def remember_compose(self, edit: Any) -> None:
-        self._ensure_bound_for_operation()
+        self._ensure_inner_aligned()
         self._inner.remember_compose(edit)
-        self._ensure_bound_for_operation()
+        self._ensure_inner_aligned()
 
     def send_button_click(self, near_box: Any = None) -> Optional[SendCandidate]:
-        self._ensure_bound_for_operation()
+        self._ensure_inner_aligned()
         result = self._inner.send_button_click(near_box=near_box)
-        self._ensure_bound_for_operation()
+        self._ensure_inner_aligned()
         return result
 
     def refresh(self, preferred_hwnd: int = 0) -> None:
@@ -138,24 +175,8 @@ class BoundTelegramTarget:
         self._inner.refresh(preferred_hwnd=preferred_hwnd)
 
     def _ensure_bound_for_operation(self) -> None:
-        if self._bound_scope is None:
-            return
-        if not self._validate_bound().valid:
-            raise TelegramNotFound(
-                "The original Telegram target window is no longer available."
-            )
-        # Keep the wrapped target's UIA state aligned with the exact lease.
-        selected = self._inner.select_for_send(
-            preferred_hwnd=self._bound_scope.hwnd
-        )
-        if selected != self._bound_scope.hwnd:
-            raise TelegramNotFound(
-                "The original Telegram target could not be retained safely."
-            )
-        if self._inner.scope() != self._bound_scope:
-            raise TelegramNotFound(
-                "Telegram's target process changed during the send."
-            )
+        """Compatibility alias for older callers expecting the previous guard."""
+        self._ensure_inner_aligned()
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._inner, name)
