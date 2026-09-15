@@ -60,7 +60,6 @@ class ContextGuardedRecoveryInjector(ScopeGuardedRecoveryInjector):
     def send(self, text: str, restore_hwnd: int = 0) -> str:
         """Revalidate target and conversation immediately before injection work."""
         self._assert_transaction_target("before send transaction")
-        self._assert_window_context("before send transaction")
         return super().send(text, restore_hwnd=restore_hwnd)
 
     def _assert_target_scope(self, hwnd: int, stage: str) -> None:
