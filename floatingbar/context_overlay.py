@@ -14,7 +14,7 @@ from .recovery_overlay import OrbRelayWindow as _RecoveryOrbRelayWindow
 from .target import TelegramNotFound
 from .transaction import SendCompletion, SendRequest
 from .transaction_coordinator import SendTransactionCoordinator, TransactionRejected
-from .transaction_state import TransactionLifecycle
+from .transaction_state import TransactionLifecycle, TransactionState
 
 
 class OrbRelayWindow(_RecoveryOrbRelayWindow):
@@ -248,7 +248,7 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
             super()._send_finished(completion)
             if not is_current:
                 return
-            if lifecycle is not None and lifecycle.state is not None:
+            if lifecycle is not None and lifecycle.state is TransactionState.SENDING:
                 evidence_state = completion.resolved_evidence.state
                 if evidence_state is EvidenceState.VERIFIED:
                     lifecycle.complete_verified()
