@@ -13,7 +13,7 @@ from . import trace
 
 
 class ContextGuardedRecoveryInjector(ScopeGuardedRecoveryInjector):
-    """Scope-guarded injector that also protects the selected window context."""
+    """Scope-guarded injector that also protects the selected Telegram context."""
 
     def __init__(self, target):
         super().__init__(target)
@@ -47,6 +47,21 @@ class ContextGuardedRecoveryInjector(ScopeGuardedRecoveryInjector):
                 "the message was being prepared. The send was stopped safely; "
                 "return to the intended chat and try again."
             )
+
+    def _assert_transaction_target(self, stage: str) -> None:
+        """Revalidate the currently bound HWND/PID before injection begins."""
+        hwnd = self.target.hwnd or 0
+        if not hwnd:
+            raise InjectionFailed(
+                "Telegram's target window is no longer available; the send was stopped safely."
+            )
+        self._assert_target_scope(hwnd, stage)
+
+    def send(self, text: str, restore_hwnd: int = 0) -> str:
+        """Revalidate target and conversation immediately before injection work."""
+        self._assert_transaction_target("before send transaction")
+        self._assert_window_context("before send transaction")
+        return super().send(text, restore_hwnd=restore_hwnd)
 
     def _assert_target_scope(self, hwnd: int, stage: str) -> None:
         """Extend the existing per-action HWND/PID guard with context."""
