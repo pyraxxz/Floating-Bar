@@ -29,10 +29,61 @@ class ScopeGuardedRecoveryInjector(HardenedTelegramInjector):
         finally:
             self._recovery_scope = None
 
+    @staticmethod
+    def _previous_foreground_scope(hwnd: int) -> tuple[int, int]:
+        """Capture the previous foreground HWND/PID before recovery changes focus."""
+        if not hwnd:
+            return 0, 0
+        try:
+            return hwnd, winapi.get_window_pid(hwnd)
+        except Exception:
+            return hwnd, 0
+
+    @staticmethod
+    def _restore_previous_foreground(
+        prev_hwnd: int,
+        prev_pid: int,
+        target_hwnd: int,
+        target_pid: int,
+    ) -> None:
+        """Restore focus only when the saved HWND still belongs to the saved PID.
+
+        A recycled HWND must never become an accidental foreground target after
+        Telegram is restarted or another process takes the old handle.
+        """
+        if not prev_hwnd or not prev_pid:
+            return
+        try:
+            if not winapi.user32.IsWindow(prev_hwnd):
+                return
+            current_pid = winapi.get_window_pid(prev_hwnd)
+            if current_pid != prev_pid:
+                trace.trace(
+                    f"recovery: skipped foreground restore for recycled hwnd={prev_hwnd}"
+                )
+                return
+            if prev_hwnd == target_hwnd and (
+                not target_pid or current_pid != target_pid
+            ):
+                trace.trace(
+                    f"recovery: skipped foreground restore after target replacement "
+                    f"hwnd={prev_hwnd}"
+                )
+                return
+            winapi.set_foreground_window(prev_hwnd)
+        except Exception as exc:
+            trace.trace(f"recovery: foreground restore skipped safely: {exc}")
+
     def _submit_focus_steal(self, box, hwnd: int, primary_ctrl: bool,
                             restore_hwnd: int) -> bool:
         """Opt-in foreground recovery with a guard before every target action."""
         prev = restore_hwnd or winapi.get_foreground_window()
+        prev_hwnd, prev_pid = self._previous_foreground_scope(prev)
+        target_pid = 0
+        try:
+            target_pid = winapi.get_window_pid(hwnd) if hwnd else 0
+        except Exception:
+            target_pid = 0
         try:
             self._assert_target_scope(hwnd, "before focus-steal restore")
             winapi.ensure_restored(hwnd)
@@ -75,12 +126,19 @@ class ScopeGuardedRecoveryInjector(HardenedTelegramInjector):
         finally:
             if prev:
                 time.sleep(config.FOREGROUND_RESTORE_MS / 1000.0)
-                winapi.set_foreground_window(prev)
+                self._restore_previous_foreground(
+                    prev_hwnd,
+                    prev_pid,
+                    hwnd,
+                    target_pid,
+                )
 
     def _strategy_b(self, box, text: str, primary_ctrl: bool,
                     restore_hwnd: int) -> bool:
         """Opt-in clipboard recovery with a fixed send-transaction scope."""
         prev = restore_hwnd or winapi.get_foreground_window()
+        prev_hwnd, prev_pid = self._previous_foreground_scope(prev)
+        target_pid = 0
         try:
             with clipboard_guard.preserved_clipboard(
                 retries=config.CLIPBOARD_RETRIES,
@@ -89,8 +147,13 @@ class ScopeGuardedRecoveryInjector(HardenedTelegramInjector):
                 fixed_scope = getattr(self, "_recovery_scope", None)
                 if fixed_scope and fixed_scope[0] and fixed_scope[1]:
                     hwnd = fixed_scope[0]
+                    target_pid = fixed_scope[1]
                 else:
                     hwnd = self.target.hwnd or 0
+                    try:
+                        target_pid = winapi.get_window_pid(hwnd) if hwnd else 0
+                    except Exception:
+                        target_pid = 0
 
                 self._assert_target_scope(hwnd, "before clipboard recovery")
                 winapi.ensure_restored(hwnd)
@@ -151,4 +214,9 @@ class ScopeGuardedRecoveryInjector(HardenedTelegramInjector):
         finally:
             if prev:
                 time.sleep(config.FOREGROUND_RESTORE_MS / 1000.0)
-                winapi.set_foreground_window(prev)
+                self._restore_previous_foreground(
+                    prev_hwnd,
+                    prev_pid,
+                    hwnd if 'hwnd' in locals() else 0,
+                    target_pid,
+                )

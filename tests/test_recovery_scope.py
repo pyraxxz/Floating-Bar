@@ -22,6 +22,9 @@ class RecoveryScopeTests(unittest.TestCase):
         ), patch(
             "floatingbar.recovery.winapi.set_foreground_window",
             set_foreground,
+        ), patch(
+            "floatingbar.recovery.winapi.user32.IsWindow",
+            return_value=True,
         ), patch("floatingbar.recovery.winapi.ensure_restored") as restored, patch(
             "floatingbar.recovery.time.sleep"
         ):
@@ -48,6 +51,9 @@ class RecoveryScopeTests(unittest.TestCase):
             return_value=11,
         ), patch(
             "floatingbar.recovery.winapi.set_foreground_window",
+            return_value=True,
+        ), patch(
+            "floatingbar.recovery.winapi.user32.IsWindow",
             return_value=True,
         ), patch("floatingbar.recovery.winapi.ensure_restored"), patch(
             "floatingbar.recovery.time.sleep"
@@ -76,6 +82,9 @@ class RecoveryScopeTests(unittest.TestCase):
         ), patch(
             "floatingbar.recovery.winapi.get_window_pid",
             return_value=11,
+        ), patch(
+            "floatingbar.recovery.winapi.user32.IsWindow",
+            return_value=True,
         ), patch(
             "floatingbar.recovery.winapi.ensure_restored"
         ) as restored, patch(
@@ -111,6 +120,9 @@ class RecoveryScopeTests(unittest.TestCase):
             "floatingbar.recovery.winapi.get_window_pid",
             return_value=11,
         ), patch(
+            "floatingbar.recovery.winapi.user32.IsWindow",
+            return_value=True,
+        ), patch(
             "floatingbar.recovery.winapi.ensure_restored"
         ) as restored, patch(
             "floatingbar.recovery.winapi.set_foreground_window",
@@ -123,6 +135,66 @@ class RecoveryScopeTests(unittest.TestCase):
         self.assertFalse(any(call.args == (123,) for call in set_foreground.call_args_list))
         box.set_focus.assert_not_called()
         box.type_keys.assert_not_called()
+
+    def test_foreground_restore_skips_recycled_handle(self):
+        injector = ScopeGuardedRecoveryInjector(Mock())
+        with patch(
+            "floatingbar.recovery.winapi.user32.IsWindow",
+            return_value=True,
+        ), patch(
+            "floatingbar.recovery.winapi.get_window_pid",
+            return_value=22,
+        ), patch(
+            "floatingbar.recovery.winapi.set_foreground_window",
+        ) as set_foreground:
+            injector._restore_previous_foreground(
+                prev_hwnd=999,
+                prev_pid=11,
+                target_hwnd=123,
+                target_pid=11,
+            )
+
+        set_foreground.assert_not_called()
+
+    def test_foreground_restore_skips_replaced_target_handle(self):
+        injector = ScopeGuardedRecoveryInjector(Mock())
+        with patch(
+            "floatingbar.recovery.winapi.user32.IsWindow",
+            return_value=True,
+        ), patch(
+            "floatingbar.recovery.winapi.get_window_pid",
+            return_value=22,
+        ), patch(
+            "floatingbar.recovery.winapi.set_foreground_window",
+        ) as set_foreground:
+            injector._restore_previous_foreground(
+                prev_hwnd=123,
+                prev_pid=11,
+                target_hwnd=123,
+                target_pid=11,
+            )
+
+        set_foreground.assert_not_called()
+
+    def test_foreground_restore_accepts_same_hwnd_and_pid(self):
+        injector = ScopeGuardedRecoveryInjector(Mock())
+        with patch(
+            "floatingbar.recovery.winapi.user32.IsWindow",
+            return_value=True,
+        ), patch(
+            "floatingbar.recovery.winapi.get_window_pid",
+            return_value=11,
+        ), patch(
+            "floatingbar.recovery.winapi.set_foreground_window",
+        ) as set_foreground:
+            injector._restore_previous_foreground(
+                prev_hwnd=123,
+                prev_pid=11,
+                target_hwnd=123,
+                target_pid=11,
+            )
+
+        set_foreground.assert_called_once_with(123)
 
 
 if __name__ == "__main__":
