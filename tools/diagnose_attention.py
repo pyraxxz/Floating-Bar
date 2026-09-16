@@ -15,7 +15,6 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from floatingbar import config as _unused_config  # type: ignore
 from floatingbar import trace, winapi
 from floatingbar.context import title_fingerprint
 from floatingbar.telegram_chats import enumerate_telegram_chats
