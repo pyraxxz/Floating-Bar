@@ -18,6 +18,17 @@ class OverlayStateTests(unittest.TestCase):
         self.assertTrue(result.retryable)
         self.assertEqual(result.detail, "Telegram unavailable")
 
+    def test_blocked_strategy_is_explicitly_blocked_and_not_retryable(self):
+        result = _classify_send_result("preflight (blocked)", None)
+        self.assertEqual(result.state, EvidenceState.BLOCKED)
+        self.assertTrue(result.blocked)
+        self.assertFalse(result.retryable)
+        self.assertFalse(result.confirmed)
+
+        completion = SendCompletion.from_result(5, strategy="preflight (blocked)")
+        self.assertTrue(completion.blocked)
+        self.assertFalse(completion.failed)
+
     def test_unverified_strategy_is_submitted_and_uncertain(self):
         for strategy in (
             "posted-click (verification-unavailable)",
