@@ -31,6 +31,7 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Structural candidate scoring without reading text/value content
 - [x] Exact input-control pinning and revalidation for generic background sends
 - [x] Bounded post-send scope/control liveness checks without message-content reads
+- [x] Generic post-send target loss is surfaced as `verification-unavailable`, never as a retryable failure
 - [x] Windows CI compile + regression suite + PyInstaller build
 - [x] Release workflow separated from ordinary development pushes
 - [x] Background picker can include minimized application windows
@@ -88,7 +89,7 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Exact-control revalidation for pinned sends
 - [x] Prefer a discovered console control when focus is elsewhere
 - [x] Explicit submission mode contract
-- [ ] Explicit console-control targeting across terminal variants
+- [x] Explicit console-control process coverage across Windows Terminal, Terminal Preview, conhost, and PowerShell Core aliases
 - [ ] Verification/retry behavior
 
 ### WhatsApp
@@ -169,7 +170,7 @@ Every adapter should eventually produce one of:
 - [x] Explicit submission policy for generic adapters
 - [ ] App-specific verification hooks for generic chat and terminal adapters
 - [x] Bounded post-send checks
-- [ ] Duplicate-send-safe retry rules
+- [x] Generic post-send target loss cannot become an automatic retry
 - [x] Clear user feedback for blocked targets
 - [x] Trace adapter, target, and verification stages without message content
 
