@@ -36,6 +36,8 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Minimized targets are allowed into structural probing; input discovery remains the safety gate
 - [x] Content-free readiness reasons distinguish unavailable, no-input, and inspection-error states
 - [x] User-facing background-target feedback maps readiness failures without exposing UI content
+- [x] Telegram chat selection is protected by runtime/structural row identity, not only geometry/name
+- [x] Telegram sends revalidate the selected chat before preflight when the user stays in the same window
 
 ### Completed grouped milestone — Adapter Architecture
 
@@ -73,7 +75,7 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Background selection
 - [x] Safe send transaction
 - [x] Retry and evidence lifecycle
-- [ ] Improve same-window chat-switch detection without message-content reads
+- [x] Same-window chat-switch detection without message-content reads
 - [ ] Validate against traces from multiple Telegram Desktop builds
 - [ ] Build real desktop smoke matrix
 
