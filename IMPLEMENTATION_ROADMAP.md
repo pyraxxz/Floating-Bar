@@ -30,6 +30,7 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Generic retry preserves original HWND/PID scope and adapter identity
 - [x] Structural candidate scoring without reading text/value content
 - [x] Exact input-control pinning and revalidation for generic background sends
+- [x] Pinned-control structural identity guard against HWND reuse
 - [x] Windows CI compile + regression suite + PyInstaller build
 - [x] Release workflow separated from ordinary development pushes
 
@@ -43,8 +44,9 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Adapter target factory separates per-app implementations from UI routing
 - [x] Dedicated Terminal target rejects focused controls that are not structurally discovered as editable
 - [x] Dedicated chat composer target rejects controls outside the structural Edit/Document inventory
+- [x] Dedicated chat/terminal targets can choose discovered controls while another app/control owns focus
+- [x] Dedicated target pinning reuses the common structural identity guard
 - [ ] Add app-specific verification implementations
-- [x] Add dedicated structural target/control adapters for chat applications
 
 ## Phase 2 — Finish the current UX and reliability layer
 
@@ -75,6 +77,7 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Exact-scope binding
 - [x] Exact-control revalidation for pinned sends
 - [x] Prefer a discovered console control when focus is elsewhere
+- [x] Pinned-control identity guard
 - [ ] Explicit console-control targeting across terminal variants
 - [ ] Submission semantics appropriate to terminal
 - [ ] Verification/retry behavior
@@ -127,6 +130,7 @@ The key transition is from “whatever control currently has focus” to “the 
 - [x] Prefer composer-shaped controls over focused search/navigation controls where a composer is available
 - [x] Support multiple candidate controls with deterministic structural scoring
 - [x] Pin the selected control for the duration of a send
+- [x] Revalidate the pinned control's process, role, and class identity before submission
 - [x] Abort safely when the control or process changes
 
 ## Phase 5 — Conversation intelligence
