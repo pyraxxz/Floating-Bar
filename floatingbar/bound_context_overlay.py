@@ -114,6 +114,15 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
     def _bind_generic_target(self, hwnd: int, pid: int) -> None:
         self._background_typer.bind(hwnd, pid)
         self._update_status()
+        try:
+            probe = self._background_typer.probe()
+        except Exception as exc:
+            trace.trace(f"background target readiness probe failed safely: {exc}")
+            self._show_feedback("That app could not expose a safe background typing control.")
+            return
+        if not probe.available or probe.candidate_count <= 0:
+            self._show_feedback("That app is open, but no safe background typing control is available.")
+            return
         if self._state != "bar" and not self._sending:
             self._show_bar()
 
@@ -144,11 +153,18 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             if scope.hwnd != self._work_hwnd or scope.pid != conversation.pid:
                 raise RuntimeError("conversation selected a different window or process")
             self._update_status()
+            try:
+                probe = self._background_typer.probe()
+            except Exception as exc:
+                trace.trace(f"conversation target readiness probe failed safely: {exc}")
+                raise RuntimeError("selected conversation has no safe background typing control")
+            if not probe.available or probe.candidate_count <= 0:
+                raise RuntimeError("selected conversation has no safe background typing control")
             if self._state != "bar":
                 self._show_bar()
         except Exception as exc:
             trace.trace(f"conversation target bind failed safely: {exc}")
-            self._show_feedback("The selected conversation could not be guarded safely.")
+            self._show_feedback("The selected conversation has no safe background typing control yet.")
 
     def _select_telegram_chat(self, chat: TelegramChatItem) -> None:
         """Select a Telegram chat in the background, then rebuild its context guard."""
