@@ -27,6 +27,7 @@ class TargetProbe:
     focused_hwnd: int
     candidate_hwnds: tuple[int, ...]
     pinned_hwnd: int = 0
+    reason: str = "ready"
 
     @property
     def candidate_count(self) -> int:
@@ -123,7 +124,7 @@ class BackgroundTypingTarget:
         scope = self.scope()
         available = self.available()
         if not available:
-            return TargetProbe(scope, False, 0, (), self._pinned_hwnd)
+            return TargetProbe(scope, False, 0, (), self._pinned_hwnd, "unavailable")
 
         try:
             focused = winapi.get_focused_hwnd(scope.hwnd)
@@ -135,12 +136,14 @@ class BackgroundTypingTarget:
         except Exception:
             candidates = ()
 
+        reason = "ready" if candidates else "no-input"
         return TargetProbe(
             scope=scope,
             available=True,
             focused_hwnd=focused if focused else 0,
             candidate_hwnds=tuple(candidate.hwnd for candidate in candidates),
             pinned_hwnd=self._pinned_hwnd,
+            reason=reason,
         )
 
     def _focused_target(self) -> int:
