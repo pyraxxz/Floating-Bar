@@ -18,7 +18,7 @@ class AppAdapterRegistryTests(unittest.TestCase):
         self.assertEqual(telegram.chat_picker, "telegram")
         self.assertEqual(telegram.target_mode, "telegram-compose")
         self.assertEqual(telegram.submit_mode, "telegram-send")
-        self.assertEqual(telegram.verification_mode, "typed")
+        self.assertEqual(telegram.verification_mode, "compose-clear")
 
         self.assertEqual(terminal.action, "Type")
         self.assertIsNone(terminal.chat_picker)
@@ -32,6 +32,7 @@ class AppAdapterRegistryTests(unittest.TestCase):
             self.assertIsNotNone(spec)
             self.assertEqual(spec.action, "Chats")
             self.assertEqual(spec.chat_picker, "conversations")
+            self.assertEqual(spec.verification_mode, "unverified")
             self.assertTrue(spec.supports_background_type)
 
     def test_unknown_and_non_adapter_processes_fail_closed(self):
