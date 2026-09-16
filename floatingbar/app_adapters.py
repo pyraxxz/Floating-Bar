@@ -78,7 +78,12 @@ _ADAPTERS = (
     AppAdapterSpec(
         key="terminal",
         label="Terminal",
-        processes=("windowsterminal.exe", "wt.exe"),
+        processes=(
+            "windowsterminal.exe",
+            "windowsterminalpreview.exe",
+            "wt.exe",
+            "conhost.exe",
+        ),
         action="Type",
         target_mode="terminal-structured-focus",
         submit_mode="enter",
@@ -98,7 +103,7 @@ _ADAPTERS = (
     AppAdapterSpec(
         key="powershell",
         label="PowerShell",
-        processes=("powershell.exe",),
+        processes=("powershell.exe", "pwsh.exe"),
         action="Type",
         target_mode="terminal-structured-focus",
         submit_mode="enter",
