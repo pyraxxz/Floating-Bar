@@ -1,10 +1,12 @@
-"""Production entry point with background application and Telegram chat pickers."""
+"""Production entry point with background application and chat pickers."""
 
 from .context_overlay import OrbRelayWindow as _ContextOrbRelayWindow
 from .app_adapters import adapter_for_process
 from .app_targets import target_for_adapter
 from .background_picker import BackgroundAppPicker, PickerItem
 from .background_windows import enumerate_background_windows
+from .conversation_picker import ConversationPicker
+from .conversation_rows import ConversationItem, enumerate_conversations, select_conversation
 from .telegram_chats import enumerate_telegram_chats, select_telegram_chat, TelegramChatItem
 from .telegram_chat_picker import TelegramChatPicker
 from .context import capture
@@ -14,7 +16,7 @@ from .overlay import OrbRelayWindow as _BaseOverlay
 
 
 class OrbRelayWindow(_ContextOrbRelayWindow):
-    """Production overlay with title-free app discovery and Telegram chat selection."""
+    """Production overlay with background app and conversation selection."""
 
     def __init__(self):
         super().__init__()
@@ -31,6 +33,11 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             refresh=lambda: enumerate_telegram_chats(self._work_hwnd),
             on_select=self._select_telegram_chat,
         )
+        self._conversation_picker = ConversationPicker(
+            self,
+            refresh=lambda: enumerate_conversations(self._work_hwnd),
+            on_select=self._select_conversation,
+        )
         self._background_typer = target_for_adapter(None)
         self._generic_attempt_id = 0
         self._background_process_name = ""
@@ -39,6 +46,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self._generic_retry_process_name = ""
         self._generic_retry_adapter_key = ""
         self._pending_chat = None
+        self._pending_conversation = None
 
     def _select_background_window(self, item: PickerItem) -> None:
         """Bind an actionable process/window without foregrounding it."""
@@ -60,10 +68,47 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             self._pending_chat = None
             self._telegram_chat_picker.show()
             return
-        self._background_typer.bind(item.hwnd, item.pid)
+        if spec.chat_picker == "conversations":
+            self._pending_conversation = None
+            self._conversation_picker.show()
+            return
+        self._bind_generic_target(item.hwnd, item.pid)
+
+    def _bind_generic_target(self, hwnd: int, pid: int) -> None:
+        self._background_typer.bind(hwnd, pid)
         self._update_status()
         if self._state != "bar" and not self._sending:
             self._show_bar()
+
+    def _select_conversation(self, conversation: ConversationItem) -> None:
+        """Select a generic chat row in the background, then bind its composer target."""
+        if self._sending:
+            return
+        self._pending_conversation = conversation
+        try:
+            select_conversation(conversation)
+        except Exception as exc:
+            self._pending_conversation = None
+            trace.trace(f"background conversation selection failed safely: {exc}")
+            self._show_feedback("The selected conversation could not be opened safely.")
+            return
+        self.after(160, self._finish_conversation_selection)
+
+    def _finish_conversation_selection(self) -> None:
+        conversation = self._pending_conversation
+        self._pending_conversation = None
+        if conversation is None or self._sending:
+            return
+        try:
+            scope = self._background_typer.bind(conversation.hwnd, conversation.pid)
+            if scope.hwnd != self._work_hwnd:
+                raise RuntimeError("conversation selected a different window")
+            self._update_status()
+            if self._state != "bar":
+                self._show_bar()
+        except Exception as exc:
+            trace.trace(f"conversation target bind failed safely: {exc}")
+            self._show_feedback("The selected conversation could not be guarded safely.")
 
     def _select_telegram_chat(self, chat: TelegramChatItem) -> None:
         """Select a Telegram chat in the background, then rebuild its context guard."""
@@ -76,9 +121,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         except Exception as exc:
             self._pending_chat = None
             trace.trace(f"telegram chat selection failed safely: {exc}")
-            self._show_feedback(
-                "The selected Telegram chat could not be opened safely.",
-            )
+            self._show_feedback("The selected Telegram chat could not be opened safely.")
             return
         self.after(160, self._finish_telegram_chat_selection)
 
@@ -100,9 +143,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
                 self._show_bar()
         except Exception as exc:
             trace.trace(f"telegram chat context recapture failed safely: {exc}")
-            self._show_feedback(
-                "Telegram changed before the selected chat could be guarded.",
-            )
+            self._show_feedback("Telegram changed before the selected chat could be guarded.")
 
     def _send_worker_request(self, request):
         """Route non-Telegram picker selections through their app-specific target."""
@@ -117,10 +158,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self._generic_attempt_id = request.attempt_id
         try:
             scope = self._background_typer.scope()
-            if not self._background_typer.scope_matches(
-                scope.hwnd,
-                scope.pid,
-            ) or scope.hwnd != request.restore_hwnd:
+            if not self._background_typer.scope_matches(scope.hwnd, scope.pid) or scope.hwnd != request.restore_hwnd:
                 raise RuntimeError("selected background target changed before send")
             self._background_typer.pin_best_input()
             strategy = self._background_typer.send(request.text)
