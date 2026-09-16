@@ -34,6 +34,8 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Release workflow separated from ordinary development pushes
 - [x] Background picker can include minimized application windows
 - [x] Minimized targets are allowed into structural probing; input discovery remains the safety gate
+- [x] Content-free readiness reasons distinguish unavailable, no-input, and inspection-error states
+- [x] User-facing background-target feedback maps readiness failures without exposing UI content
 
 ### Completed grouped milestone — Adapter Architecture
 
@@ -41,6 +43,7 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Picker derives labels, capabilities, and actions from the registry
 - [x] Production routing derives adapter identity from the registry
 - [x] Adapter metadata defines target mode, submit mode, and verification mode
+- [x] Adapter metadata explicitly declares conversation-attention capability
 - [x] Tests cover aliases, capabilities, and adapter metadata
 - [x] Adapter target factory separates per-app implementations from UI routing
 - [x] Dedicated Terminal target rejects focused controls that are not structurally discovered as editable
@@ -140,12 +143,13 @@ The key transition is from “whatever control currently has focus” to “the 
 ## Phase 5 — Conversation intelligence
 
 - [ ] Identify useful/reply-needed chats without scraping message content
-- [ ] Prioritize unread/relevant conversations where application APIs/UI expose safe structural signals
+- [ ] Implement app-specific unread/reply-needed structural signals where an application exposes them safely
 - [x] Keep chat selection content-free where possible
 - [x] Refresh/revalidate rows immediately before background selection
 - [x] Prefer UI Automation runtime identity when available; use structural control identity as a guarded fallback
 - [x] Keep the currently selected conversation visible in the short picker window
 - [x] Avoid treating visual ordering as conversation identity
+- [x] Explicitly report unsupported attention detection rather than implying unread state
 
 ## Phase 6 — Verification and reliability
 
