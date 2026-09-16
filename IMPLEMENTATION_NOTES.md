@@ -22,9 +22,11 @@ Supported chat adapters expose a short structural conversation picker. Conversat
 
 Hover navigation deliberately has a transition grace period between the orb, application list, and second-level action popup. The selected background application is also identified in the active bar by adapter label only; window titles and chat content are not surfaced there.
 
-## Chat composer targeting
+## Chat composer targeting and verification
 
 Chat applications may expose several editable controls, including search/navigation fields. `ChatComposerTarget` therefore prefers structurally composer-shaped `Edit`/`Document` controls when multiple candidates exist. A focused small field does not automatically win over a larger composer-shaped control. The target is still bound to the exact top-level `(HWND, PID)` and the selected input control is pinned and revalidated for each send.
+
+The same target now provides a conservative content-free `compose-clear` verification contract for WhatsApp, Discord, Slack, and Microsoft Teams. Immediately before injection it records only the compose value length. It then requires evidence that the length increased before submission and waits for the same pinned control to return to zero length after submission. Any unavailable/read-error path degrades to `verification-unavailable`; it never upgrades an unknown result to verified. This shared contract is deliberately not claimed as app-specific semantic verification: Slack settings or application-specific editor behavior can leave the composer populated after Enter, in which case the result remains unverified.
 
 ## Terminal targeting
 
@@ -134,7 +136,7 @@ The transaction layer also carries typed immutable `SendCompletion` objects for 
 
 `tools/diagnose.py --send` now follows the production transaction boundary: it runs read-only preflight, binds the exact resulting target through `BoundTelegramTarget`, adopts the preflight context snapshot, sends through `ContextGuardedRecoveryInjector`, and always releases the temporary target lease.
 
-The regression suite covers nested compose geometry, pre-filled search fields, voice-button rejection, explicit Send selection, ambiguous-button fallback, focused-child routing, delayed compose clearing, clipboard-write failure, stale runtime-ID invalidation, immutable target leases, preflight context replacement, preflight context drift, Send-button row filtering, disabled controls, DPI-awareness bootstrap, stale-target scope aborts, multi-window target preference, failed-draft behavior, typed send-state classification, typed Send candidates, repeated sends, Unicode surrogate-pair handling, opt-in recovery scope aborts, explicit retry-menu behavior, production lease lifecycle, structural context anchors, machine-readable diagnostic payloads, safe-preflight readiness states, and authoritative transaction/evidence lifecycle mapping.
+The regression suite covers nested compose geometry, pre-filled search fields, voice-button rejection, explicit Send selection, ambiguous-button fallback, focused-child routing, delayed compose clearing, clipboard-write failure, stale runtime-ID invalidation, immutable target leases, preflight context replacement, preflight context drift, Send-button row filtering, disabled controls, DPI-awareness bootstrap, stale-target scope aborts, multi-window target preference, failed-draft behavior, typed send-state classification, typed Send candidates, repeated sends, Unicode surrogate-pair handling, opt-in recovery scope aborts, explicit retry-menu behavior, production lease lifecycle, structural context anchors, machine-readable diagnostic payloads, safe-preflight readiness states, authoritative transaction/evidence lifecycle mapping, and the shared compose-clear contract across WhatsApp, Discord, Slack, and Teams.
 
 ## Release/deployment
 
@@ -171,4 +173,5 @@ Patch-level fixes, refactors, tests, diagnostics, and small reliability improvem
 1. Improve chat-switch detection without reading or logging Telegram message content.
 2. Build a practical Windows/Telegram desktop smoke-test checklist covering DPI, multiple monitors, multiple Telegram windows, restart, minimized state, and repeated sends.
 3. Use real-world traces from multiple Telegram builds to tune focused-child and Send-button evidence rather than guessing from one UIA tree.
-4. Generalize the target abstraction to other Windows background apps only after Telegram behavior is stable and well-tested.
+4. Add conservative terminal verification/retry semantics only when a non-content terminal signal can distinguish accepted input from mere key delivery.
+5. Generalize the target abstraction to other Windows background apps only after Telegram behavior is stable and well-tested.
