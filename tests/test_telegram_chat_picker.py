@@ -30,7 +30,7 @@ class TelegramChatPickerTests(unittest.TestCase):
         window.descendants.return_value = [item_a, item_b]
         with patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
              patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True), \
-             patch("pywinauto.Application") as app_cls:
+             patch("floatingbar.telegram_chats.Application") as app_cls:
             app_cls.return_value.window.return_value.wrapper_object.return_value = window
             result = enumerate_telegram_chats(100, limit=1)
         self.assertEqual(len(result), 1)
