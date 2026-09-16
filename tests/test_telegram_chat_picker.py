@@ -2,6 +2,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+from floatingbar.conversation_attention import AttentionState, ConversationAttention
 from floatingbar.telegram_chat_picker import ChatPickerRow, TelegramChatPicker, to_chat_picker_rows
 from floatingbar.telegram_chats import TelegramChatItem, chat_identity_matches, enumerate_telegram_chats, select_telegram_chat
 
@@ -14,15 +15,53 @@ class TelegramChatPickerTests(unittest.TestCase):
             (ChatPickerRow("Alice", True, chat),),
         )
 
-    def test_chat_catalog_keeps_selected_chat_ahead_of_visual_order(self):
-        lower = SimpleNamespace(
-            rectangle=lambda: SimpleNamespace(left=10, top=40, right=320, bottom=80, width=lambda: 310, height=lambda: 40),
-            element_info=SimpleNamespace(name="Second", runtime_id=(1, 2), control_type="ListItem", automation_id="second", class_name="row", framework_id="uia"),
+    def test_unread_row_exposes_attention_without_message_content(self):
+        chat = TelegramChatItem(
+            100, 200, "Alice", 0, 10, 300, 60,
+            False, None, None,
+            ConversationAttention(AttentionState.UNREAD, "telegram-uia-badge"),
+        )
+        row = to_chat_picker_rows([chat])[0]
+        self.assertTrue(row.needs_attention)
+        self.assertEqual(row.name, "Alice")
+
+    def test_chat_catalog_prioritizes_explicit_unread_before_current_and_visual_order(self):
+        unread = SimpleNamespace(
+            rectangle=lambda: SimpleNamespace(left=10, top=80, right=320, bottom=120, width=lambda: 310, height=lambda: 40),
+            element_info=SimpleNamespace(name="Unread", item_status="2", runtime_id=(1, 2), control_type="ListItem"),
             is_selected=lambda: False,
         )
         selected = SimpleNamespace(
             rectangle=lambda: SimpleNamespace(left=10, top=10, right=320, bottom=50, width=lambda: 310, height=lambda: 40),
-            element_info=SimpleNamespace(name="First", runtime_id=(1, 1), control_type="ListItem", automation_id="first", class_name="row", framework_id="uia"),
+            element_info=SimpleNamespace(name="Current", item_status="0", runtime_id=(1, 1), control_type="ListItem"),
+            is_selected=lambda: True,
+        )
+        normal = SimpleNamespace(
+            rectangle=lambda: SimpleNamespace(left=10, top=40, right=320, bottom=80, width=lambda: 310, height=lambda: 40),
+            element_info=SimpleNamespace(name="Normal", item_status="0", runtime_id=(1, 3), control_type="ListItem"),
+            is_selected=lambda: False,
+        )
+        window = Mock()
+        window.rectangle.return_value = SimpleNamespace(left=0, top=0, width=lambda: 500, bottom=500)
+        window.descendants.return_value = [normal, selected, unread]
+        with patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.telegram_chats.Application") as app_cls:
+            connected = app_cls.return_value.connect.return_value
+            connected.window.return_value.wrapper_object.return_value = window
+            result = enumerate_telegram_chats(100, limit=3)
+        self.assertEqual([item.name for item in result], ["Unread", "Current", "Normal"])
+        self.assertEqual(result[0].attention.state, AttentionState.UNREAD)
+
+    def test_chat_catalog_keeps_selected_chat_ahead_of_visual_order_without_attention(self):
+        lower = SimpleNamespace(
+            rectangle=lambda: SimpleNamespace(left=10, top=40, right=320, bottom=80, width=lambda: 310, height=lambda: 40),
+            element_info=SimpleNamespace(name="Second", runtime_id=(1, 2), control_type="ListItem", automation_id="second", class_name="row", framework_id="uia", item_status="0"),
+            is_selected=lambda: False,
+        )
+        selected = SimpleNamespace(
+            rectangle=lambda: SimpleNamespace(left=10, top=10, right=320, bottom=50, width=lambda: 310, height=lambda: 40),
+            element_info=SimpleNamespace(name="First", runtime_id=(1, 1), control_type="ListItem", automation_id="first", class_name="row", framework_id="uia", item_status="0"),
             is_selected=lambda: True,
         )
         window = Mock()
@@ -43,12 +82,12 @@ class TelegramChatPickerTests(unittest.TestCase):
     def test_chat_catalog_preserves_visual_order_for_unselected_rows(self):
         item_a = SimpleNamespace(
             rectangle=lambda: SimpleNamespace(left=10, top=40, right=320, bottom=80, width=lambda: 310, height=lambda: 40),
-            element_info=SimpleNamespace(name="Second"),
+            element_info=SimpleNamespace(name="Second", item_status="0"),
             is_selected=lambda: False,
         )
         item_b = SimpleNamespace(
             rectangle=lambda: SimpleNamespace(left=10, top=10, right=320, bottom=50, width=lambda: 310, height=lambda: 40),
-            element_info=SimpleNamespace(name="First"),
+            element_info=SimpleNamespace(name="First", item_status="0"),
             is_selected=lambda: False,
         )
         window = Mock()
