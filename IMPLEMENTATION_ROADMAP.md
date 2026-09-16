@@ -42,6 +42,7 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Telegram chat selection is protected by runtime/structural row identity, not only geometry/name
 - [x] Telegram sends revalidate the selected chat before preflight when the user stays in the same window
 - [x] Unknown background executables can enter the same generic Type pipeline; structural input discovery remains the final readiness gate
+- [x] Global Ctrl+Alt+Space summon hotkey with silent conflict fallback and clean shutdown
 
 ### Completed grouped milestone — Adapter Architecture
 
@@ -59,7 +60,9 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Adapter-bound submission policy separates typing from submission semantics
 - [x] Production generic targets bind the explicit adapter policy before sending
 - [x] Generic adapter factory provides safe fallback Type capabilities for unknown executable names
-- [ ] Add app-specific verification implementations for WhatsApp/Discord/Slack/Teams/terminal
+- [x] Generic adapter verification hooks preserve the fail-closed evidence contract
+- [x] WhatsApp `compose-clear` verification with content-free baseline/clear checks
+- [ ] Add app-specific verification implementations for Discord/Slack/Teams/terminal
 
 ## Phase 2 — Finish the current UX and reliability layer
 
@@ -71,6 +74,7 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Guard delayed picker callbacks against stale app/chat selections
 - [x] Keep minimized background applications eligible for selection while retaining structural target safety checks
 - [x] Allow unknown background apps to expose a generic Type action before structural target probing
+- [x] Add global keyboard summon without changing foreground-target safety
 
 ## Phase 3 — Real application adapters
 
@@ -105,7 +109,8 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Dedicated structural composer target
 - [x] Generic conversation picker and background row selection
 - [x] Explicit Enter submission contract
-- [ ] Background verification
+- [x] Content-free `compose-clear` verification hook with pre-injection baseline
+- [ ] Real Windows smoke validation across WhatsApp Desktop builds
 
 ### Discord
 
@@ -184,7 +189,9 @@ Every adapter should eventually produce one of:
 - [x] Adapter-specific verification contract in the registry
 - [x] Conservative evidence normalization that cannot upgrade unsupported adapters
 - [x] Explicit submission policy for generic adapters
-- [ ] App-specific verification hooks for generic chat and terminal adapters
+- [x] App-specific verification hook architecture for chat targets
+- [x] WhatsApp content-free `compose-clear` verification with pre-injection baseline
+- [ ] App-specific verification hooks for Discord/Slack/Teams/terminal adapters
 - [x] Bounded post-send checks
 - [x] Generic post-send target loss cannot become an automatic retry
 - [x] Generic submit exceptions after text injection cannot become an automatic retry
@@ -210,6 +217,19 @@ Every adapter should eventually produce one of:
 - [ ] User documentation
 - [ ] Troubleshooting guide
 - [ ] Meaningful milestone release after real desktop validation
+
+## Adoption/product track
+
+These are productization items that should proceed alongside the reliability work rather than replacing it:
+
+- [x] Global keyboard summon (`Ctrl+Alt+Space`) implemented
+- [ ] First-run mini-tutorial and clearer “no target” feedback
+- [ ] Signed executable and installer packaging
+- [ ] Startup option and clean uninstall path
+- [ ] Release update notification
+- [ ] Lightweight settings UI
+- [ ] Saved snippets / quick replies
+- [ ] Multiple pinned conversation/application targets
 
 ## Working rule
 
