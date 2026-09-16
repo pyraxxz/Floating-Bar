@@ -91,9 +91,15 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             binder(spec)
 
     @staticmethod
-    def _probe_feedback(probe) -> str:
+    def _probe_reason(probe) -> str:
+        """Return a known readiness reason while tolerating legacy probe mocks."""
+        reason = getattr(probe, "reason", "ready")
+        return reason if reason in {"ready", "unavailable", "no-input", "inspection-error"} else "ready"
+
+    @classmethod
+    def _probe_feedback(cls, probe) -> str:
         """Map content-free readiness codes to user-facing guidance."""
-        reason = getattr(probe, "reason", "")
+        reason = cls._probe_reason(probe)
         if reason == "unavailable":
             return "That background app closed or changed before it could be used."
         if reason == "no-input":
@@ -143,7 +149,8 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             trace.trace(f"background target readiness probe failed safely: {exc}")
             self._show_feedback("That app could not expose a safe background typing control.")
             return
-        if not probe.available or probe.candidate_count <= 0 or getattr(probe, "reason", "ready") != "ready":
+        reason = self._probe_reason(probe)
+        if not probe.available or probe.candidate_count <= 0 or reason != "ready":
             self._show_feedback(self._probe_feedback(probe))
             return
         if self._state != "bar" and not self._sending:
@@ -182,7 +189,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             except Exception as exc:
                 trace.trace(f"conversation target readiness probe failed safely: {exc}")
                 raise RuntimeError("selected conversation has no safe background typing control")
-            if not probe.available or probe.candidate_count <= 0 or getattr(probe, "reason", "ready") != "ready":
+            if not probe.available or probe.candidate_count <= 0 or self._probe_reason(probe) != "ready":
                 raise RuntimeError(self._probe_feedback(probe))
             if self._state != "bar":
                 self._show_bar()
