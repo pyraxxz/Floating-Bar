@@ -34,6 +34,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self._generic_attempt_id = 0
         self._background_process_name = ""
         self._generic_retry_scope = None
+        self._generic_retry_process_name = ""
         self._pending_chat = None
 
     def _select_background_window(self, item: PickerItem) -> None:
@@ -42,6 +43,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             return
         self._background_typer.release()
         self._generic_retry_scope = None
+        self._generic_retry_process_name = ""
         self._background_process_name = item.process_name
         self._work_hwnd = item.hwnd
         self._generic_attempt_id = 0
@@ -133,11 +135,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         if scope is None:
             return super()._retry_failed_draft()
         self._background_typer.bind(scope.hwnd, scope.pid)
-        self._background_process_name = getattr(
-            self,
-            "_background_process_name",
-            "",
-        )
+        self._background_process_name = self._generic_retry_process_name
         self._work_hwnd = scope.hwnd
         self._hide_feedback()
         self._show_bar()
@@ -148,13 +146,16 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         if completion.attempt_id != getattr(self, "_generic_attempt_id", 0):
             return super()._send_finished(completion)
         retry_scope = None
+        retry_process_name = self._background_process_name
         try:
             retry_scope = self._background_typer.scope()
             _BaseOverlay._send_finished(self, completion)
             if getattr(self, "_retry_draft", None):
                 self._generic_retry_scope = retry_scope
+                self._generic_retry_process_name = retry_process_name
             else:
                 self._generic_retry_scope = None
+                self._generic_retry_process_name = ""
         finally:
             self._generic_attempt_id = 0
             self._background_typer.release()
