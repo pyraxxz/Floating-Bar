@@ -15,6 +15,7 @@ class ChatVerificationTests(unittest.TestCase):
             hwnd=301,
             pid=200,
             control_type="Edit",
+            class_name="Edit",
             is_likely_composer_shape=True,
         )
         target._verification_candidate = candidate
@@ -27,9 +28,12 @@ class ChatVerificationTests(unittest.TestCase):
             return_value=(target._verification_candidate,),
         )
 
+    def _live_target_patch(self, target):
+        return patch.object(target, "available", return_value=True)
+
     def test_whatsapp_contract_verifies_after_baseline_growth_and_clear(self):
         target = self._target()
-        with self._candidate_patch(target), patch.object(
+        with self._candidate_patch(target), self._live_target_patch(target), patch.object(
             target,
             "_composer_value_length",
             side_effect=[5, 8, 0],
@@ -44,7 +48,7 @@ class ChatVerificationTests(unittest.TestCase):
 
     def test_existing_draft_without_growth_never_becomes_verified(self):
         target = self._target()
-        with self._candidate_patch(target), patch.object(
+        with self._candidate_patch(target), self._live_target_patch(target), patch.object(
             target,
             "_composer_value_length",
             side_effect=[5, 5],
@@ -61,7 +65,7 @@ class ChatVerificationTests(unittest.TestCase):
 
     def test_unreadable_baseline_fails_closed(self):
         target = self._target()
-        with self._candidate_patch(target), patch.object(target, "_composer_value_length", return_value=-1):
+        with self._candidate_patch(target), self._live_target_patch(target), patch.object(target, "_composer_value_length", return_value=-1):
             target._pin_candidate(target._verification_candidate)
             self.assertIsNone(target.prepare_submission_verification())
             self.assertIsNone(target.begin_submission_verification(301, None))
