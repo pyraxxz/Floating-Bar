@@ -32,6 +32,7 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Exact input-control pinning and revalidation for generic background sends
 - [x] Bounded post-send scope/control liveness checks without message-content reads
 - [x] Generic post-send target loss is surfaced as `verification-unavailable`, never as a retryable failure
+- [x] Generic submit exceptions after text injection are also surfaced as `verification-unavailable`, never as automatic retries
 - [x] Windows CI compile + regression suite + PyInstaller build
 - [x] Release workflow separated from ordinary development pushes
 - [x] Background picker can include minimized application windows
@@ -173,6 +174,7 @@ Every adapter should eventually produce one of:
 - [ ] App-specific verification hooks for generic chat and terminal adapters
 - [x] Bounded post-send checks
 - [x] Generic post-send target loss cannot become an automatic retry
+- [x] Generic submit exceptions after text injection cannot become an automatic retry
 - [x] Clear user feedback for blocked targets
 - [x] Trace adapter, target, and verification stages without message content
 
