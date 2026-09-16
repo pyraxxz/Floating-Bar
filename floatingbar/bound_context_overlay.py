@@ -1,6 +1,7 @@
 """Production entry point with background application and Telegram chat pickers."""
 
 from .context_overlay import OrbRelayWindow as _ContextOrbRelayWindow
+from .app_adapters import adapter_for_process
 from .background_picker import BackgroundAppPicker, PickerItem
 from .background_windows import enumerate_background_windows
 from .generic_target import BackgroundTypingTarget
@@ -33,21 +34,28 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self._background_typer = BackgroundTypingTarget()
         self._generic_attempt_id = 0
         self._background_process_name = ""
+        self._background_adapter_key = ""
         self._generic_retry_scope = None
         self._generic_retry_process_name = ""
+        self._generic_retry_adapter_key = ""
         self._pending_chat = None
 
     def _select_background_window(self, item: PickerItem) -> None:
         """Bind an actionable process/window without foregrounding it."""
         if not item.actionable or not item.hwnd or not item.pid:
             return
+        spec = adapter_for_process(item.process_name)
+        if spec is None or not spec.implemented:
+            return
         self._background_typer.release()
         self._generic_retry_scope = None
         self._generic_retry_process_name = ""
+        self._generic_retry_adapter_key = ""
         self._background_process_name = item.process_name
+        self._background_adapter_key = spec.key
         self._work_hwnd = item.hwnd
         self._generic_attempt_id = 0
-        if item.process_name == "telegram.exe":
+        if spec.chat_picker == "telegram":
             self._pending_chat = None
             self._telegram_chat_picker.show()
             return
@@ -98,7 +106,9 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
     def _send_worker_request(self, request):
         """Route non-Telegram picker selections through exact-scope typing."""
         process_name = getattr(self, "_background_process_name", "")
-        if process_name == "telegram.exe" or not process_name:
+        adapter_key = getattr(self, "_background_adapter_key", "")
+        spec = adapter_for_process(process_name)
+        if not process_name or spec is None or adapter_key == "telegram":
             return super()._send_worker_request(request)
         if not getattr(request, "valid", False):
             return super()._send_worker_request(request)
@@ -136,6 +146,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             return super()._retry_failed_draft()
         self._background_typer.bind(scope.hwnd, scope.pid)
         self._background_process_name = self._generic_retry_process_name
+        self._background_adapter_key = self._generic_retry_adapter_key
         self._work_hwnd = scope.hwnd
         self._hide_feedback()
         self._show_bar()
@@ -147,19 +158,23 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             return super()._send_finished(completion)
         retry_scope = None
         retry_process_name = self._background_process_name
+        retry_adapter_key = self._background_adapter_key
         try:
             retry_scope = self._background_typer.scope()
             _BaseOverlay._send_finished(self, completion)
             if getattr(self, "_retry_draft", None):
                 self._generic_retry_scope = retry_scope
                 self._generic_retry_process_name = retry_process_name
+                self._generic_retry_adapter_key = retry_adapter_key
             else:
                 self._generic_retry_scope = None
                 self._generic_retry_process_name = ""
+                self._generic_retry_adapter_key = ""
         finally:
             self._generic_attempt_id = 0
             self._background_typer.release()
             self._background_process_name = ""
+            self._background_adapter_key = ""
 
 
 __all__ = ["OrbRelayWindow"]
