@@ -45,8 +45,11 @@ class ContextOverlayTests(unittest.TestCase):
 
     def test_bound_context_overlay_adds_picker_without_replacing_parent_completion(self):
         self.assertIsNot(BoundContextOverlay.__init__, OrbRelayWindow.__init__)
-        self.assertIs(BoundContextOverlay._send_finished, OrbRelayWindow._send_finished)
+        # Generic background targets need their own completion path so the
+        # Telegram coordinator's lease is never released for a non-Telegram attempt.
+        self.assertIsNot(BoundContextOverlay._send_finished, OrbRelayWindow._send_finished)
         self.assertIn("_background_picker", BoundContextOverlay.__init__.__code__.co_names)
+        self.assertIn("_generic_attempt_id", BoundContextOverlay._send_finished.__code__.co_names)
 
     def test_expand_preserves_failed_draft_target_context(self):
         window = self._window()
