@@ -9,6 +9,8 @@ import ctypes
 import ctypes.wintypes as wintypes
 from typing import Sequence
 
+from pywinauto import Application
+
 from . import winapi
 
 
@@ -50,8 +52,6 @@ def enumerate_telegram_chats(hwnd: int, limit: int = 6) -> tuple[TelegramChatIte
         pid = winapi.get_window_pid(hwnd)
         if not pid or not winapi.user32.IsWindow(hwnd):
             return ()
-        from pywinauto import Application
-
         app = Application(backend="uia").connect(handle=hwnd)
         window = app.window(handle=hwnd).wrapper_object()
         window_rect = window.rectangle()
