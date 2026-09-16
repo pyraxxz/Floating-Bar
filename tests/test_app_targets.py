@@ -8,17 +8,25 @@ from floatingbar.terminal_target import TerminalTypingTarget
 
 
 class _Candidate:
-    def __init__(self, hwnd, control_type="Edit", width=100, height=20, focused=False):
+    def __init__(self, hwnd, control_type="Edit", width=100, height=20, focused=False, left=20, top=100):
         self.hwnd = hwnd
         self.pid = 200
         self.control_type = control_type
         self.width = width
         self.height = height
         self.focused = focused
+        self.left = left
+        self.top = top
+        self.right = left + width
+        self.bottom = top + height
 
     @property
     def area(self):
         return self.width * self.height
+
+    @property
+    def center_y(self):
+        return self.top + self.height // 2
 
     @property
     def is_likely_composer_shape(self):
@@ -34,8 +42,7 @@ class AppTargetTests(unittest.TestCase):
 
     def test_terminal_prefers_discovered_candidate_when_focus_is_elsewhere(self):
         target = TerminalTypingTarget(100, 200)
-        focused_other = _Candidate(300, width=120, height=20, focused=True)
-        console = _Candidate(400, width=700, height=40, focused=False)
+        console = _Candidate(400, width=700, height=40, focused=False, left=10, top=700)
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
              patch("floatingbar.generic_target.winapi.is_minimized", return_value=False), \
@@ -64,8 +71,8 @@ class AppTargetTests(unittest.TestCase):
 
     def test_chat_send_prefers_composer_shape_over_focused_search_field(self):
         target = ChatComposerTarget(100, 200)
-        search = _Candidate(300, width=120, height=20, focused=True)
-        composer = _Candidate(400, width=500, height=42, focused=False)
+        search = _Candidate(300, width=120, height=20, focused=True, left=20, top=40)
+        composer = _Candidate(400, width=500, height=42, focused=False, left=20, top=700)
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
              patch("floatingbar.generic_target.winapi.is_minimized", return_value=False), \
@@ -94,7 +101,7 @@ class AppTargetTests(unittest.TestCase):
         post_text.assert_not_called()
 
     def test_chat_send_allows_discovered_edit_control(self):
-        candidate = _Candidate(300, width=500, height=42, focused=True)
+        candidate = _Candidate(300, width=500, height=42, focused=True, left=20, top=700)
         target = ChatComposerTarget(100, 200)
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \

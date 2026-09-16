@@ -50,7 +50,7 @@ The app should let the user work in the foreground while sending/replying throug
 
 - [x] Make hover movement between orb → app list → action menu more forgiving
 - [x] Show safe picker availability/action affordances instead of silent unsupported selection
-- [ ] Keep selected app identity visible in the active bar without exposing window titles
+- [x] Keep selected app identity visible in the active bar without exposing window titles
 - [ ] Add deterministic tests for picker hover state transitions where practical
 - [x] Complete generic-app retry/recovery coverage for structurally pinned input controls
 
@@ -73,6 +73,7 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Dedicated structural target adapter
 - [x] Exact-scope binding
 - [x] Exact-control revalidation for pinned sends
+- [x] Prefer a discovered console control when focus is elsewhere
 - [ ] Explicit console-control targeting across terminal variants
 - [ ] Submission semantics appropriate to terminal
 - [ ] Verification/retry behavior
@@ -122,7 +123,7 @@ The key transition is from “whatever control currently has focus” to “the 
 
 - [x] Inspect UI Automation structure without reading message content
 - [x] Identify editable controls by role/class/capability
-- [ ] Reject search/navigation fields when a composer is available
+- [x] Prefer composer-shaped controls over focused search/navigation controls where a composer is available
 - [x] Support multiple candidate controls with deterministic structural scoring
 - [x] Pin the selected control for the duration of a send
 - [x] Abort safely when the control or process changes
