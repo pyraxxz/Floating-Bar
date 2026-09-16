@@ -22,6 +22,19 @@ class EvidenceTests(unittest.TestCase):
         self.assertTrue(result.uncertain)
         self.assertFalse(result.confirmed)
 
+    def test_blocked_result_is_terminal_but_not_failed(self):
+        result = from_result("background-target (blocked)")
+        self.assertEqual(result.state, EvidenceState.BLOCKED)
+        self.assertTrue(result.blocked)
+        self.assertFalse(result.uncertain)
+        self.assertFalse(result.retryable)
+        self.assertFalse(result.confirmed)
+
+    def test_rejected_result_is_treated_as_blocked(self):
+        result = from_result("preflight (rejected)")
+        self.assertEqual(result.state, EvidenceState.BLOCKED)
+        self.assertTrue(result.blocked)
+
     def test_error_is_failed_and_retryable(self):
         result = from_result(None, "Telegram disappeared")
         self.assertEqual(result.state, EvidenceState.FAILED)

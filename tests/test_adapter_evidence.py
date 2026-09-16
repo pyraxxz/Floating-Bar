@@ -26,6 +26,13 @@ class AdapterEvidenceTests(unittest.TestCase):
         self.assertTrue(evidence.retryable)
         self.assertEqual(evidence.detail, "target disappeared")
 
+    def test_blocked_result_stays_blocked_under_adapter_policy(self):
+        spec = adapter_for_process("discord.exe")
+        evidence = evidence_for_adapter(spec, strategy="preflight (blocked)")
+        self.assertEqual(evidence.state, EvidenceState.BLOCKED)
+        self.assertTrue(evidence.blocked)
+        self.assertFalse(evidence.retryable)
+
     def test_unknown_adapter_contract_fails_closed(self):
         evidence = evidence_for_adapter(None, strategy="posted-enter (VERIFIED)")
         self.assertEqual(evidence.state, EvidenceState.SUBMITTED)

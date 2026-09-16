@@ -11,6 +11,7 @@ class EvidenceState(str, Enum):
     FAILED = "failed"
     SUBMITTED = "submitted"
     VERIFIED = "verified"
+    BLOCKED = "blocked"
     UNAVAILABLE = "verification-unavailable"
     UNKNOWN = "unknown"
 
@@ -69,6 +70,11 @@ class SubmissionEvidence:
             EvidenceState.UNKNOWN,
         )
 
+    @property
+    def blocked(self) -> bool:
+        """Whether the send was deliberately stopped before a successful claim."""
+        return self.state is EvidenceState.BLOCKED
+
 
 def from_result(strategy: Optional[str], error: Optional[str] = None) -> SubmissionEvidence:
     """Convert a legacy injector result into structured evidence."""
@@ -83,14 +89,21 @@ def from_result(strategy: Optional[str], error: Optional[str] = None) -> Submiss
         return SubmissionEvidence(EvidenceState.UNKNOWN, retryable=False)
 
     normalized = strategy.lower()
-    # Check the longer/negative forms first: "unverified" contains the
-    # substring "verified", so the broad positive check must come last.
+    # Check negative/terminal forms before broad success checks.
+    if "blocked" in normalized or "rejected" in normalized:
+        return SubmissionEvidence(
+            EvidenceState.BLOCKED,
+            strategy=strategy,
+            retryable=False,
+        )
     if "verification-unavailable" in normalized:
         return SubmissionEvidence(
             EvidenceState.UNAVAILABLE,
             strategy=strategy,
             retryable=False,
         )
+    # "unverified" contains the substring "verified", so it must be checked
+    # before the broad positive verification form.
     if "unverified" in normalized:
         return SubmissionEvidence(
             EvidenceState.SUBMITTED,

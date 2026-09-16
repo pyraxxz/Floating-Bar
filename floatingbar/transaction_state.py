@@ -22,6 +22,7 @@ class TransactionState(str, Enum):
     VERIFIED = "verified"
     UNCERTAIN = "uncertain"
     FAILED = "failed"
+    BLOCKED = "blocked"
     REJECTED = "rejected"
 
 
@@ -31,6 +32,7 @@ _ALLOWED: Mapping[TransactionState, FrozenSet[TransactionState]] = {
     TransactionState.IDLE: frozenset({TransactionState.PREPARING}),
     TransactionState.PREPARING: frozenset({
         TransactionState.READY,
+        TransactionState.BLOCKED,
         TransactionState.REJECTED,
     }),
     TransactionState.READY: frozenset({TransactionState.SENDING}),
@@ -42,6 +44,7 @@ _ALLOWED: Mapping[TransactionState, FrozenSet[TransactionState]] = {
     TransactionState.VERIFIED: frozenset(),
     TransactionState.UNCERTAIN: frozenset(),
     TransactionState.FAILED: frozenset(),
+    TransactionState.BLOCKED: frozenset(),
     TransactionState.REJECTED: frozenset(),
 }
 
@@ -80,6 +83,7 @@ class TransactionLifecycle:
             TransactionState.VERIFIED,
             TransactionState.UNCERTAIN,
             TransactionState.FAILED,
+            TransactionState.BLOCKED,
             TransactionState.REJECTED,
         }
 
@@ -111,7 +115,12 @@ class TransactionLifecycle:
     def complete_failed(self) -> TransactionState:
         return self.transition(TransactionState.FAILED)
 
+    def block(self) -> TransactionState:
+        """Stop a prepared attempt without claiming that a send occurred."""
+        return self.transition(TransactionState.BLOCKED)
+
     def reject(self) -> TransactionState:
+        """Legacy preflight rejection state retained for compatibility."""
         return self.transition(TransactionState.REJECTED)
 
     def complete_from_evidence(self, evidence_state: EvidenceState) -> TransactionState:
@@ -128,6 +137,11 @@ class TransactionLifecycle:
             return self.complete_uncertain()
         if evidence_state is EvidenceState.FAILED:
             return self.complete_failed()
+        if evidence_state is EvidenceState.BLOCKED:
+            # BLOCKED is intentionally a pre-send state. If an implementation
+            # reports it after SENDING, reject the impossible lifecycle claim
+            # rather than silently converting it to uncertain/failed.
+            return self.block()
         raise InvalidTransactionTransition(
             f"attempt {self._attempt_id}: unsupported evidence state "
             f"{evidence_state!r}"

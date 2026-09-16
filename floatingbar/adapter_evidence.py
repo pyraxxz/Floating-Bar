@@ -19,7 +19,7 @@ _VERIFICATION_ALLOWLIST = {
 def evidence_for_adapter(spec, strategy: str | None = None, error: str | None = None) -> SubmissionEvidence:
     """Return evidence bounded by the adapter's declared verification contract."""
     raw = from_result(strategy, error)
-    if error:
+    if error or raw.state is EvidenceState.BLOCKED:
         return raw
 
     mode = getattr(spec, "verification_mode", "unverified") if spec is not None else "unverified"

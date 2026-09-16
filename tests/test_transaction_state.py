@@ -40,6 +40,14 @@ class TransactionStateTests(unittest.TestCase):
         self.assertEqual(lifecycle.complete_uncertain(), TransactionState.UNCERTAIN)
         self.assertTrue(lifecycle.terminal)
 
+    def test_blocked_path_is_terminal_and_never_sendable(self):
+        lifecycle = TransactionLifecycle(13)
+        lifecycle.begin_prepare()
+        self.assertEqual(lifecycle.block(), TransactionState.BLOCKED)
+        self.assertTrue(lifecycle.terminal)
+        with self.assertRaises(InvalidTransactionTransition):
+            lifecycle.begin_send()
+
     def test_rejected_preflight_is_terminal(self):
         lifecycle = TransactionLifecycle(10)
         lifecycle.begin_prepare()
@@ -66,7 +74,11 @@ class TransactionStateTests(unittest.TestCase):
     def test_allowed_transitions_are_immutable(self):
         self.assertEqual(
             allowed_transitions(TransactionState.PREPARING),
-            frozenset({TransactionState.READY, TransactionState.REJECTED}),
+            frozenset({
+                TransactionState.READY,
+                TransactionState.BLOCKED,
+                TransactionState.REJECTED,
+            }),
         )
         with self.assertRaises(AttributeError):
             allowed_transitions(TransactionState.PREPARING).add(TransactionState.SENDING)
@@ -77,7 +89,7 @@ class TransactionStateTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     TransactionLifecycle(value)
 
-    def test_evidence_mapping_covers_verified_uncertain_and_failed(self):
+    def test_evidence_mapping_covers_verified_uncertain_failed_and_blocked(self):
         cases = (
             (EvidenceState.VERIFIED, TransactionState.VERIFIED),
             (EvidenceState.SUBMITTED, TransactionState.UNCERTAIN),
@@ -96,6 +108,21 @@ class TransactionStateTests(unittest.TestCase):
                     expected_state,
                 )
                 self.assertTrue(lifecycle.terminal)
+
+    def test_blocked_evidence_is_only_legal_during_preparation(self):
+        lifecycle = TransactionLifecycle(201)
+        lifecycle.begin_prepare()
+        self.assertEqual(
+            lifecycle.complete_from_evidence(EvidenceState.BLOCKED),
+            TransactionState.BLOCKED,
+        )
+
+        sending = TransactionLifecycle(202)
+        sending.begin_prepare()
+        sending.mark_ready()
+        sending.begin_send()
+        with self.assertRaises(InvalidTransactionTransition):
+            sending.complete_from_evidence(EvidenceState.BLOCKED)
 
     def test_evidence_mapping_rejects_wrong_type(self):
         lifecycle = TransactionLifecycle(20)
