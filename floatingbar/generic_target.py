@@ -236,9 +236,13 @@ class BackgroundTypingTarget:
         winapi.post_text(target, text)
         return target
 
-    def begin_submission_verification(self, target_hwnd: int):
-        """Optional adapter hook executed after text injection and before submit."""
+    def prepare_submission_verification(self):
+        """Optional adapter hook executed immediately before text injection."""
         return None
+
+    def begin_submission_verification(self, target_hwnd: int, state):
+        """Optional adapter hook executed after injection and before submit."""
+        return state
 
     def finish_submission_verification(self, target_hwnd: int, state, strategy: str) -> str:
         """Optional adapter hook executed after submit; defaults to raw strategy."""
@@ -263,15 +267,21 @@ class BackgroundTypingTarget:
         validate_submission_mode(self._adapter_spec)
         spec_key = getattr(self._adapter_spec, "key", "legacy")
         trace.trace(f"stage=adapter key={spec_key}")
-        target = self.type_text(text)
-        trace.trace(f"stage=target hwnd={target} scope={self.scope().hwnd}/{self.scope().pid}")
         verification_state = None
         try:
             try:
-                verification_state = self.begin_submission_verification(target)
+                verification_state = self.prepare_submission_verification()
             except Exception:
                 verification_state = None
-                trace.trace("stage=verification pre-submit unavailable")
+                trace.trace("stage=verification baseline unavailable")
+
+            target = self.type_text(text)
+            trace.trace(f"stage=target hwnd={target} scope={self.scope().hwnd}/{self.scope().pid}")
+            try:
+                verification_state = self.begin_submission_verification(target, verification_state)
+            except Exception:
+                verification_state = None
+                trace.trace("stage=verification post-injection unavailable")
 
             try:
                 strategy = submit_background_target(self._adapter_spec, target)
