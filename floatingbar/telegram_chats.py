@@ -1,7 +1,8 @@
 """Ephemeral, read-only Telegram chat-row catalog for the background picker.
 
-Only user-visible chat names and screen geometry needed for an explicit click
-are kept in memory. Nothing from this catalog is persisted or logged.
+Only user-visible chat names and screen geometry needed for an explicit click,
+plus content-free UI Automation identity, are kept in memory. Nothing from this
+catalog is persisted or logged.
 """
 
 from dataclasses import dataclass
@@ -24,6 +25,8 @@ class TelegramChatItem:
     right: int
     bottom: int
     selected: bool = False
+    runtime_id: tuple[int, ...] | None = None
+    control_identity: tuple[str, ...] | None = None
 
     @property
     def center(self) -> tuple[int, int]:
@@ -31,6 +34,37 @@ class TelegramChatItem:
             self.left + max(1, self.right - self.left) // 2,
             self.top + max(1, self.bottom - self.top) // 2,
         )
+
+
+def _runtime_id(item) -> tuple[int, ...] | None:
+    """Return UIA runtime identity without reading chat/message content."""
+    try:
+        value = getattr(item.element_info, "runtime_id", None)
+    except Exception:
+        return None
+    if value is None:
+        return None
+    try:
+        result = tuple(int(part) for part in value)
+    except (TypeError, ValueError):
+        return None
+    return result or None
+
+
+def _control_identity(item) -> tuple[str, ...] | None:
+    """Return stable structural metadata for runtimes without runtime IDs."""
+    try:
+        info = item.element_info
+        values = (
+            getattr(info, "control_type", None),
+            getattr(info, "automation_id", None),
+            getattr(info, "class_name", None),
+            getattr(info, "framework_id", None),
+        )
+    except Exception:
+        return None
+    normalized = tuple(str(value).strip() for value in values if value not in (None, ""))
+    return normalized or None
 
 
 def _selected(item) -> bool:
@@ -73,7 +107,16 @@ def enumerate_telegram_chats(hwnd: int, limit: int = 6) -> tuple[TelegramChatIte
                 continue
             if rect.left >= cutoff or rect.top < window_rect.top or rect.bottom > window_rect.bottom:
                 continue
-            key = (name, rect.left, rect.top, rect.right, rect.bottom)
+            runtime_id = _runtime_id(item)
+            control_identity = _control_identity(item)
+            key = runtime_id or (
+                control_identity,
+                name.casefold(),
+                rect.left,
+                rect.top,
+                rect.right,
+                rect.bottom,
+            )
             if key in seen:
                 continue
             seen.add(key)
@@ -87,6 +130,8 @@ def enumerate_telegram_chats(hwnd: int, limit: int = 6) -> tuple[TelegramChatIte
                     right=rect.right,
                     bottom=rect.bottom,
                     selected=_selected(item),
+                    runtime_id=runtime_id,
+                    control_identity=control_identity,
                 )
             )
         rows.sort(key=_row_sort_key)
@@ -110,6 +155,34 @@ def _refresh_selected_row(chat: TelegramChatItem) -> TelegramChatItem:
     if winapi.get_window_pid(chat.hwnd) != chat.pid:
         raise RuntimeError("Telegram chat window process changed")
     current_rows = enumerate_telegram_chats(chat.hwnd, limit=24)
+
+    if chat.runtime_id is not None:
+        identity_matches = [row for row in current_rows if row.runtime_id == chat.runtime_id]
+        if identity_matches:
+            current = min(
+                identity_matches,
+                key=lambda row: abs(row.left - chat.left) + abs(row.top - chat.top),
+            )
+            if current.name != chat.name:
+                raise RuntimeError("Telegram chat row identity changed")
+            if abs(current.left - chat.left) + abs(current.top - chat.top) > 24:
+                raise RuntimeError("Telegram chat row moved before selection")
+            return current
+
+    if chat.control_identity is not None:
+        structural_matches = [
+            row
+            for row in current_rows
+            if row.control_identity == chat.control_identity and row.name == chat.name
+        ]
+        if len(structural_matches) == 1:
+            current = structural_matches[0]
+            if abs(current.left - chat.left) + abs(current.top - chat.top) > 24:
+                raise RuntimeError("Telegram chat row moved before selection")
+            return current
+        if len(structural_matches) > 1:
+            raise RuntimeError("Telegram chat row structural identity is ambiguous")
+
     candidates = [row for row in current_rows if row.name == chat.name]
     if not candidates:
         raise RuntimeError("Telegram chat row is no longer available")
@@ -121,6 +194,29 @@ def _refresh_selected_row(chat: TelegramChatItem) -> TelegramChatItem:
     if distance(current) > 24:
         raise RuntimeError("Telegram chat row moved before selection")
     return current
+
+
+def chat_identity_matches(chat: TelegramChatItem) -> bool:
+    """Return whether the same content-free chat identity is still selected."""
+    if not chat.hwnd or not chat.pid:
+        return False
+    if winapi.get_window_pid(chat.hwnd) != chat.pid:
+        return False
+    current_rows = enumerate_telegram_chats(chat.hwnd, limit=32)
+    if chat.runtime_id is not None:
+        matches = [row for row in current_rows if row.runtime_id == chat.runtime_id]
+        if len(matches) == 1:
+            return bool(matches[0].selected and matches[0].name == chat.name)
+    if chat.control_identity is not None:
+        matches = [
+            row
+            for row in current_rows
+            if row.control_identity == chat.control_identity and row.name == chat.name
+        ]
+        if len(matches) == 1:
+            return bool(matches[0].selected)
+    candidates = [row for row in current_rows if row.name == chat.name and row.selected]
+    return len(candidates) == 1
 
 
 def select_telegram_chat(chat: TelegramChatItem) -> None:
@@ -138,4 +234,4 @@ def select_telegram_chat(chat: TelegramChatItem) -> None:
     winapi.post_click(chat.hwnd, client_x, client_y)
 
 
-__all__ = ["TelegramChatItem", "enumerate_telegram_chats", "select_telegram_chat"]
+__all__ = ["TelegramChatItem", "enumerate_telegram_chats", "chat_identity_matches", "select_telegram_chat"]
