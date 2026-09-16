@@ -17,6 +17,10 @@ class _Candidate:
         self.focused = focused
 
     @property
+    def area(self):
+        return self.width * self.height
+
+    @property
     def is_likely_composer_shape(self):
         return self.width >= 180 and self.height >= 24
 
