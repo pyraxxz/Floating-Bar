@@ -34,7 +34,7 @@ def _find_telegram_window() -> int:
             pass
 
     candidates = []
-    for hwnd in winapi.enumerate_top_level_windows():
+    for hwnd in winapi._enum_windows():
         try:
             pid = winapi.get_window_pid(hwnd)
             image = winapi.get_process_image_name(pid)
