@@ -11,6 +11,7 @@ from .conversation_picker import ConversationPicker
 from .conversation_rows import ConversationItem, enumerate_conversations, select_conversation
 from .telegram_chats import enumerate_telegram_chats, select_telegram_chat, TelegramChatItem
 from .telegram_chat_picker import TelegramChatPicker
+from .telegram_attention import telegram_badge_attention
 from .context import capture
 from .adapter_evidence import evidence_for_adapter
 from .transaction import SendCompletion
@@ -34,7 +35,10 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self._background_picker.bind(self.orb)
         self._telegram_chat_picker = TelegramChatPicker(
             self,
-            refresh=lambda: enumerate_telegram_chats(self._work_hwnd),
+            refresh=lambda: enumerate_telegram_chats(
+                self._work_hwnd,
+                attention_detector=telegram_badge_attention,
+            ),
             on_select=self._select_telegram_chat,
         )
         self._conversation_picker = ConversationPicker(
