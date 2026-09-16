@@ -7,7 +7,7 @@ from floatingbar.evidence import EvidenceState
 
 class AdapterEvidenceTests(unittest.TestCase):
     def test_unverified_adapter_cannot_upgrade_to_verified(self):
-        spec = adapter_for_process("discord.exe")
+        spec = adapter_for_process("terminal.exe")
         evidence = evidence_for_adapter(spec, strategy="posted-enter (VERIFIED)")
         self.assertEqual(evidence.state, EvidenceState.SUBMITTED)
         self.assertFalse(evidence.confirmed)
@@ -20,14 +20,14 @@ class AdapterEvidenceTests(unittest.TestCase):
         self.assertTrue(evidence.confirmed)
 
     def test_failed_send_remains_failed_for_any_adapter(self):
-        spec = adapter_for_process("discord.exe")
+        spec = adapter_for_process("terminal.exe")
         evidence = evidence_for_adapter(spec, strategy="posted-enter", error="target disappeared")
         self.assertEqual(evidence.state, EvidenceState.FAILED)
         self.assertTrue(evidence.retryable)
         self.assertEqual(evidence.detail, "target disappeared")
 
     def test_blocked_result_stays_blocked_under_adapter_policy(self):
-        spec = adapter_for_process("discord.exe")
+        spec = adapter_for_process("terminal.exe")
         evidence = evidence_for_adapter(spec, strategy="preflight (blocked)")
         self.assertEqual(evidence.state, EvidenceState.BLOCKED)
         self.assertTrue(evidence.blocked)
