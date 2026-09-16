@@ -1,7 +1,7 @@
 import unittest
 from types import SimpleNamespace
 
-from floatingbar.background_picker import PickerItem, to_picker_items
+from floatingbar.background_picker import PickerItem, action_for_item, to_picker_items
 
 
 class BackgroundPickerTests(unittest.TestCase):
@@ -80,6 +80,14 @@ class BackgroundPickerTests(unittest.TestCase):
             ["Terminal", "Microsoft Teams", "Microsoft Teams"],
         )
         self.assertTrue(all(item.actionable for item in result))
+
+    def test_action_menu_label_distinguishes_telegram(self):
+        telegram = PickerItem(10, 20, "Telegram", True, False, "telegram.exe")
+        terminal = PickerItem(11, 21, "Terminal", True, False, "wt.exe")
+        editor = PickerItem(12, 22, "Notepad", False, False, "notepad.exe")
+        self.assertEqual(action_for_item(telegram), "Chats")
+        self.assertEqual(action_for_item(terminal), "Type")
+        self.assertEqual(action_for_item(editor), "Preview")
 
     def test_unknown_process_has_title_free_human_label(self):
         result = to_picker_items(
