@@ -1,13 +1,15 @@
 """Fail-closed generic background typing adapter with exact control pinning.
 
-The adapter binds one exact top-level HWND/PID scope and can only post text/
-Enter to a structurally discovered editable child in that same process. It
-does not discover another window or bring the target to the foreground.
+The adapter binds one exact top-level HWND/PID scope and can only post text to a
+structurally discovered editable child in that same process. Submission is
+performed by the selected adapter policy, so typing and pressing Enter are no
+longer inseparably coupled at this layer.
 """
 
 from dataclasses import dataclass
 
 from . import winapi
+from .adapter_submit import submit_background_target
 from .control_candidates import (
     InputCandidate,
     best_input_candidate,
@@ -38,15 +40,21 @@ class BackgroundTypingTarget:
         self._scope = TargetScope(hwnd, pid) if hwnd and pid else None
         self._pinned_hwnd = 0
         self._pinned_identity = None
+        self._adapter_spec = None
 
-    def bind(self, hwnd: int, pid: int) -> TargetScope:
+    def bind(self, hwnd: int, pid: int, spec=None) -> TargetScope:
         scope = TargetScope(hwnd, pid)
         self._scope = scope
+        self._adapter_spec = spec
         self.clear_pinned_input()
         return scope
 
+    def bind_adapter(self, spec) -> None:
+        self._adapter_spec = spec
+
     def release(self) -> None:
         self._scope = None
+        self._adapter_spec = None
         self.clear_pinned_input()
 
     def scope(self) -> TargetScope:
@@ -66,9 +74,6 @@ class BackgroundTypingTarget:
             return False
         if not winapi.user32.IsWindowVisible(scope.hwnd):
             return False
-        # Minimized apps remain legitimate background targets. Structural
-        # probing below determines whether their UI still exposes a usable
-        # input control instead of assuming minimized == unusable.
         return winapi.get_window_pid(scope.hwnd) == scope.pid
 
     def input_candidates(self) -> tuple[InputCandidate, ...]:
@@ -166,19 +171,22 @@ class BackgroundTypingTarget:
             raise RuntimeError("background typing pinned control identity changed")
         return pinned
 
-    def send(self, text: str) -> str:
+    def type_text(self, text: str) -> int:
         if not isinstance(text, str) or not text.strip():
             raise ValueError("background typing text must be non-empty")
-
         if self._pinned_hwnd:
             target = self._pinned_target()
         else:
             target = self._focused_target()
-
         winapi.post_text(target, text)
-        winapi.post_enter(target, target=target)
-        self.clear_pinned_input()
-        return "posted-enter (unverified)"
+        return target
+
+    def send(self, text: str) -> str:
+        target = self.type_text(text)
+        try:
+            return submit_background_target(self._adapter_spec, target)
+        finally:
+            self.clear_pinned_input()
 
 
 __all__ = ["BackgroundTypingTarget", "TargetProbe"]
