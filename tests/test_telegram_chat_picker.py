@@ -57,7 +57,7 @@ class TelegramChatPickerTests(unittest.TestCase):
              patch("floatingbar.telegram_chats.winapi.post_click") as post_click:
             select_telegram_chat(chat)
         enumerate_rows.assert_called_once_with(100, limit=24)
-        to_client.assert_called_once_with(100, 200, 340)
+        to_client.assert_called_once_with(100, 210, 240)
         post_click.assert_called_once_with(100, 120, 140)
 
     def test_select_chat_rejects_missing_row_before_background_click(self):
