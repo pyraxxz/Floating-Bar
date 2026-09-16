@@ -10,6 +10,7 @@ different Telegram window.
 from typing import Any, List, Optional, Tuple
 
 from . import winapi
+from .telegram_chats import TelegramChatItem, chat_identity_matches
 from .target import TelegramNotFound, TelegramTarget
 from .transaction import SendCandidate, TargetScope
 
@@ -20,6 +21,7 @@ class BoundTelegramTarget:
     def __init__(self, target: Optional[TelegramTarget] = None):
         self._inner = target or TelegramTarget()
         self._bound_scope: Optional[TargetScope] = None
+        self._chat_identity: Optional[TelegramChatItem] = None
 
     @property
     def bound_scope(self) -> Optional[TargetScope]:
@@ -28,6 +30,18 @@ class BoundTelegramTarget:
     def release(self) -> None:
         """Release the transaction binding after a send attempt completes."""
         self._bound_scope = None
+        self._chat_identity = None
+
+    def bind_chat_identity(self, chat: Optional[TelegramChatItem]) -> None:
+        """Remember the selected chat's non-content UIA identity for send-time checks."""
+        self._chat_identity = chat
+
+    def chat_identity_matches(self) -> bool:
+        """Return whether the same remembered chat is still selected in Telegram."""
+        chat = self._chat_identity
+        if chat is None:
+            return True
+        return chat_identity_matches(chat)
 
     def _raw_scope(self, scope: TargetScope) -> bool:
         if not scope.valid:
@@ -70,9 +84,6 @@ class BoundTelegramTarget:
         if cached is not None and cached == bound:
             return
 
-        # A normal bound operation should already be aligned. If the wrapped
-        # target lost that cached state, it may attempt one exact preferred
-        # selection, but the result must still equal the immutable lease.
         selected = self._inner.select_for_send(preferred_hwnd=bound.hwnd)
         if selected != bound.hwnd:
             raise TelegramNotFound(
@@ -127,7 +138,6 @@ class BoundTelegramTarget:
             return 0
 
         if preferred_hwnd:
-            # A preferred HWND is an exact transaction requirement, not a hint.
             if selected != preferred_hwnd:
                 return 0
             pid = self._inner.scope().pid
