@@ -53,6 +53,22 @@ class BackgroundTypingTargetTests(unittest.TestCase):
         self.assertEqual(probe.candidate_hwnds, (301, 302))
         self.assertEqual(probe.candidate_count, 2)
         self.assertEqual(probe.pinned_hwnd, 0)
+        self.assertEqual(probe.reason, "ready")
+
+    def test_probe_reports_unavailable_reason(self):
+        with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=False):
+            probe = self.target.probe()
+        self.assertEqual(probe.reason, "unavailable")
+
+    def test_probe_reports_missing_input_reason(self):
+        with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
+             patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.generic_target.winapi.get_focused_hwnd", return_value=0), \
+             patch("floatingbar.generic_target.enumerate_input_candidates", return_value=()):
+            probe = self.target.probe()
+        self.assertTrue(probe.available)
+        self.assertEqual(probe.reason, "no-input")
 
     def test_probe_fails_closed_when_target_is_unavailable(self):
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=False):
