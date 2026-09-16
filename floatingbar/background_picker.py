@@ -1,10 +1,8 @@
 """Hover picker for visible background applications.
 
 The picker is intentionally process-level: it never displays window titles,
-chat names, or message content. Telegram is the only actionable target in
-this increment because the production send path is still Telegram-specific.
-Other visible apps are shown as discovery entries without claiming that the
-current injector can safely write into them yet.
+chat names, or message content. Telegram and a small set of common typing /
+submit applications are actionable; everything else remains discovery-only.
 """
 
 from dataclasses import dataclass
@@ -14,7 +12,14 @@ from typing import Callable, Optional, Sequence
 from .background_windows import BackgroundWindow
 
 
-_SUPPORTED = {"telegram.exe"}
+_ACTIONABLE = {
+    "telegram.exe",
+    "whatsapp.exe",
+    "windowsterminal.exe",
+    "wt.exe",
+    "cmd.exe",
+    "powershell.exe",
+}
 _LABELS = {
     "telegram.exe": "Telegram",
     "whatsapp.exe": "WhatsApp",
@@ -35,6 +40,7 @@ class PickerItem:
     label: str
     actionable: bool
     foreground: bool
+    process_name: str = ""
 
 
 def to_picker_items(windows: Sequence[BackgroundWindow]) -> tuple[PickerItem, ...]:
@@ -44,8 +50,9 @@ def to_picker_items(windows: Sequence[BackgroundWindow]) -> tuple[PickerItem, ..
             hwnd=item.hwnd,
             pid=item.pid,
             label=_LABELS.get(item.process_name, item.label.removesuffix(".exe").title()),
-            actionable=item.process_name in _SUPPORTED,
+            actionable=item.process_name in _ACTIONABLE,
             foreground=item.foreground,
+            process_name=item.process_name,
         )
         for item in windows
     )
@@ -139,7 +146,7 @@ class BackgroundAppPicker:
         frame.pack(fill="both", expand=True, padx=4, pady=4)
         for item in items[:6]:
             state = "normal" if item.actionable else "disabled"
-            suffix = "  Ready" if item.actionable else "  Preview"
+            suffix = "  Type" if item.actionable else "  Preview"
             button = tk.Button(
                 frame,
                 text=item.label + suffix,
