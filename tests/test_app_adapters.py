@@ -26,8 +26,8 @@ class AppAdapterRegistryTests(unittest.TestCase):
         self.assertEqual(telegram.target_mode, "telegram-compose")
         self.assertEqual(telegram.submit_mode, "telegram-send")
         self.assertEqual(telegram.verification_mode, "compose-clear")
-        self.assertEqual(telegram.conversation_attention_mode, "none")
-        self.assertEqual(attention_capability(telegram), "none")
+        self.assertEqual(telegram.conversation_attention_mode, "telegram-badge")
+        self.assertEqual(attention_capability(telegram), "telegram-badge")
 
         self.assertEqual(terminal.action, "Type")
         self.assertIsNone(terminal.chat_picker)
