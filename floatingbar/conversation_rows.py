@@ -9,8 +9,10 @@ before clicking.
 from dataclasses import dataclass
 import ctypes
 import ctypes.wintypes as wintypes
+from typing import Optional
 
 from . import winapi
+from .conversation_attention import AttentionDetector, AttentionState, ConversationAttention, safe_detect
 
 
 @dataclass(frozen=True)
@@ -25,6 +27,7 @@ class ConversationItem:
     selected: bool = False
     runtime_id: tuple[int, ...] | None = None
     control_identity: tuple[str, ...] | None = None
+    attention: ConversationAttention = ConversationAttention()
 
     @property
     def center(self) -> tuple[int, int]:
@@ -32,6 +35,10 @@ class ConversationItem:
             self.left + max(1, self.right - self.left) // 2,
             self.top + max(1, self.bottom - self.top) // 2,
         )
+
+    @property
+    def needs_attention(self) -> bool:
+        return self.attention.actionable
 
 
 def _runtime_id(item) -> tuple[int, ...] | None:
@@ -65,30 +72,32 @@ def _control_identity(item) -> tuple[str, ...] | None:
     return normalized or None
 
 
-def _selected(item) -> bool:
-    try:
-        return bool(item.is_selected())
-    except Exception:
-        pass
-    try:
-        return bool(item.iface_selection_item.CurrentIsSelected)
-    except Exception:
-        return False
-
-
 def _left_pane_cutoff(window_rect, fraction: float = 0.68) -> int:
     return window_rect.left + int(max(1, window_rect.width()) * fraction)
 
 
-def _row_sort_key(row: ConversationItem) -> tuple[int, int, str, int]:
-    """Prefer the current conversation; geometry is presentation order only."""
-    return (0 if row.selected else 1, row.top, row.left, row.name.casefold())
+def _row_sort_key(row: ConversationItem) -> tuple[int, int, int, str]:
+    """Prioritize proven attention, then current conversation, then pane order."""
+    attention_rank = {
+        AttentionState.UNREAD: 0,
+        AttentionState.RELEVANT: 1,
+        AttentionState.SELECTED: 2,
+        AttentionState.UNKNOWN: 3,
+    }[row.attention.state]
+    return (
+        attention_rank,
+        0 if row.selected else 1,
+        row.top,
+        row.left,
+        row.name.casefold(),
+    )
 
 
 def enumerate_conversations(
     hwnd: int,
     limit: int = 6,
     control_types: tuple[str, ...] = ("ListItem", "TreeItem"),
+    attention_detector: Optional[AttentionDetector] = None,
 ) -> tuple[ConversationItem, ...]:
     """Return a short ephemeral catalog of visible left-pane conversation rows."""
     if not hwnd or limit <= 0:
@@ -118,6 +127,7 @@ def enumerate_conversations(
                     continue
                 runtime_id = _runtime_id(item)
                 control_identity = _control_identity(item)
+                attention = safe_detect(item, attention_detector)
                 key = runtime_id or (
                     control_identity,
                     name.casefold(),
@@ -138,15 +148,27 @@ def enumerate_conversations(
                         top=rect.top,
                         right=rect.right,
                         bottom=rect.bottom,
-                        selected=_selected(item),
+                        selected=(attention.state is AttentionState.SELECTED or not attention.actionable and _selected_compat(item)),
                         runtime_id=runtime_id,
                         control_identity=control_identity,
+                        attention=attention,
                     )
                 )
         rows.sort(key=_row_sort_key)
         return tuple(rows[:limit])
     except Exception:
         return ()
+
+
+def _selected_compat(item) -> bool:
+    """Keep the legacy selected flag available to callers and tests."""
+    try:
+        return bool(item.is_selected())
+    except Exception:
+        try:
+            return bool(item.iface_selection_item.CurrentIsSelected)
+        except Exception:
+            return False
 
 
 def _screen_to_client(hwnd: int, x: int, y: int) -> tuple[int, int]:
