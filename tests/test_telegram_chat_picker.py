@@ -26,7 +26,7 @@ class TelegramChatPickerTests(unittest.TestCase):
             is_selected=lambda: True,
         )
         window = Mock()
-        window.rectangle.return_value = SimpleNamespace(left=0, top=0, width=lambda: 500, top=0, bottom=500)
+        window.rectangle.return_value = SimpleNamespace(left=0, top=0, width=lambda: 500, bottom=500)
         window.descendants.return_value = [item_a, item_b]
         with patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
              patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True), \
