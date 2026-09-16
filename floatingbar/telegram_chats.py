@@ -100,15 +100,36 @@ def _screen_to_client(hwnd: int, x: int, y: int) -> tuple[int, int]:
     return int(point.x), int(point.y)
 
 
+def _refresh_selected_row(chat: TelegramChatItem) -> TelegramChatItem:
+    """Re-read the chat row immediately before clicking to avoid stale geometry."""
+    if winapi.get_window_pid(chat.hwnd) != chat.pid:
+        raise RuntimeError("Telegram chat window process changed")
+    current_rows = enumerate_telegram_chats(chat.hwnd, limit=24)
+    candidates = [row for row in current_rows if row.name == chat.name]
+    if not candidates:
+        raise RuntimeError("Telegram chat row is no longer available")
+
+    def distance(row: TelegramChatItem) -> int:
+        return abs(row.left - chat.left) + abs(row.top - chat.top)
+
+    current = min(candidates, key=distance)
+    if distance(current) > 24:
+        raise RuntimeError("Telegram chat row moved before selection")
+    return current
+
+
 def select_telegram_chat(chat: TelegramChatItem) -> None:
-    """Select a chat row without foregrounding Telegram."""
+    """Select a chat row without foregrounding Telegram.
+
+    The row is re-enumerated immediately before injection so a stale popup
+    cannot reuse an old coordinate after Telegram scrolls or rebuilds its list.
+    """
     if not chat.hwnd or not chat.pid:
         raise RuntimeError("Telegram chat target is invalid")
     if not winapi.user32.IsWindow(chat.hwnd):
         raise RuntimeError("Telegram chat window no longer exists")
-    if winapi.get_window_pid(chat.hwnd) != chat.pid:
-        raise RuntimeError("Telegram chat window process changed")
-    client_x, client_y = _screen_to_client(chat.hwnd, *chat.center)
+    current = _refresh_selected_row(chat)
+    client_x, client_y = _screen_to_client(chat.hwnd, *current.center)
     winapi.post_click(chat.hwnd, client_x, client_y)
 
 
