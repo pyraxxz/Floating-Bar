@@ -90,6 +90,16 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         if binder is not None:
             binder(spec)
 
+    @staticmethod
+    def _probe_feedback(probe) -> str:
+        """Map content-free readiness codes to user-facing guidance."""
+        reason = getattr(probe, "reason", "")
+        if reason == "unavailable":
+            return "That background app closed or changed before it could be used."
+        if reason == "no-input":
+            return "That app is open, but no safe typing control is available there yet."
+        return "That app could not expose a safe background typing control."
+
     def _select_background_window(self, item: PickerItem) -> None:
         """Choose an actionable process/window without foregrounding it."""
         if not item.actionable or not item.hwnd or not item.pid:
@@ -132,7 +142,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             self._show_feedback("That app could not expose a safe background typing control.")
             return
         if not probe.available or probe.candidate_count <= 0:
-            self._show_feedback("That app is open, but no safe background typing control is available.")
+            self._show_feedback(self._probe_feedback(probe))
             return
         if self._state != "bar" and not self._sending:
             self._show_bar()
@@ -171,12 +181,12 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
                 trace.trace(f"conversation target readiness probe failed safely: {exc}")
                 raise RuntimeError("selected conversation has no safe background typing control")
             if not probe.available or probe.candidate_count <= 0:
-                raise RuntimeError("selected conversation has no safe background typing control")
+                raise RuntimeError(self._probe_feedback(probe))
             if self._state != "bar":
                 self._show_bar()
         except Exception as exc:
             trace.trace(f"conversation target bind failed safely: {exc}")
-            self._show_feedback("The selected conversation has no safe background typing control yet.")
+            self._show_feedback(str(exc) if str(exc) else "The selected conversation has no safe background typing control yet.")
 
     def _select_telegram_chat(self, chat: TelegramChatItem) -> None:
         if self._sending:
