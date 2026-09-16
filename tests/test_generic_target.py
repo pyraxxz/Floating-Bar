@@ -18,23 +18,21 @@ class BackgroundTypingTargetTests(unittest.TestCase):
     def test_unavailable_when_top_level_window_pid_changes(self):
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
-             patch("floatingbar.generic_target.winapi.is_minimized", return_value=False), \
              patch("floatingbar.generic_target.winapi.get_window_pid", return_value=999):
             self.assertFalse(self.target.available())
 
     def test_unavailable_when_top_level_window_is_hidden(self):
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=False), \
-             patch("floatingbar.generic_target.winapi.is_minimized", return_value=False), \
              patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200):
             self.assertFalse(self.target.available())
 
-    def test_unavailable_when_top_level_window_is_minimized(self):
+    def test_minimized_window_remains_a_valid_background_scope(self):
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
              patch("floatingbar.generic_target.winapi.is_minimized", return_value=True), \
              patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200):
-            self.assertFalse(self.target.available())
+            self.assertTrue(self.target.available())
 
     def test_probe_is_content_free_and_reports_candidates(self):
         candidates = (
@@ -43,7 +41,6 @@ class BackgroundTypingTargetTests(unittest.TestCase):
         )
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
-             patch("floatingbar.generic_target.winapi.is_minimized", return_value=False), \
              patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200), \
              patch("floatingbar.generic_target.winapi.get_focused_hwnd", return_value=301), \
              patch("floatingbar.generic_target.enumerate_input_candidates", return_value=candidates):
@@ -69,7 +66,6 @@ class BackgroundTypingTargetTests(unittest.TestCase):
     def test_send_posts_to_focused_child_inside_bound_process(self):
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
-             patch("floatingbar.generic_target.winapi.is_minimized", return_value=False), \
              patch("floatingbar.generic_target.winapi.get_window_pid", side_effect=[200, 200, 200]), \
              patch("floatingbar.generic_target.winapi.get_focused_hwnd", return_value=300), \
              patch("floatingbar.generic_target.winapi.post_text") as post_text, \
@@ -84,7 +80,6 @@ class BackgroundTypingTargetTests(unittest.TestCase):
         candidate = InputCandidate(301, 200, "Edit", "Edit", 0, 0, 600, 60, False, True, True)
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
-             patch("floatingbar.generic_target.winapi.is_minimized", return_value=False), \
              patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200), \
              patch.object(self.target, "input_candidates", return_value=(candidate,)), \
              patch("floatingbar.generic_target.winapi.post_text") as post_text, \
@@ -104,7 +99,6 @@ class BackgroundTypingTargetTests(unittest.TestCase):
         replacement = InputCandidate(301, 200, "OtherControl", "Edit", 0, 0, 400, 30, False, True, True)
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
-             patch("floatingbar.generic_target.winapi.is_minimized", return_value=False), \
              patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200), \
              patch.object(self.target, "input_candidates", side_effect=[(original,), (replacement,)]), \
              patch("floatingbar.generic_target.winapi.post_text") as post_text:
@@ -118,7 +112,6 @@ class BackgroundTypingTargetTests(unittest.TestCase):
         resized = InputCandidate(301, 200, "RichEdit", "Edit", 0, 0, 700, 44, False, True, True)
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
-             patch("floatingbar.generic_target.winapi.is_minimized", return_value=False), \
              patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200), \
              patch.object(self.target, "input_candidates", side_effect=[(original,), (resized,)]), \
              patch("floatingbar.generic_target.winapi.post_text") as post_text, \
@@ -133,7 +126,6 @@ class BackgroundTypingTargetTests(unittest.TestCase):
         self.target._pinned_hwnd = 301
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
-             patch("floatingbar.generic_target.winapi.is_minimized", return_value=False), \
              patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200), \
              patch.object(self.target, "input_candidates", return_value=()), \
              patch("floatingbar.generic_target.winapi.post_text") as post_text:
@@ -144,7 +136,6 @@ class BackgroundTypingTargetTests(unittest.TestCase):
     def test_send_rejects_focus_from_another_process_before_posting(self):
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
-             patch("floatingbar.generic_target.winapi.is_minimized", return_value=False), \
              patch("floatingbar.generic_target.winapi.get_window_pid", side_effect=[200, 999]), \
              patch("floatingbar.generic_target.winapi.get_focused_hwnd", return_value=300), \
              patch("floatingbar.generic_target.winapi.post_text") as post_text:
@@ -155,7 +146,6 @@ class BackgroundTypingTargetTests(unittest.TestCase):
     def test_send_never_restores_or_foregrounds_target(self):
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
-             patch("floatingbar.generic_target.winapi.is_minimized", return_value=False), \
              patch("floatingbar.generic_target.winapi.get_window_pid", side_effect=[200, 200]), \
              patch("floatingbar.generic_target.winapi.get_focused_hwnd", return_value=300), \
              patch("floatingbar.generic_target.winapi.post_text"), \
