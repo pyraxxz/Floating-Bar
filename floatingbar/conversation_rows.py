@@ -215,12 +215,12 @@ def _refresh_row(item: ConversationItem) -> ConversationItem:
     candidates = [row for row in current if row.name == item.name]
     if not candidates:
         raise RuntimeError("conversation row is no longer available")
+    if len(candidates) > 1:
+        raise RuntimeError("conversation row name is ambiguous")
 
-    def distance(row: ConversationItem) -> int:
-        return abs(row.left - item.left) + abs(row.top - item.top)
-
-    fresh = min(candidates, key=distance)
-    if distance(fresh) > 24:
+    fresh = candidates[0]
+    distance = abs(fresh.left - item.left) + abs(fresh.top - item.top)
+    if distance > 24:
         raise RuntimeError("conversation row moved before selection")
     return fresh
 
