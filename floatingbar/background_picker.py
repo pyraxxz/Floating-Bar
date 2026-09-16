@@ -37,6 +37,9 @@ def to_picker_items(windows: Sequence[BackgroundWindow]) -> tuple[PickerItem, ..
     items = []
     for item in windows:
         spec = adapter_for_process(item.process_name)
+        actionable = bool(
+            spec and spec.implemented and spec.supports_background_type
+        )
         items.append(
             PickerItem(
                 hwnd=item.hwnd,
@@ -45,10 +48,10 @@ def to_picker_items(windows: Sequence[BackgroundWindow]) -> tuple[PickerItem, ..
                     item.process_name,
                     item.label.removesuffix(".exe").title(),
                 ),
-                actionable=bool(spec and spec.implemented),
+                actionable=actionable,
                 foreground=item.foreground,
                 process_name=item.process_name,
-                adapter_key=spec.key if spec else "",
+                adapter_key=spec.key if actionable else "",
             )
         )
     return tuple(items)
@@ -57,7 +60,9 @@ def to_picker_items(windows: Sequence[BackgroundWindow]) -> tuple[PickerItem, ..
 def action_for_item(item: PickerItem) -> str:
     """Return the safe action exposed when hovering an application row."""
     spec = adapter_for_process(item.process_name)
-    if not item.actionable or not spec:
+    if not item.actionable or not spec or not spec.implemented:
+        return "Preview"
+    if not spec.supports_background_type:
         return "Preview"
     return spec.action
 
