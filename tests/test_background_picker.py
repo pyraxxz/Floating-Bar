@@ -68,14 +68,17 @@ class BackgroundPickerTests(unittest.TestCase):
             ]
         )
         self.assertEqual([item.label for item in result], ["Terminal", "Notepad", "Discord", "Slack", "Microsoft Teams"])
-        self.assertEqual([item.actionable for item in result], [True, False, True, True, True])
-        self.assertEqual([item.adapter_key for item in result], ["terminal", "", "discord", "slack", "teams"])
+        self.assertEqual([item.actionable for item in result], [True, True, True, True, True])
+        self.assertEqual([item.adapter_key for item in result], ["terminal", "generic:notepad", "discord", "slack", "teams"])
 
-    def test_non_submit_editor_is_discovery_only_but_still_labeled(self):
-        result = to_picker_items([SimpleNamespace(hwnd=10, pid=20, process_name="notepad.exe", label="notepad.exe", foreground=False)])
+    def test_generic_editor_is_actionable_but_still_structurally_gated_later(self):
+        result = to_picker_items([
+            SimpleNamespace(hwnd=10, pid=20, process_name="notepad.exe", label="notepad.exe", foreground=False)
+        ])
         self.assertEqual(result[0].label, "Notepad")
-        self.assertFalse(result[0].actionable)
-        self.assertEqual(result[0].adapter_key, "")
+        self.assertTrue(result[0].actionable)
+        self.assertEqual(result[0].adapter_key, "generic:notepad")
+        self.assertEqual(action_for_item(result[0]), "Type")
 
     def test_known_chat_and_terminal_aliases_share_actionability(self):
         result = to_picker_items([
@@ -90,16 +93,17 @@ class BackgroundPickerTests(unittest.TestCase):
     def test_action_menu_label_distinguishes_telegram(self):
         telegram = PickerItem(10, 20, "Telegram", True, False, "telegram.exe", "telegram")
         terminal = PickerItem(11, 21, "Terminal", True, False, "wt.exe", "terminal")
-        editor = PickerItem(12, 22, "Notepad", False, False, "notepad.exe", "")
+        editor = PickerItem(12, 22, "Notepad", True, False, "notepad.exe", "generic:notepad")
         self.assertEqual(action_for_item(telegram), "Chats")
         self.assertEqual(action_for_item(terminal), "Type")
-        self.assertEqual(action_for_item(editor), "Preview")
+        self.assertEqual(action_for_item(editor), "Type")
 
-    def test_unknown_process_has_title_free_human_label(self):
+    def test_unknown_process_has_title_free_generic_type_label(self):
         result = to_picker_items([SimpleNamespace(hwnd=10, pid=20, process_name="myeditor.exe", label="myeditor.exe", foreground=False)])
         self.assertEqual(result[0].label, "Myeditor")
-        self.assertFalse(result[0].actionable)
-        self.assertEqual(result[0].adapter_key, "")
+        self.assertTrue(result[0].actionable)
+        self.assertEqual(result[0].adapter_key, "generic:myeditor")
+        self.assertEqual(action_for_item(result[0]), "Type")
 
 
 if __name__ == "__main__":
