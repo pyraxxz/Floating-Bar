@@ -251,6 +251,12 @@ class BackgroundTypingTarget:
                 f"target={'ok' if self._last_post_send_check.target_alive else 'changed'} "
                 f"reason={self._last_post_send_check.reason}"
             )
+            # The generic path has no content-level receipt. A target that
+            # disappears after submission is therefore uncertain, not a clean
+            # failure: returning an explicit verification-unavailable marker
+            # prevents the evidence layer from offering a duplicate retry.
+            if not self._last_post_send_check.healthy:
+                return "posted-enter (verification-unavailable)"
             return strategy
         finally:
             self.clear_pinned_input()
