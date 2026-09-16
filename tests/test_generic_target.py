@@ -61,6 +61,21 @@ class BackgroundTypingTargetTests(unittest.TestCase):
 
         post_text.assert_not_called()
 
+    def test_send_never_restores_or_foregrounds_target(self):
+        with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
+             patch("floatingbar.generic_target.winapi.is_minimized", return_value=False), \
+             patch("floatingbar.generic_target.winapi.get_window_pid", side_effect=[200, 200]), \
+             patch("floatingbar.generic_target.winapi.get_focused_hwnd", return_value=300), \
+             patch("floatingbar.generic_target.winapi.post_text"), \
+             patch("floatingbar.generic_target.winapi.post_enter"), \
+             patch("floatingbar.generic_target.winapi.ensure_restored") as ensure_restored, \
+             patch("floatingbar.generic_target.winapi.set_foreground_window") as set_foreground:
+            self.target.send("hello")
+
+        ensure_restored.assert_not_called()
+        set_foreground.assert_not_called()
+
     def test_send_rejects_whitespace_only_text(self):
         with self.assertRaises(ValueError):
             self.target.send("   ")
