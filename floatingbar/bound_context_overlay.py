@@ -33,6 +33,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self._background_typer = BackgroundTypingTarget()
         self._generic_attempt_id = 0
         self._background_process_name = ""
+        self._generic_retry_scope = None
         self._pending_chat = None
 
     def _select_background_window(self, item: PickerItem) -> None:
@@ -40,6 +41,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         if not item.actionable or not item.hwnd or not item.pid:
             return
         self._background_typer.release()
+        self._generic_retry_scope = None
         self._background_process_name = item.process_name
         self._work_hwnd = item.hwnd
         self._generic_attempt_id = 0
@@ -123,12 +125,36 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
                 )
             )
 
+    def _retry_failed_draft(self) -> None:
+        """Restore a failed generic draft against its original HWND/PID scope."""
+        if self._sending or not self._retry_draft:
+            return
+        scope = self._generic_retry_scope
+        if scope is None:
+            return super()._retry_failed_draft()
+        self._background_typer.bind(scope.hwnd, scope.pid)
+        self._background_process_name = getattr(
+            self,
+            "_background_process_name",
+            "",
+        )
+        self._work_hwnd = scope.hwnd
+        self._hide_feedback()
+        self._show_bar()
+        self._set_retry_menu_enabled(True)
+
     def _send_finished(self, completion):
         """Use base UI handling for generic attempts, without Telegram release."""
         if completion.attempt_id != getattr(self, "_generic_attempt_id", 0):
             return super()._send_finished(completion)
+        retry_scope = None
         try:
+            retry_scope = self._background_typer.scope()
             _BaseOverlay._send_finished(self, completion)
+            if getattr(self, "_retry_draft", None):
+                self._generic_retry_scope = retry_scope
+            else:
+                self._generic_retry_scope = None
         finally:
             self._generic_attempt_id = 0
             self._background_typer.release()
