@@ -24,7 +24,6 @@ _ACTIONABLE = {
     "wt.exe",
     "cmd.exe",
     "powershell.exe",
-    "notepad.exe",
 }
 _LABELS = {
     "telegram.exe": "Telegram",
