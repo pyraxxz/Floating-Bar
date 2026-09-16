@@ -140,6 +140,22 @@ class BackgroundTypingTargetTests(unittest.TestCase):
         self.assertIsNotNone(self.target.last_post_send_check)
         self.assertTrue(self.target.last_post_send_check.healthy)
 
+    def test_send_surfaces_verification_unavailable_when_target_changes_after_submit(self):
+        with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
+             patch("floatingbar.generic_target.winapi.get_window_pid", side_effect=[200, 200, 999]), \
+             patch("floatingbar.generic_target.winapi.get_focused_hwnd", return_value=300), \
+             patch("floatingbar.generic_target.winapi.post_text") as post_text, \
+             patch("floatingbar.generic_target.winapi.post_enter") as post_enter:
+            result = self.target.send("hello")
+
+        self.assertEqual(result, "posted-enter (verification-unavailable)")
+        post_text.assert_called_once_with(300, "hello")
+        post_enter.assert_called_once_with(300, target=300)
+        self.assertIsNotNone(self.target.last_post_send_check)
+        self.assertFalse(self.target.last_post_send_check.healthy)
+        self.assertEqual(self.target.last_post_send_check.reason, "scope-changed")
+
     def test_pin_best_input_and_send_uses_pinned_child(self):
         candidate = InputCandidate(301, 200, "Edit", "Edit", 0, 0, 600, 60, False, True, True)
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
