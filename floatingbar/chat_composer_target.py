@@ -108,25 +108,38 @@ class ChatComposerTarget(BackgroundTypingTarget):
                 time.sleep(_VERIFY_INTERVAL_S)
         return False if readable else None
 
-    def begin_submission_verification(self, target_hwnd: int):
-        spec = self._adapter_spec
-        if getattr(spec, "verification_mode", "") != "compose-clear":
+    def prepare_submission_verification(self):
+        if getattr(self._adapter_spec, "verification_mode", "") != "compose-clear":
             return None
-        result = self._wait_for_length(target_hwnd, lambda length: length > 0)
+        scope = self._scope
+        if scope is None or not scope.valid:
+            return None
+        candidates = self._composer_candidates()
+        candidate = next((item for item in candidates if item.hwnd == self._pinned_hwnd), None)
+        if candidate is None:
+            return None
+        baseline = self._composer_value_length(candidate.hwnd)
+        return baseline if baseline >= 0 else None
+
+    def begin_submission_verification(self, target_hwnd: int, state):
+        if getattr(self._adapter_spec, "verification_mode", "") != "compose-clear":
+            return state
+        if state is None:
+            return None
+        result = self._wait_for_length(target_hwnd, lambda length: length > state)
         if result is not True:
             return None
-        return True
+        return state
 
     def finish_submission_verification(self, target_hwnd: int, state, strategy: str) -> str:
-        spec = self._adapter_spec
-        if getattr(spec, "verification_mode", "") != "compose-clear":
+        if getattr(self._adapter_spec, "verification_mode", "") != "compose-clear":
             return strategy
-        if state is not True:
+        if state is None:
             return "posted-enter (verification-unavailable)"
         result = self._wait_for_length(target_hwnd, lambda length: length == 0)
         if result is True:
-            suffix = strategy.split(" ", 1)[0] if strategy else "posted-enter"
-            return f"{suffix} (VERIFIED)"
+            prefix = strategy.split(" ", 1)[0] if strategy else "posted-enter"
+            return f"{prefix} (VERIFIED)"
         if result is None:
             return "posted-enter (verification-unavailable)"
         return "posted-enter (unverified)"
