@@ -51,8 +51,9 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Make hover movement between orb → app list → action menu more forgiving
 - [x] Show safe picker availability/action affordances instead of silent unsupported selection
 - [x] Keep selected app identity visible in the active bar without exposing window titles
-- [ ] Add deterministic tests for picker hover state transitions where practical
+- [x] Add deterministic tests for picker hover state transitions where practical
 - [x] Complete generic-app retry/recovery coverage for structurally pinned input controls
+- [x] Guard delayed picker callbacks against stale app/chat selections
 
 ## Phase 3 — Real application adapters
 

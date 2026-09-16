@@ -32,6 +32,37 @@ class PickerItem:
     adapter_key: str = ""
 
 
+@dataclass
+class HoverState:
+    """Deterministic pointer-presence state for the three-level picker."""
+
+    owner: bool = False
+    popup: bool = False
+    actions: bool = False
+
+    @property
+    def outside(self) -> bool:
+        return not (self.owner or self.popup or self.actions)
+
+    def enter_owner(self) -> None:
+        self.owner = True
+
+    def leave_owner(self) -> None:
+        self.owner = False
+
+    def enter_popup(self) -> None:
+        self.popup = True
+
+    def leave_popup(self) -> None:
+        self.popup = False
+
+    def enter_actions(self) -> None:
+        self.actions = True
+
+    def leave_actions(self) -> None:
+        self.actions = False
+
+
 def to_picker_items(windows: Sequence[BackgroundWindow]) -> tuple[PickerItem, ...]:
     """Convert catalog entries into title-free picker rows."""
     items = []
@@ -90,38 +121,36 @@ class BackgroundAppPicker:
         self._hide_job = None
         self._action_window: Optional[tk.Toplevel] = None
         self._action_item: Optional[PickerItem] = None
-        self._inside_owner = False
-        self._inside_popup = False
-        self._inside_actions = False
+        self._hover = HoverState()
 
     def bind(self, widget: tk.Misc) -> None:
         widget.bind("<Enter>", self._owner_enter, add="+")
         widget.bind("<Leave>", self._owner_leave, add="+")
 
     def _owner_enter(self, _event=None) -> None:
-        self._inside_owner = True
+        self._hover.enter_owner()
         self._cancel_show()
         self._cancel_hide()
         self._show_job = self.owner.after(self.HOVER_DELAY_MS, self.show)
 
     def _owner_leave(self, _event=None) -> None:
-        self._inside_owner = False
+        self._hover.leave_owner()
         self._schedule_hide(self.TRANSITION_GRACE_MS)
 
     def _popup_enter(self, _event=None) -> None:
-        self._inside_popup = True
+        self._hover.enter_popup()
         self._cancel_hide()
 
     def _popup_leave(self, _event=None) -> None:
-        self._inside_popup = False
+        self._hover.leave_popup()
         self._schedule_hide(self.TRANSITION_GRACE_MS)
 
     def _actions_enter(self, _event=None) -> None:
-        self._inside_actions = True
+        self._hover.enter_actions()
         self._cancel_hide()
 
     def _actions_leave(self, _event=None) -> None:
-        self._inside_actions = False
+        self._hover.leave_actions()
         self._schedule_hide(self.ACTION_GRACE_MS)
 
     def _schedule_hide(self, delay_ms: int = TRANSITION_GRACE_MS) -> None:
@@ -131,7 +160,7 @@ class BackgroundAppPicker:
 
     def _maybe_hide(self) -> None:
         self._hide_job = None
-        if not self._inside_owner and not self._inside_popup and not self._inside_actions:
+        if self._hover.outside:
             self.hide()
 
     def _cancel_show(self) -> None:
@@ -152,7 +181,7 @@ class BackgroundAppPicker:
 
     def show(self) -> None:
         self._show_job = None
-        if not self._inside_owner:
+        if not self._hover.owner:
             return
         try:
             windows = self.refresh()
@@ -164,7 +193,7 @@ class BackgroundAppPicker:
             return
 
         self.hide()
-        self._inside_owner = True
+        self._hover.enter_owner()
         popup = tk.Toplevel(self.owner)
         self.window = popup
         popup.overrideredirect(True)
@@ -223,7 +252,7 @@ class BackgroundAppPicker:
         self.owner.after(self.ACTION_GRACE_MS, self._maybe_hide_actions)
 
     def _maybe_hide_actions(self) -> None:
-        if not self._inside_actions:
+        if not self._hover.actions:
             self._hide_actions()
 
     def _show_actions(self, item: PickerItem, row: tk.Misc) -> None:
@@ -267,7 +296,7 @@ class BackgroundAppPicker:
         popup = self._action_window
         self._action_window = None
         self._action_item = None
-        self._inside_actions = False
+        self._hover.leave_actions()
         if popup is not None:
             try:
                 popup.destroy()
@@ -284,7 +313,7 @@ class BackgroundAppPicker:
         self._hide_actions()
         popup = self.window
         self.window = None
-        self._inside_popup = False
+        self._hover.leave_popup()
         if popup is not None:
             try:
                 popup.destroy()
@@ -292,4 +321,4 @@ class BackgroundAppPicker:
                 pass
 
 
-__all__ = ["BackgroundAppPicker", "PickerItem", "action_for_item", "to_picker_items"]
+__all__ = ["BackgroundAppPicker", "HoverState", "PickerItem", "action_for_item", "to_picker_items"]
