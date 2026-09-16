@@ -39,7 +39,7 @@ _ADAPTERS = (
         action="Chats",
         target_mode="chat-structured-focus",
         submit_mode="enter",
-        verification_mode="unverified",
+        verification_mode="compose-clear",
         conversation_attention_mode="none",
         chat_picker="conversations",
     ),
