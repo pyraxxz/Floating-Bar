@@ -8,6 +8,7 @@ win merely because it owns focus.
 
 from .generic_target import BackgroundTypingTarget
 from .control_candidates import best_input_candidate
+from . import winapi
 
 
 class ChatComposerTarget(BackgroundTypingTarget):
@@ -31,15 +32,27 @@ class ChatComposerTarget(BackgroundTypingTarget):
         return shaped or candidates
 
     def _focused_target(self) -> int:
-        super_focused = super()._focused_target()
+        """Choose a discovered composer even when another app control owns focus."""
         candidates = self._composer_candidates()
-        focused = next((candidate for candidate in candidates if candidate.hwnd == super_focused), None)
+        if not candidates:
+            raise RuntimeError("chat target has no discovered editable composer")
+
+        scope = self._scope
+        try:
+            focused_hwnd = winapi.get_focused_hwnd(scope.hwnd) if scope else 0
+        except Exception:
+            focused_hwnd = 0
+
+        focused = next(
+            (candidate for candidate in candidates if candidate.hwnd == focused_hwnd),
+            None,
+        )
         if focused is not None and self._is_composer_shaped(focused):
             return focused.hwnd
 
         preferred = best_input_candidate(candidates)
         if preferred is None:
-            raise RuntimeError("chat focused control is not a discovered editable composer")
+            raise RuntimeError("chat target has no usable discovered composer")
         return preferred.hwnd
 
     def pin_best_input(self):
