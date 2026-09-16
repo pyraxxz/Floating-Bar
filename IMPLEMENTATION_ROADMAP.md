@@ -151,6 +151,8 @@ The key transition is from “whatever control currently has focus” to “the 
 - [x] Prefer UI Automation runtime identity when available; use structural control identity as a guarded fallback
 - [x] Keep the currently selected conversation visible in the short picker window
 - [x] Avoid treating visual ordering as conversation identity
+- [x] Add explicit attention states (`unknown`, `selected`, `unread`, `relevant`) with fail-closed detector contracts
+- [x] Surface proven attention states in the conversation picker without exposing message content
 - [x] Explicitly report unsupported attention detection rather than implying unread state
 
 ## Phase 6 — Verification and reliability
