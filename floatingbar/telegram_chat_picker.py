@@ -43,8 +43,12 @@ class TelegramChatPicker:
         self.window: Optional[tk.Toplevel] = None
 
     def show(self) -> None:
-        chats = tuple(self.refresh() or ())[: self.LIMIT]
+        """Refresh the ephemeral list and replace any previous popup safely."""
         self.hide()
+        try:
+            chats = tuple(self.refresh() or ())[: self.LIMIT]
+        except Exception:
+            return
         if not chats:
             return
         popup = tk.Toplevel(self.owner)
@@ -52,6 +56,8 @@ class TelegramChatPicker:
         popup.overrideredirect(True)
         popup.attributes("-topmost", True)
         popup.configure(bg="#18181b")
+        popup.bind("<Escape>", lambda _event: self.hide())
+        popup.protocol("WM_DELETE_WINDOW", self.hide)
         try:
             popup.wm_attributes("-toolwindow", True)
         except Exception:

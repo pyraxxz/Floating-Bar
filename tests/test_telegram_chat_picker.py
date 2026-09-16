@@ -2,7 +2,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from floatingbar.telegram_chat_picker import ChatPickerRow, to_chat_picker_rows
+from floatingbar.telegram_chat_picker import ChatPickerRow, TelegramChatPicker, to_chat_picker_rows
 from floatingbar.telegram_chats import TelegramChatItem, enumerate_telegram_chats, select_telegram_chat
 
 
@@ -26,12 +26,13 @@ class TelegramChatPickerTests(unittest.TestCase):
             is_selected=lambda: True,
         )
         window = Mock()
-        window.rectangle.return_value = SimpleNamespace(left=0, top=0, width=lambda: 500, bottom=500)
+        window.rectangle.return_value = SimpleNamespace(left=0, top=0, width=lambda: 500, top=0, bottom=500)
         window.descendants.return_value = [item_a, item_b]
         with patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
              patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.telegram_chats.Application") as app_cls:
-            app_cls.return_value.window.return_value.wrapper_object.return_value = window
+            connected = app_cls.return_value.connect.return_value
+            connected.window.return_value.wrapper_object.return_value = window
             result = enumerate_telegram_chats(100, limit=1)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0].name, "First")
@@ -55,6 +56,17 @@ class TelegramChatPickerTests(unittest.TestCase):
             select_telegram_chat(chat)
         to_client.assert_called_once_with(100, 200, 230)
         post_click.assert_called_once_with(100, 120, 140)
+
+    def test_picker_show_hides_existing_popup_when_refresh_fails(self):
+        picker = TelegramChatPicker.__new__(TelegramChatPicker)
+        picker.owner = Mock()
+        picker.refresh = Mock(side_effect=RuntimeError("UIA unavailable"))
+        picker.on_select = Mock()
+        stale_popup = Mock()
+        picker.window = stale_popup
+        picker.hide()
+        self.assertIsNone(picker.window)
+        stale_popup.destroy.assert_called_once()
 
 
 if __name__ == "__main__":
