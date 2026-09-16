@@ -1,8 +1,10 @@
 import unittest
 
 from floatingbar.app_adapters import (
+    actionable_adapter_for_process,
     adapter_for_process,
     attention_capability,
+    generic_adapter_for_process,
     is_actionable_process,
 )
 
@@ -48,12 +50,28 @@ class AppAdapterRegistryTests(unittest.TestCase):
             self.assertEqual(attention_capability(spec), "none")
             self.assertTrue(spec.supports_background_type)
 
-    def test_unknown_and_non_adapter_processes_fail_closed(self):
-        self.assertIsNone(adapter_for_process("unknown.exe"))
-        self.assertFalse(is_actionable_process("notepad.exe"))
-        self.assertFalse(is_actionable_process("unknown.exe"))
-        self.assertTrue(is_actionable_process("discord.exe"))
+    def test_unknown_process_gets_generic_type_capability(self):
+        spec = generic_adapter_for_process("my-editor.exe")
+        self.assertIsNotNone(spec)
+        self.assertEqual(spec.key, "generic:my-editor")
+        self.assertEqual(spec.action, "Type")
+        self.assertEqual(spec.submit_mode, "enter")
+        self.assertEqual(spec.verification_mode, "unverified")
+        self.assertIsNone(spec.chat_picker)
+        self.assertEqual(actionable_adapter_for_process("my-editor.exe"), spec)
+        self.assertTrue(is_actionable_process("my-editor.exe"))
+
+    def test_generic_factory_rejects_malformed_process_names(self):
+        self.assertIsNone(generic_adapter_for_process(""))
+        self.assertIsNone(generic_adapter_for_process("editor"))
+        self.assertIsNone(generic_adapter_for_process("editor\\other.exe"))
         self.assertEqual(attention_capability(None), "none")
+
+    def test_unknown_adapter_lookup_remains_unknown(self):
+        self.assertIsNone(adapter_for_process("unknown.exe"))
+        self.assertTrue(is_actionable_process("unknown.exe"))
+        self.assertIsNotNone(actionable_adapter_for_process("unknown.exe"))
+        self.assertTrue(is_actionable_process("discord.exe"))
 
 
 if __name__ == "__main__":
