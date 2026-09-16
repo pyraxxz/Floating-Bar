@@ -74,8 +74,24 @@ _ADAPTERS = (
         submit_mode="enter",
         verification_mode="unverified",
     ),
-    AppAdapterSpec(key="cmd", label="Command Prompt", processes=("cmd.exe",), action="Type"),
-    AppAdapterSpec(key="powershell", label="PowerShell", processes=("powershell.exe",), action="Type"),
+    AppAdapterSpec(
+        key="cmd",
+        label="Command Prompt",
+        processes=("cmd.exe",),
+        action="Type",
+        target_mode="terminal-structured-focus",
+        submit_mode="enter",
+        verification_mode="unverified",
+    ),
+    AppAdapterSpec(
+        key="powershell",
+        label="PowerShell",
+        processes=("powershell.exe",),
+        action="Type",
+        target_mode="terminal-structured-focus",
+        submit_mode="enter",
+        verification_mode="unverified",
+    ),
 )
 
 _BY_PROCESS = {
