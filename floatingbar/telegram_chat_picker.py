@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import tkinter as tk
 from typing import Callable, Optional, Sequence
 
+from .conversation_attention import AttentionState
 from .telegram_chats import TelegramChatItem
 
 
@@ -17,6 +18,10 @@ class ChatPickerRow:
     name: str
     selected: bool
     chat: TelegramChatItem
+
+    @property
+    def needs_attention(self) -> bool:
+        return self.chat.attention.state is AttentionState.UNREAD
 
 
 def to_chat_picker_rows(chats: Sequence[TelegramChatItem]) -> tuple[ChatPickerRow, ...]:
@@ -68,7 +73,12 @@ class TelegramChatPicker:
         frame = tk.Frame(popup, bg="#18181b", bd=0)
         frame.pack(fill="both", expand=True, padx=4, pady=4)
         for row in to_chat_picker_rows(chats):
-            suffix = "  Current" if row.selected else ""
+            suffix_parts = []
+            if row.needs_attention:
+                suffix_parts.append("Unread")
+            if row.selected:
+                suffix_parts.append("Current")
+            suffix = "  " + " · ".join(suffix_parts) if suffix_parts else ""
             button = tk.Button(
                 frame,
                 text=row.name + suffix,
