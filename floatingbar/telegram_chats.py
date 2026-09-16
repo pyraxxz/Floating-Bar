@@ -5,6 +5,8 @@ are kept in memory. Nothing from this catalog is persisted or logged.
 """
 
 from dataclasses import dataclass
+import ctypes
+import ctypes.wintypes as wintypes
 from typing import Sequence
 
 from . import winapi
@@ -88,6 +90,16 @@ def enumerate_telegram_chats(hwnd: int, limit: int = 6) -> tuple[TelegramChatIte
         return ()
 
 
+def _screen_to_client(hwnd: int, x: int, y: int) -> tuple[int, int]:
+    point = wintypes.POINT(int(x), int(y))
+    fn = winapi.user32.ScreenToClient
+    fn.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.POINT)]
+    fn.restype = wintypes.BOOL
+    if not fn(hwnd, ctypes.byref(point)):
+        raise RuntimeError("could not convert Telegram chat point to client coordinates")
+    return int(point.x), int(point.y)
+
+
 def select_telegram_chat(chat: TelegramChatItem) -> None:
     """Select a chat row without foregrounding Telegram."""
     if not chat.hwnd or not chat.pid:
@@ -96,7 +108,7 @@ def select_telegram_chat(chat: TelegramChatItem) -> None:
         raise RuntimeError("Telegram chat window no longer exists")
     if winapi.get_window_pid(chat.hwnd) != chat.pid:
         raise RuntimeError("Telegram chat window process changed")
-    client_x, client_y = winapi.screen_to_client(chat.hwnd, *chat.center)
+    client_x, client_y = _screen_to_client(chat.hwnd, *chat.center)
     winapi.post_click(chat.hwnd, client_x, client_y)
 
 
