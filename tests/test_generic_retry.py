@@ -74,6 +74,7 @@ class GenericRetryTests(unittest.TestCase):
         window._generic_retry_process_name = "discord.exe"
         window._generic_retry_adapter_key = "discord"
         window._telegram_chat_picker = Mock()
+        window._conversation_picker = Mock()
         window._state = "orb"
         window._sending = False
         window._update_status = Mock()

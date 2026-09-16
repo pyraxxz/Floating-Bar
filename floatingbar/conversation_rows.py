@@ -9,8 +9,6 @@ from dataclasses import dataclass
 import ctypes
 import ctypes.wintypes as wintypes
 
-from pywinauto import Application
-
 from . import winapi
 
 
@@ -57,6 +55,8 @@ def enumerate_conversations(
     if not hwnd or limit <= 0:
         return ()
     try:
+        from pywinauto import Application
+
         pid = winapi.get_window_pid(hwnd)
         if not pid or not winapi.user32.IsWindow(hwnd):
             return ()
