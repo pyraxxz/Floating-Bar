@@ -59,6 +59,24 @@ class AdapterBindingTests(unittest.TestCase):
         post_text.assert_called_once_with(401, "hello")
         post_enter.assert_called_once_with(401, target=401)
 
+    def test_terminal_target_preserves_submitted_but_unverified_boundary(self):
+        spec = adapter_for_process("terminal.exe")
+        target = TerminalTypingTarget()
+        target.bind(100, 200, spec=spec)
+        candidate = _Candidate(402)
+        patches = self._runtime_patches()
+        with patches[0], patches[1], patches[2], patches[3], \
+             patch.object(target, "input_candidates", return_value=(candidate,)), \
+             patch("floatingbar.generic_target.winapi.post_text") as post_text, \
+             patch("floatingbar.adapter_submit.winapi.post_enter") as post_enter:
+            result = target.send("dir")
+
+        self.assertEqual(result, "posted-enter (unverified)")
+        post_text.assert_called_once_with(402, "dir")
+        post_enter.assert_called_once_with(402, target=402)
+        self.assertIsNotNone(target.last_post_send_check)
+        self.assertTrue(target.last_post_send_check.healthy)
+
     def test_terminal_target_rejects_unsupported_submit_policy_before_enter_or_typing(self):
         class Spec:
             submit_mode = "click"
