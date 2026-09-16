@@ -1,6 +1,10 @@
 import unittest
 
-from floatingbar.app_adapters import adapter_for_process, is_actionable_process
+from floatingbar.app_adapters import (
+    adapter_for_process,
+    attention_capability,
+    is_actionable_process,
+)
 
 
 class AppAdapterRegistryTests(unittest.TestCase):
@@ -20,6 +24,7 @@ class AppAdapterRegistryTests(unittest.TestCase):
         self.assertEqual(telegram.submit_mode, "telegram-send")
         self.assertEqual(telegram.verification_mode, "compose-clear")
         self.assertEqual(telegram.conversation_attention_mode, "none")
+        self.assertEqual(attention_capability(telegram), "none")
 
         self.assertEqual(terminal.action, "Type")
         self.assertIsNone(terminal.chat_picker)
@@ -27,6 +32,7 @@ class AppAdapterRegistryTests(unittest.TestCase):
         self.assertEqual(terminal.submit_mode, "enter")
         self.assertEqual(terminal.verification_mode, "unverified")
         self.assertEqual(terminal.conversation_attention_mode, "none")
+        self.assertEqual(attention_capability(terminal), "none")
 
     def test_supported_chat_apps_expose_conversation_picker(self):
         for process_name in ("whatsapp.exe", "discord.exe", "slack.exe", "teams.exe"):
@@ -36,6 +42,7 @@ class AppAdapterRegistryTests(unittest.TestCase):
             self.assertEqual(spec.chat_picker, "conversations")
             self.assertEqual(spec.verification_mode, "unverified")
             self.assertEqual(spec.conversation_attention_mode, "none")
+            self.assertEqual(attention_capability(spec), "none")
             self.assertTrue(spec.supports_background_type)
 
     def test_unknown_and_non_adapter_processes_fail_closed(self):
@@ -43,6 +50,7 @@ class AppAdapterRegistryTests(unittest.TestCase):
         self.assertFalse(is_actionable_process("notepad.exe"))
         self.assertFalse(is_actionable_process("unknown.exe"))
         self.assertTrue(is_actionable_process("discord.exe"))
+        self.assertEqual(attention_capability(None), "none")
 
 
 if __name__ == "__main__":
