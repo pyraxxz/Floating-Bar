@@ -43,9 +43,10 @@ class ContextOverlayTests(unittest.TestCase):
             preflight=Mock(),
         )
 
-    def test_bound_context_overlay_is_compatibility_only(self):
-        self.assertIs(BoundContextOverlay.__init__, OrbRelayWindow.__init__)
+    def test_bound_context_overlay_adds_picker_without_replacing_parent_completion(self):
+        self.assertIsNot(BoundContextOverlay.__init__, OrbRelayWindow.__init__)
         self.assertIs(BoundContextOverlay._send_finished, OrbRelayWindow._send_finished)
+        self.assertIn("_background_picker", BoundContextOverlay.__init__.__code__.co_names)
 
     def test_expand_preserves_failed_draft_target_context(self):
         window = self._window()
