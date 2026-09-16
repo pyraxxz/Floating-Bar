@@ -76,6 +76,16 @@ class ChatComposerTarget(BackgroundTypingTarget):
             raise RuntimeError("chat pinned control is not a discovered editable composer")
         return pinned
 
+    def _verification_target(self, expected_hwnd: int = 0) -> int:
+        """Revalidate the exact pinned composer before any value-length read."""
+        pinned = self._pinned_hwnd
+        if not pinned:
+            raise RuntimeError("chat verification has no pinned composer")
+        current = self._pinned_target()
+        if expected_hwnd and current != expected_hwnd:
+            raise RuntimeError("chat verification target changed")
+        return current
+
     @staticmethod
     def _composer_value_length(hwnd: int) -> int:
         """Read only the UIA value length; never retain or log the text itself."""
@@ -114,17 +124,21 @@ class ChatComposerTarget(BackgroundTypingTarget):
         scope = self._scope
         if scope is None or not scope.valid:
             return None
-        candidates = self._composer_candidates()
-        candidate = next((item for item in candidates if item.hwnd == self._pinned_hwnd), None)
-        if candidate is None:
+        try:
+            target = self._verification_target()
+            baseline = self._composer_value_length(target)
+        except Exception:
             return None
-        baseline = self._composer_value_length(candidate.hwnd)
         return baseline if baseline >= 0 else None
 
     def begin_submission_verification(self, target_hwnd: int, state):
         if getattr(self._adapter_spec, "verification_mode", "") != "compose-clear":
             return state
         if state is None:
+            return None
+        try:
+            target_hwnd = self._verification_target(target_hwnd)
+        except Exception:
             return None
         result = self._wait_for_length(target_hwnd, lambda length: length > state)
         if result is not True:
@@ -135,6 +149,10 @@ class ChatComposerTarget(BackgroundTypingTarget):
         if getattr(self._adapter_spec, "verification_mode", "") != "compose-clear":
             return strategy
         if state is None:
+            return "posted-enter (verification-unavailable)"
+        try:
+            target_hwnd = self._verification_target(target_hwnd)
+        except Exception:
             return "posted-enter (verification-unavailable)"
         result = self._wait_for_length(target_hwnd, lambda length: length == 0)
         if result is True:
