@@ -122,6 +122,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
                 scope.pid,
             ) or scope.hwnd != request.restore_hwnd:
                 raise RuntimeError("selected background target changed before send")
+            self._background_typer.pin_best_input()
             strategy = self._background_typer.send(request.text)
             self._result_q.put(
                 SendCompletion.from_result(
@@ -130,6 +131,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
                 )
             )
         except Exception as exc:
+            self._background_typer.clear_pinned_input()
             trace.trace(f"background typing failed safely: {exc}")
             self._result_q.put(
                 SendCompletion.from_result(

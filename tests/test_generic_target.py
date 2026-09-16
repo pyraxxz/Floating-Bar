@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from floatingbar.control_candidates import InputCandidate
+from floatingbar.control_candidates import InputCandidate, best_input_candidate, candidate_score
 from floatingbar.generic_target import BackgroundTypingTarget, TargetProbe
 from floatingbar.transaction import TargetScope
 
@@ -55,6 +55,7 @@ class BackgroundTypingTargetTests(unittest.TestCase):
         self.assertEqual(probe.focused_hwnd, 301)
         self.assertEqual(probe.candidate_hwnds, (301, 302))
         self.assertEqual(probe.candidate_count, 2)
+        self.assertEqual(probe.pinned_hwnd, 0)
 
     def test_probe_fails_closed_when_target_is_unavailable(self):
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=False):
@@ -63,6 +64,7 @@ class BackgroundTypingTargetTests(unittest.TestCase):
         self.assertFalse(probe.available)
         self.assertEqual(probe.focused_hwnd, 0)
         self.assertEqual(probe.candidate_hwnds, ())
+        self.assertEqual(probe.pinned_hwnd, 0)
 
     def test_send_posts_to_focused_child_inside_bound_process(self):
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
@@ -77,6 +79,37 @@ class BackgroundTypingTargetTests(unittest.TestCase):
         self.assertEqual(result, "posted-enter (unverified)")
         post_text.assert_called_once_with(300, "hello")
         post_enter.assert_called_once_with(300, target=300)
+
+    def test_pin_best_input_and_send_uses_pinned_child(self):
+        candidate = InputCandidate(301, 200, "Edit", "Edit", 0, 0, 600, 60, False, True, True)
+        with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
+             patch("floatingbar.generic_target.winapi.is_minimized", return_value=False), \
+             patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200), \
+             patch.object(self.target, "input_candidates", return_value=(candidate,)), \
+             patch("floatingbar.generic_target.winapi.post_text") as post_text, \
+             patch("floatingbar.generic_target.winapi.post_enter") as post_enter:
+            pinned = self.target.pin_best_input()
+            self.assertEqual(pinned.hwnd, 301)
+            self.assertEqual(self.target.pinned_hwnd, 301)
+            result = self.target.send("hello")
+
+        self.assertEqual(result, "posted-enter (unverified)")
+        post_text.assert_called_once_with(301, "hello")
+        post_enter.assert_called_once_with(301, target=301)
+        self.assertEqual(self.target.pinned_hwnd, 0)
+
+    def test_pinned_child_must_still_exist_in_structural_inventory(self):
+        self.target._pinned_hwnd = 301
+        with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
+             patch("floatingbar.generic_target.winapi.is_minimized", return_value=False), \
+             patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200), \
+             patch.object(self.target, "input_candidates", return_value=()), \
+             patch("floatingbar.generic_target.winapi.post_text") as post_text:
+            with self.assertRaisesRegex(RuntimeError, "no longer editable"):
+                self.target.send("hello")
+        post_text.assert_not_called()
 
     def test_send_rejects_focus_from_another_process_before_posting(self):
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
@@ -108,6 +141,19 @@ class BackgroundTypingTargetTests(unittest.TestCase):
     def test_send_rejects_whitespace_only_text(self):
         with self.assertRaises(ValueError):
             self.target.send("   ")
+
+
+class CandidateScoringTests(unittest.TestCase):
+    def test_focused_candidate_beats_unfocused_large_candidate(self):
+        focused = InputCandidate(10, 20, "Edit", "Edit", 0, 500, 300, 540, True, True, True)
+        large = InputCandidate(11, 20, "Edit", "Edit", 0, 0, 1200, 400, False, True, True)
+        self.assertEqual(best_input_candidate((large, focused)), focused)
+
+    def test_composer_shape_and_area_break_ties_deterministically(self):
+        wide = InputCandidate(10, 20, "Edit", "Edit", 0, 400, 800, 450, False, True, True)
+        small = InputCandidate(11, 20, "Edit", "Edit", 0, 600, 120, 620, False, True, True)
+        self.assertGreater(candidate_score(wide), candidate_score(small))
+        self.assertEqual(best_input_candidate((small, wide)), wide)
 
 
 if __name__ == "__main__":

@@ -1,8 +1,8 @@
-"""Content-free discovery of candidate text-input controls.
+"""Content-free discovery and scoring of candidate text-input controls.
 
-This module is deliberately separate from send execution. It inspects UI
-Automation structure only: control type, class name, geometry, editability,
-enabled/visible state, and focus. It never reads the control's text/value.
+This module inspects UI Automation structure only: control type, class name,
+geometry, editability, enabled/visible state, and focus. It never reads the
+control's text/value.
 """
 
 from dataclasses import dataclass
@@ -36,6 +36,15 @@ class InputCandidate:
     @property
     def area(self) -> int:
         return self.width * self.height
+
+    @property
+    def center_y(self) -> float:
+        return (self.top + self.bottom) / 2.0
+
+    @property
+    def is_likely_composer_shape(self) -> bool:
+        """Use geometry only as a weak signal; never infer from message content."""
+        return self.width >= 180 and self.height >= 24
 
 
 _EDIT_TYPES = {"Edit", "Document"}
@@ -84,50 +93,48 @@ def enumerate_input_candidates(top_hwnd: int) -> tuple[InputCandidate, ...]:
         from pywinauto import Desktop
 
         root = Desktop(backend="uia").window(handle=top_hwnd)
-        elements = root.descendants(control_type="Edit")
         candidates = []
-        for element in elements:
-            candidate = _candidate_from_element(element, pid, top_hwnd)
-            if candidate is not None:
-                candidates.append(candidate)
-
-        # Some apps expose a multiline document rather than Edit. Add those
-        # controls separately without ever reading their content.
-        for element in root.descendants(control_type="Document"):
-            candidate = _candidate_from_element(element, pid, top_hwnd)
-            if candidate is not None:
-                candidates.append(candidate)
+        for control_type in ("Edit", "Document"):
+            for element in root.descendants(control_type=control_type):
+                candidate = _candidate_from_element(element, pid, top_hwnd)
+                if candidate is not None:
+                    candidates.append(candidate)
     except Exception:
         return ()
 
     unique = {candidate.hwnd: candidate for candidate in candidates}
-    return tuple(sorted(
-        unique.values(),
-        key=lambda item: (
-            not item.focused,
-            -item.area,
-            item.top,
-            item.left,
-            item.hwnd,
-        ),
-    ))
+    return tuple(unique.values())
 
 
-def best_input_candidate(candidates: Iterable[InputCandidate]) -> InputCandidate | None:
-    """Return the highest-confidence structural candidate, without content reads."""
+def candidate_score(candidate: InputCandidate, *, max_bottom: int | None = None) -> tuple:
+    """Return a deterministic, content-free structural score.
+
+    Focus remains the strongest signal. Composer-like geometry and lower-page
+    placement are supporting signals, while all ties are resolved by geometry
+    and HWND so the choice stays deterministic.
+    """
+    bottom_distance = 0
+    if max_bottom is not None:
+        bottom_distance = max(0, max_bottom - candidate.center_y)
+    return (
+        int(candidate.focused),
+        int(candidate.is_likely_composer_shape),
+        candidate.area,
+        -bottom_distance,
+        -candidate.top,
+        -candidate.left,
+        -candidate.hwnd,
+    )
+
+
+def best_input_candidate(
+    candidates: Iterable[InputCandidate], *, max_bottom: int | None = None
+) -> InputCandidate | None:
+    """Return the strongest structural candidate without content reads."""
     candidates = tuple(candidates)
     if not candidates:
         return None
-    return sorted(
-        candidates,
-        key=lambda item: (
-            not item.focused,
-            -item.area,
-            item.top,
-            item.left,
-            item.hwnd,
-        ),
-    )[0]
+    return max(candidates, key=lambda item: candidate_score(item, max_bottom=max_bottom))
 
 
-__all__ = ["InputCandidate", "enumerate_input_candidates", "best_input_candidate"]
+__all__ = ["InputCandidate", "enumerate_input_candidates", "best_input_candidate", "candidate_score"]

@@ -1,16 +1,26 @@
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
-from floatingbar.control_candidates import InputCandidate, best_input_candidate
+from floatingbar.control_candidates import (
+    InputCandidate,
+    best_input_candidate,
+    candidate_score,
+)
 from floatingbar.generic_target import BackgroundTypingTarget
 from floatingbar.transaction import TargetScope
 
 
 class ControlCandidateTests(unittest.TestCase):
-    def test_best_candidate_prefers_focused_control_then_area(self):
+    def test_best_candidate_prefers_focused_control(self):
         large = InputCandidate(10, 20, "Edit", "Edit", 0, 0, 1000, 1000, False, True, True)
         focused = InputCandidate(11, 20, "Edit", "Edit", 0, 0, 100, 40, True, True, True)
         self.assertEqual(best_input_candidate((large, focused)).hwnd, 11)
+
+    def test_composer_geometry_is_a_structural_signal(self):
+        wide = InputCandidate(10, 20, "Edit", "Edit", 0, 400, 800, 450, False, True, True)
+        tiny = InputCandidate(11, 20, "Edit", "Edit", 0, 500, 100, 520, False, True, True)
+        self.assertGreater(candidate_score(wide), candidate_score(tiny))
+        self.assertEqual(best_input_candidate((tiny, wide)), wide)
 
     def test_candidate_model_contains_no_text_value(self):
         candidate = InputCandidate(10, 20, "Edit", "Edit", 1, 2, 101, 42, True, True, True)

@@ -28,10 +28,12 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Generic background typing target with exact HWND/PID validation
 - [x] Generic target structural probe and editable-control discovery
 - [x] Generic retry preserves original HWND/PID scope and adapter identity
+- [x] Structural candidate scoring without reading text/value content
+- [x] Exact input-control pinning and revalidation for generic background sends
 - [x] Windows CI compile + regression suite + PyInstaller build
 - [x] Release workflow separated from ordinary development pushes
 
-### Current grouped milestone — Adapter Architecture
+### Completed grouped milestone — Adapter Architecture
 
 - [x] Central `app_adapters.py` registry for supported executables
 - [x] Picker derives labels, capabilities, and actions from the registry
@@ -40,8 +42,9 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Tests cover aliases, capabilities, and adapter metadata
 - [x] Adapter target factory separates per-app implementations from UI routing
 - [x] Dedicated Terminal target rejects focused controls that are not structurally discovered as editable
+- [x] Dedicated chat composer target rejects controls outside the structural Edit/Document inventory
 - [ ] Add app-specific verification implementations
-- [ ] Add dedicated target/control adapters for chat applications
+- [x] Add dedicated structural target/control adapters for chat applications
 
 ## Phase 2 — Finish the current UX and reliability layer
 
@@ -49,7 +52,7 @@ The app should let the user work in the foreground while sending/replying throug
 - [ ] Show useful “unavailable/unsupported” feedback instead of silently failing
 - [ ] Keep selected app identity visible in the active bar without exposing window titles
 - [ ] Add deterministic tests for picker hover state transitions where practical
-- [ ] Complete generic-app retry/recovery coverage for all supported adapters
+- [x] Complete generic-app retry/recovery coverage for structurally pinned input controls
 
 ## Phase 3 — Real application adapters
 
@@ -69,6 +72,7 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Discovery and adapter capability contract
 - [x] Dedicated structural target adapter
 - [x] Exact-scope binding
+- [x] Exact-control revalidation for pinned sends
 - [ ] Explicit console-control targeting across terminal variants
 - [ ] Submission semantics appropriate to terminal
 - [ ] Verification/retry behavior
@@ -77,7 +81,7 @@ The app should let the user work in the foreground while sending/replying throug
 
 - [x] Discovery and generic typing foundation
 - [x] Adapter capability contract
-- [ ] Dedicated composer discovery
+- [x] Dedicated structural composer target
 - [ ] Chat/conversation picker
 - [ ] Background submit
 - [ ] Verification
@@ -86,7 +90,7 @@ The app should let the user work in the foreground while sending/replying throug
 
 - [x] Discovery and generic typing foundation
 - [x] Adapter capability contract
-- [ ] Dedicated composer discovery
+- [x] Dedicated structural composer target
 - [ ] Server/channel/DM targeting model
 - [ ] Background submit
 - [ ] Verification
@@ -95,7 +99,7 @@ The app should let the user work in the foreground while sending/replying throug
 
 - [x] Discovery and generic typing foundation
 - [x] Adapter capability contract
-- [ ] Dedicated composer discovery
+- [x] Dedicated structural composer target
 - [ ] Conversation targeting
 - [ ] Background submit
 - [ ] Verification
@@ -104,7 +108,7 @@ The app should let the user work in the foreground while sending/replying throug
 
 - [x] Discovery and generic typing foundation
 - [x] Adapter capability contract
-- [ ] Dedicated composer discovery
+- [x] Dedicated structural composer target
 - [ ] Conversation targeting
 - [ ] Background submit
 - [ ] Verification
@@ -116,8 +120,8 @@ The key transition is from “whatever control currently has focus” to “the 
 - [x] Inspect UI Automation structure without reading message content
 - [x] Identify editable controls by role/class/capability
 - [ ] Reject search/navigation fields when a composer is available
-- [ ] Support multiple candidate controls with evidence scoring
-- [ ] Pin the selected control for the duration of a send
+- [x] Support multiple candidate controls with deterministic structural scoring
+- [x] Pin the selected control for the duration of a send
 - [x] Abort safely when the control or process changes
 
 ## Phase 5 — Conversation intelligence
