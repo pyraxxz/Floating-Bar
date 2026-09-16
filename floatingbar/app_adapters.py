@@ -1,9 +1,8 @@
 """Central registry for supported background application capabilities.
 
-The picker and production routing should consume this table rather than each
-maintaining its own executable-name logic. Keeping capability metadata here
-makes it possible to deepen one adapter at a time without changing unrelated
-UI code.
+The picker and production routing consume this table rather than each
+maintaining executable-name logic. Capability metadata also defines the
+contract that future per-app target and verification adapters will implement.
 """
 
 from dataclasses import dataclass
@@ -16,6 +15,9 @@ class AppAdapterSpec:
     label: str
     processes: tuple[str, ...]
     action: str
+    target_mode: str = "focused-child"
+    submit_mode: str = "enter"
+    verification_mode: str = "unverified"
     implemented: bool = True
     supports_background_type: bool = True
     chat_picker: Optional[str] = None
@@ -27,26 +29,14 @@ _ADAPTERS = (
         label="Telegram",
         processes=("telegram.exe",),
         action="Chats",
+        target_mode="telegram-compose",
+        submit_mode="telegram-send",
+        verification_mode="typed",
         chat_picker="telegram",
     ),
-    AppAdapterSpec(
-        key="whatsapp",
-        label="WhatsApp",
-        processes=("whatsapp.exe",),
-        action="Type",
-    ),
-    AppAdapterSpec(
-        key="discord",
-        label="Discord",
-        processes=("discord.exe",),
-        action="Type",
-    ),
-    AppAdapterSpec(
-        key="slack",
-        label="Slack",
-        processes=("slack.exe",),
-        action="Type",
-    ),
+    AppAdapterSpec(key="whatsapp", label="WhatsApp", processes=("whatsapp.exe",), action="Type"),
+    AppAdapterSpec(key="discord", label="Discord", processes=("discord.exe",), action="Type"),
+    AppAdapterSpec(key="slack", label="Slack", processes=("slack.exe",), action="Type"),
     AppAdapterSpec(
         key="teams",
         label="Microsoft Teams",
@@ -58,19 +48,11 @@ _ADAPTERS = (
         label="Terminal",
         processes=("windowsterminal.exe", "wt.exe"),
         action="Type",
+        target_mode="focused-child",
+        submit_mode="enter",
     ),
-    AppAdapterSpec(
-        key="cmd",
-        label="Command Prompt",
-        processes=("cmd.exe",),
-        action="Type",
-    ),
-    AppAdapterSpec(
-        key="powershell",
-        label="PowerShell",
-        processes=("powershell.exe",),
-        action="Type",
-    ),
+    AppAdapterSpec(key="cmd", label="Command Prompt", processes=("cmd.exe",), action="Type"),
+    AppAdapterSpec(key="powershell", label="PowerShell", processes=("powershell.exe",), action="Type"),
 )
 
 _BY_PROCESS = {
