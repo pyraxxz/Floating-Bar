@@ -39,12 +39,12 @@ class AppAdapterRegistryTests(unittest.TestCase):
         self.assertEqual(terminal.conversation_attention_mode, "none")
         self.assertEqual(attention_capability(terminal), "none")
 
-    def test_supported_chat_apps_expose_conversation_picker(self):
+    def test_supported_chat_apps_expose_conversation_picker_and_verification(self):
         expected_verification = {
             "whatsapp.exe": "compose-clear",
-            "discord.exe": "unverified",
-            "slack.exe": "unverified",
-            "teams.exe": "unverified",
+            "discord.exe": "compose-clear",
+            "slack.exe": "compose-clear",
+            "teams.exe": "compose-clear",
         }
         for process_name, expected_mode in expected_verification.items():
             spec = adapter_for_process(process_name)
