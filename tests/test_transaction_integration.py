@@ -78,7 +78,7 @@ class TransactionIntegrationTests(unittest.TestCase):
         self.assertEqual(window._active_lifecycle.state, TransactionState.SENDING)
         execute_attempt.assert_called_once_with("hello", 111, 13)
 
-    def test_blocked_coordinator_marks_lifecycle_rejected(self):
+    def test_blocked_coordinator_marks_lifecycle_blocked(self):
         window = self._window()
         window.coordinator.prepare_request.side_effect = TransactionRejected("blocked")
 
@@ -86,12 +86,13 @@ class TransactionIntegrationTests(unittest.TestCase):
         window._send_worker_request(request)
 
         self.assertIsNone(window._active_transaction)
-        self.assertEqual(window._active_lifecycle.state, TransactionState.REJECTED)
+        self.assertEqual(window._active_lifecycle.state, TransactionState.BLOCKED)
         completion = window._result_q.get_nowait()
         self.assertIsInstance(completion, SendCompletion)
         self.assertEqual(completion.attempt_id, 14)
-        self.assertIsNone(completion.strategy)
-        self.assertEqual(completion.error, "blocked")
+        self.assertEqual(completion.strategy, "preflight (blocked)")
+        self.assertIsNone(completion.error)
+        self.assertEqual(completion.evidence_state, __import__("floatingbar.evidence", fromlist=["EvidenceState"]).EvidenceState.BLOCKED)
 
 
 if __name__ == "__main__":
