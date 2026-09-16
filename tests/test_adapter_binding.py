@@ -58,7 +58,7 @@ class AdapterBindingTests(unittest.TestCase):
         post_text.assert_called_once_with(401, "hello")
         post_enter.assert_called_once_with(401, target=401)
 
-    def test_terminal_target_rejects_unsupported_submit_policy_before_enter(self):
+    def test_terminal_target_rejects_unsupported_submit_policy_before_enter_or_typing(self):
         class Spec:
             submit_mode = "click"
 
@@ -73,7 +73,7 @@ class AdapterBindingTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "unsupported"):
                 target.send("dir")
 
-        post_text.assert_called_once_with(402, "dir")
+        post_text.assert_not_called()
         post_enter.assert_not_called()
 
 
