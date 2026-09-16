@@ -198,6 +198,8 @@ def _refresh_row(item: ConversationItem) -> ConversationItem:
             if abs(fresh.left - item.left) + abs(fresh.top - item.top) > 24:
                 raise RuntimeError("conversation row moved before selection")
             return fresh
+        if item.control_identity is None:
+            raise RuntimeError("conversation row runtime identity disappeared")
 
     if item.control_identity is not None:
         structural_matches = [
@@ -211,6 +213,7 @@ def _refresh_row(item: ConversationItem) -> ConversationItem:
             return fresh
         if len(structural_matches) > 1:
             raise RuntimeError("conversation row structural identity is ambiguous")
+        raise RuntimeError("conversation row structural identity disappeared")
 
     candidates = [row for row in current if row.name == item.name]
     if not candidates:
