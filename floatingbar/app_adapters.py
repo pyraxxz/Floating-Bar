@@ -1,8 +1,8 @@
 """Central registry for supported background application capabilities.
 
 The picker and production routing consume this table rather than each
-maintaining executable-name logic. Capability metadata also defines the
-contract that per-app target and verification adapters implement.
+maintaining executable-name logic. Capability metadata defines the target and
+verification contract implemented by the application adapters.
 """
 
 from dataclasses import dataclass
@@ -34,14 +34,37 @@ _ADAPTERS = (
         verification_mode="typed",
         chat_picker="telegram",
     ),
-    AppAdapterSpec(key="whatsapp", label="WhatsApp", processes=("whatsapp.exe",), action="Type"),
-    AppAdapterSpec(key="discord", label="Discord", processes=("discord.exe",), action="Type"),
-    AppAdapterSpec(key="slack", label="Slack", processes=("slack.exe",), action="Type"),
+    AppAdapterSpec(
+        key="whatsapp",
+        label="WhatsApp",
+        processes=("whatsapp.exe",),
+        action="Type",
+        target_mode="chat-structured-focus",
+        submit_mode="enter",
+    ),
+    AppAdapterSpec(
+        key="discord",
+        label="Discord",
+        processes=("discord.exe",),
+        action="Type",
+        target_mode="chat-structured-focus",
+        submit_mode="enter",
+    ),
+    AppAdapterSpec(
+        key="slack",
+        label="Slack",
+        processes=("slack.exe",),
+        action="Type",
+        target_mode="chat-structured-focus",
+        submit_mode="enter",
+    ),
     AppAdapterSpec(
         key="teams",
         label="Microsoft Teams",
         processes=("msteams.exe", "ms-teams.exe", "teams.exe"),
         action="Type",
+        target_mode="chat-structured-focus",
+        submit_mode="enter",
     ),
     AppAdapterSpec(
         key="terminal",

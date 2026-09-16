@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 from floatingbar.app_adapters import adapter_for_process
 from floatingbar.app_targets import target_for_adapter, target_mode_for
+from floatingbar.chat_composer_target import ChatComposerTarget
 from floatingbar.terminal_target import TerminalTypingTarget
 
 
@@ -13,13 +14,20 @@ class AppTargetTests(unittest.TestCase):
         self.assertIsInstance(target, TerminalTypingTarget)
         self.assertEqual(target_mode_for(spec), "terminal-structured-focus")
 
+    def test_chat_apps_use_composer_target(self):
+        for process in ("whatsapp.exe", "discord.exe", "slack.exe", "teams.exe"):
+            with self.subTest(process=process):
+                spec = adapter_for_process(process)
+                self.assertIsInstance(target_for_adapter(spec), ChatComposerTarget)
+                self.assertEqual(target_mode_for(spec), "chat-structured-focus")
+
     def test_unknown_factory_falls_back_to_generic_target(self):
         self.assertEqual(target_mode_for(None), "unsupported")
         target = target_for_adapter(None)
         self.assertEqual(type(target).__name__, "BackgroundTypingTarget")
 
-    def test_terminal_send_requires_structural_candidate_for_focused_child(self):
-        target = TerminalTypingTarget(100, 200)
+    def test_chat_send_requires_structural_candidate_for_focused_child(self):
+        target = ChatComposerTarget(100, 200)
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
              patch("floatingbar.generic_target.winapi.is_minimized", return_value=False), \
@@ -27,13 +35,13 @@ class AppTargetTests(unittest.TestCase):
              patch("floatingbar.generic_target.winapi.get_focused_hwnd", return_value=300), \
              patch.object(target, "input_candidates", return_value=()), \
              patch("floatingbar.generic_target.winapi.post_text") as post_text:
-            with self.assertRaisesRegex(RuntimeError, "not a discovered editable target"):
+            with self.assertRaisesRegex(RuntimeError, "not a discovered editable composer"):
                 target.send("hello")
         post_text.assert_not_called()
 
-    def test_terminal_send_allows_discovered_focused_child(self):
-        target = TerminalTypingTarget(100, 200)
-        candidate = type("Candidate", (), {"hwnd": 300})()
+    def test_chat_send_allows_discovered_edit_control(self):
+        target = ChatComposerTarget(100, 200)
+        candidate = type("Candidate", (), {"hwnd": 300, "control_type": "Edit"})()
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
              patch("floatingbar.generic_target.winapi.is_minimized", return_value=False), \
@@ -46,6 +54,18 @@ class AppTargetTests(unittest.TestCase):
         self.assertEqual(result, "posted-enter (unverified)")
         post_text.assert_called_once_with(300, "hello")
         post_enter.assert_called_once_with(300, target=300)
+
+    def test_chat_send_rejects_non_edit_role(self):
+        target = ChatComposerTarget(100, 200)
+        candidate = type("Candidate", (), {"hwnd": 300, "control_type": "Button"})()
+        with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
+             patch("floatingbar.generic_target.winapi.is_minimized", return_value=False), \
+             patch("floatingbar.generic_target.winapi.get_window_pid", side_effect=[200, 200]), \
+             patch("floatingbar.generic_target.winapi.get_focused_hwnd", return_value=300), \
+             patch.object(target, "input_candidates", return_value=(candidate,)):
+            with self.assertRaisesRegex(RuntimeError, "unsupported input role"):
+                target.send("hello")
 
 
 if __name__ == "__main__":
