@@ -10,6 +10,7 @@ class _Candidate:
         self.hwnd = hwnd
         self.pid = pid
         self.control_type = "Edit"
+        self.focused = False
         self.width = width
         self.height = height
         self.left = 20
