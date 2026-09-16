@@ -41,6 +41,7 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] User-facing background-target feedback maps readiness failures without exposing UI content
 - [x] Telegram chat selection is protected by runtime/structural row identity, not only geometry/name
 - [x] Telegram sends revalidate the selected chat before preflight when the user stays in the same window
+- [x] Unknown background executables can enter the same generic Type pipeline; structural input discovery remains the final readiness gate
 
 ### Completed grouped milestone — Adapter Architecture
 
@@ -57,6 +58,7 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Telegram verification contract is explicitly `compose-clear`
 - [x] Adapter-bound submission policy separates typing from submission semantics
 - [x] Production generic targets bind the explicit adapter policy before sending
+- [x] Generic adapter factory provides safe fallback Type capabilities for unknown executable names
 - [ ] Add app-specific verification implementations for WhatsApp/Discord/Slack/Teams/terminal
 
 ## Phase 2 — Finish the current UX and reliability layer
@@ -68,6 +70,7 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Complete generic-app retry/recovery coverage for structurally pinned input controls
 - [x] Guard delayed picker callbacks against stale app/chat selections
 - [x] Keep minimized background applications eligible for selection while retaining structural target safety checks
+- [x] Allow unknown background apps to expose a generic Type action before structural target probing
 
 ## Phase 3 — Real application adapters
 
@@ -133,6 +136,16 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Explicit Enter submission contract
 - [ ] Conversation targeting refinements
 - [ ] Background verification
+
+### Generic background app
+
+- [x] Process-level fallback adapter for unknown `.exe` names
+- [x] Generic Type action in the hover picker
+- [x] Exact HWND/PID scope binding
+- [x] Structural editable-control discovery and scoring
+- [x] Safe readiness feedback when no input control is available
+- [ ] App-specific submit semantics when Enter is not sufficient
+- [ ] App-specific verification
 
 ## Phase 4 — Target/control intelligence
 
