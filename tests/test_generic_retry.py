@@ -90,7 +90,8 @@ class GenericRetryTests(unittest.TestCase):
         self.assertEqual(window._generic_retry_adapter_key, "")
         self.assertEqual(window._background_adapter_key, "whatsapp")
         window._background_typer.release.assert_called_once_with()
-        window._background_typer.bind.assert_called_once_with(512, 900)
+        window._conversation_picker.show.assert_called_once_with()
+        window._background_typer.bind.assert_not_called()
 
 
 if __name__ == "__main__":
