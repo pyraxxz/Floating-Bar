@@ -34,7 +34,13 @@ def enumerate_background_windows(
     exclude_hwnds: Iterable[int] = (),
     include_minimized: bool = False,
 ) -> Tuple[BackgroundWindow, ...]:
-    """Return visible user-facing top-level windows, largest/foreground first."""
+    """Return user-facing top-level windows, largest/foreground first.
+
+    Minimized windows remain opt-in so callers that need a strict visible-only
+    catalog keep the old behavior. The production background picker explicitly
+    enables them because a minimized app is still an open background target;
+    later target probing decides whether it exposes a usable input control.
+    """
     excluded = {int(hwnd) for hwnd in exclude_hwnds if hwnd}
     foreground = winapi.get_foreground_window()
     results = []
