@@ -28,7 +28,7 @@ _ADAPTERS = (
         target_mode="telegram-compose",
         submit_mode="telegram-send",
         verification_mode="compose-clear",
-        conversation_attention_mode="none",
+        conversation_attention_mode="telegram-badge",
         chat_picker="telegram",
     ),
     AppAdapterSpec(
@@ -78,12 +78,7 @@ _ADAPTERS = (
     AppAdapterSpec(
         key="terminal",
         label="Terminal",
-        processes=(
-            "windowsterminal.exe",
-            "windowsterminalpreview.exe",
-            "wt.exe",
-            "conhost.exe",
-        ),
+        processes=("windowsterminal.exe", "wt.exe", "windowsterminalpreview.exe", "conhost.exe"),
         action="Type",
         target_mode="terminal-structured-focus",
         submit_mode="enter",
