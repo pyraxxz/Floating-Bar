@@ -44,6 +44,11 @@ def _selected(item) -> bool:
         return False
 
 
+def _row_sort_key(row: TelegramChatItem) -> tuple[int, int, int, str]:
+    """Keep the current chat visible while preserving pane order otherwise."""
+    return (0 if row.selected else 1, row.top, row.left, row.name.casefold())
+
+
 def enumerate_telegram_chats(hwnd: int, limit: int = 6) -> tuple[TelegramChatItem, ...]:
     """Return up to ``limit`` visible left-pane Telegram chat rows."""
     if not hwnd or limit <= 0:
@@ -84,7 +89,7 @@ def enumerate_telegram_chats(hwnd: int, limit: int = 6) -> tuple[TelegramChatIte
                     selected=_selected(item),
                 )
             )
-        rows.sort(key=lambda row: (row.top, row.left, row.name.casefold()))
+        rows.sort(key=_row_sort_key)
         return tuple(rows[:limit])
     except Exception:
         return ()
