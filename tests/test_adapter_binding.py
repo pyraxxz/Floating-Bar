@@ -50,11 +50,12 @@ class AdapterBindingTests(unittest.TestCase):
         patches = self._runtime_patches()
         with patches[0], patches[1], patches[2], patches[3], \
              patch.object(target, "input_candidates", return_value=(candidate,)), \
+             patch.object(target, "_composer_value_length", side_effect=[0, 4, 0]), \
              patch("floatingbar.generic_target.winapi.post_text") as post_text, \
              patch("floatingbar.adapter_submit.winapi.post_enter") as post_enter:
             result = target.send("hello")
 
-        self.assertEqual(result, "posted-enter (unverified)")
+        self.assertEqual(result, "posted-enter (VERIFIED)")
         post_text.assert_called_once_with(401, "hello")
         post_enter.assert_called_once_with(401, target=401)
 
