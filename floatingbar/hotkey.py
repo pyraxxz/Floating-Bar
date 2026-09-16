@@ -83,7 +83,7 @@ class GlobalHotkey:
             raise TypeError("spec must be HotkeySpec")
         if not 0 <= int(spec.virtual_key) <= 0xFF:
             raise ValueError("virtual_key must be a Win32 virtual-key code")
-        if not isinstance(on_trigger, Callable):
+        if not callable(on_trigger):
             raise TypeError("on_trigger must be callable")
         self._spec = spec
         self._on_trigger = on_trigger
