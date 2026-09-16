@@ -37,16 +37,17 @@ class BackgroundTypingTarget:
     def __init__(self, hwnd: int = 0, pid: int = 0):
         self._scope = TargetScope(hwnd, pid) if hwnd and pid else None
         self._pinned_hwnd = 0
+        self._pinned_identity = None
 
     def bind(self, hwnd: int, pid: int) -> TargetScope:
         scope = TargetScope(hwnd, pid)
         self._scope = scope
-        self._pinned_hwnd = 0
+        self.clear_pinned_input()
         return scope
 
     def release(self) -> None:
         self._scope = None
-        self._pinned_hwnd = 0
+        self.clear_pinned_input()
 
     def scope(self) -> TargetScope:
         if self._scope is None:
@@ -76,20 +77,42 @@ class BackgroundTypingTarget:
             return ()
         return enumerate_input_candidates(scope.hwnd)
 
+    @staticmethod
+    def _candidate_identity(candidate: InputCandidate) -> tuple:
+        """Return a stable, content-free identity for one discovered control.
+
+        HWNDs can be recycled. The process id plus UI role/class makes a stale
+        pin harder to accidentally redirect after a control is destroyed and
+        replaced. Geometry is deliberately excluded because responsive UIs may
+        resize a legitimate composer between discovery and submission.
+        """
+        return (
+            int(candidate.pid),
+            str(getattr(candidate, "control_type", "")),
+            str(getattr(candidate, "class_name", "")),
+        )
+
+    def _pin_candidate(self, candidate: InputCandidate) -> InputCandidate:
+        scope = self._scope
+        if scope is None or not scope.valid:
+            raise RuntimeError("background typing target is not bound")
+        if candidate.pid != scope.pid:
+            raise RuntimeError("background typing candidate escaped the bound process")
+        self._pinned_hwnd = candidate.hwnd
+        self._pinned_identity = self._candidate_identity(candidate)
+        return candidate
+
     def pin_best_input(self) -> InputCandidate:
         """Pin one structural input for a single send transaction."""
         candidates = self.input_candidates()
         candidate = best_input_candidate(candidates)
         if candidate is None:
             raise RuntimeError("background typing target has no discovered editable control")
-        scope = self._scope
-        if scope is None or candidate.pid != scope.pid:
-            raise RuntimeError("background typing candidate escaped the bound process")
-        self._pinned_hwnd = candidate.hwnd
-        return candidate
+        return self._pin_candidate(candidate)
 
     def clear_pinned_input(self) -> None:
         self._pinned_hwnd = 0
+        self._pinned_identity = None
 
     @property
     def pinned_hwnd(self) -> int:
@@ -140,9 +163,12 @@ class BackgroundTypingTarget:
             raise RuntimeError("background typing pinned control no longer exists")
         if winapi.get_window_pid(pinned) != scope.pid:
             raise RuntimeError("background typing pinned control escaped the bound process")
-        candidates = {candidate.hwnd for candidate in self.input_candidates()}
-        if pinned not in candidates:
+        candidates = self.input_candidates()
+        match = next((candidate for candidate in candidates if candidate.hwnd == pinned), None)
+        if match is None:
             raise RuntimeError("background typing pinned control is no longer editable")
+        if self._pinned_identity is not None and self._candidate_identity(match) != self._pinned_identity:
+            raise RuntimeError("background typing pinned control identity changed")
         return pinned
 
     def send(self, text: str) -> str:
