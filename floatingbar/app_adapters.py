@@ -26,7 +26,7 @@ _ADAPTERS = (
         action="Chats",
         target_mode="telegram-compose",
         submit_mode="telegram-send",
-        verification_mode="typed",
+        verification_mode="compose-clear",
         chat_picker="telegram",
     ),
     AppAdapterSpec(
@@ -36,6 +36,7 @@ _ADAPTERS = (
         action="Chats",
         target_mode="chat-structured-focus",
         submit_mode="enter",
+        verification_mode="unverified",
         chat_picker="conversations",
     ),
     AppAdapterSpec(
@@ -45,6 +46,7 @@ _ADAPTERS = (
         action="Chats",
         target_mode="chat-structured-focus",
         submit_mode="enter",
+        verification_mode="unverified",
         chat_picker="conversations",
     ),
     AppAdapterSpec(
@@ -54,6 +56,7 @@ _ADAPTERS = (
         action="Chats",
         target_mode="chat-structured-focus",
         submit_mode="enter",
+        verification_mode="unverified",
         chat_picker="conversations",
     ),
     AppAdapterSpec(
@@ -63,6 +66,7 @@ _ADAPTERS = (
         action="Chats",
         target_mode="chat-structured-focus",
         submit_mode="enter",
+        verification_mode="unverified",
         chat_picker="conversations",
     ),
     AppAdapterSpec(
