@@ -1,6 +1,7 @@
 import unittest
 from types import SimpleNamespace
 
+from floatingbar.app_adapters import adapter_for_process, is_actionable_process
 from floatingbar.background_picker import PickerItem, action_for_item, to_picker_items
 
 
@@ -12,10 +13,12 @@ class BackgroundPickerTests(unittest.TestCase):
                 label="telegram.exe", foreground=True,
             )]
         )
-        self.assertEqual(
-            result,
-            (PickerItem(10, 20, "Telegram", True, True, "telegram.exe"),),
-        )
+        self.assertEqual(result[0].hwnd, 10)
+        self.assertEqual(result[0].pid, 20)
+        self.assertEqual(result[0].label, "Telegram")
+        self.assertEqual(result[0].process_name, "telegram.exe")
+        self.assertEqual(result[0].adapter_key, "telegram")
+        self.assertTrue(result[0].actionable)
 
     def test_known_typing_apps_are_actionable(self):
         result = to_picker_items(
@@ -47,6 +50,10 @@ class BackgroundPickerTests(unittest.TestCase):
             ["Terminal", "Notepad", "Discord", "Slack", "Microsoft Teams"],
         )
         self.assertEqual([item.actionable for item in result], [True, False, True, True, True])
+        self.assertEqual(
+            [item.adapter_key for item in result],
+            ["terminal", "", "discord", "slack", "teams"],
+        )
 
     def test_non_submit_editor_is_discovery_only_but_still_labeled(self):
         result = to_picker_items(
@@ -57,6 +64,7 @@ class BackgroundPickerTests(unittest.TestCase):
         )
         self.assertEqual(result[0].label, "Notepad")
         self.assertFalse(result[0].actionable)
+        self.assertEqual(result[0].adapter_key, "")
 
     def test_known_chat_and_terminal_aliases_share_actionability(self):
         result = to_picker_items(
@@ -81,9 +89,16 @@ class BackgroundPickerTests(unittest.TestCase):
         )
         self.assertTrue(all(item.actionable for item in result))
 
+    def test_adapter_registry_normalizes_known_aliases(self):
+        self.assertEqual(adapter_for_process("WT.EXE").key, "terminal")
+        self.assertEqual(adapter_for_process("teams.exe").key, "teams")
+        self.assertEqual(adapter_for_process("unknown.exe"), None)
+        self.assertTrue(is_actionable_process("discord.exe"))
+        self.assertFalse(is_actionable_process("notepad.exe"))
+
     def test_action_menu_label_distinguishes_telegram(self):
-        telegram = PickerItem(10, 20, "Telegram", True, False, "telegram.exe")
-        terminal = PickerItem(11, 21, "Terminal", True, False, "wt.exe")
+        telegram = PickerItem(10, 20, "Telegram", True, False, "telegram.exe", "telegram")
+        terminal = PickerItem(11, 21, "Terminal", True, False, "wt.exe", "terminal")
         editor = PickerItem(12, 22, "Notepad", False, False, "notepad.exe")
         self.assertEqual(action_for_item(telegram), "Chats")
         self.assertEqual(action_for_item(terminal), "Type")
@@ -98,6 +113,7 @@ class BackgroundPickerTests(unittest.TestCase):
         )
         self.assertEqual(result[0].label, "Myeditor")
         self.assertFalse(result[0].actionable)
+        self.assertEqual(result[0].adapter_key, "")
 
 
 if __name__ == "__main__":
