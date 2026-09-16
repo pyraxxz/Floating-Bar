@@ -2,7 +2,8 @@
 
 Rows are discovered from UI Automation structure and user-visible names only.
 Message previews/bodies are never read or stored. The catalog is short-lived
-and every selection revalidates the row geometry and process before clicking.
+and every selection revalidates the row geometry, runtime identity, and process
+before clicking.
 """
 
 from dataclasses import dataclass
@@ -22,6 +23,7 @@ class ConversationItem:
     right: int
     bottom: int
     selected: bool = False
+    runtime_id: tuple[int, ...] | None = None
 
     @property
     def center(self) -> tuple[int, int]:
@@ -29,6 +31,21 @@ class ConversationItem:
             self.left + max(1, self.right - self.left) // 2,
             self.top + max(1, self.bottom - self.top) // 2,
         )
+
+
+def _runtime_id(item) -> tuple[int, ...] | None:
+    """Return UIA runtime identity without reading control content."""
+    try:
+        value = getattr(item.element_info, "runtime_id", None)
+    except Exception:
+        return None
+    if value is None:
+        return None
+    try:
+        result = tuple(int(part) for part in value)
+    except (TypeError, ValueError):
+        return None
+    return result or None
 
 
 def _selected(item) -> bool:
@@ -44,6 +61,11 @@ def _selected(item) -> bool:
 
 def _left_pane_cutoff(window_rect, fraction: float = 0.68) -> int:
     return window_rect.left + int(max(1, window_rect.width()) * fraction)
+
+
+def _row_sort_key(row: ConversationItem) -> tuple[int, int, str, int]:
+    """Prefer the current conversation, then use geometry only as presentation order."""
+    return (0 if row.selected else 1, row.top, row.left, row.name.casefold())
 
 
 def enumerate_conversations(
@@ -77,7 +99,8 @@ def enumerate_conversations(
                     continue
                 if rect.left >= cutoff or rect.top < window_rect.top or rect.bottom > window_rect.bottom:
                     continue
-                key = (rect.left, rect.top, rect.right, rect.bottom, name.casefold())
+                runtime_id = _runtime_id(item)
+                key = runtime_id or (rect.left, rect.top, rect.right, rect.bottom, name.casefold())
                 if key in seen:
                     continue
                 seen.add(key)
@@ -91,9 +114,10 @@ def enumerate_conversations(
                         right=rect.right,
                         bottom=rect.bottom,
                         selected=_selected(item),
+                        runtime_id=runtime_id,
                     )
                 )
-        rows.sort(key=lambda row: (row.top, row.left, row.name.casefold()))
+        rows.sort(key=_row_sort_key)
         return tuple(rows[:limit])
     except Exception:
         return ()
@@ -113,6 +137,20 @@ def _refresh_row(item: ConversationItem) -> ConversationItem:
     if winapi.get_window_pid(item.hwnd) != item.pid:
         raise RuntimeError("conversation window process changed")
     current = enumerate_conversations(item.hwnd, limit=32)
+
+    if item.runtime_id is not None:
+        identity_matches = [row for row in current if row.runtime_id == item.runtime_id]
+        if identity_matches:
+            fresh = min(
+                identity_matches,
+                key=lambda row: abs(row.left - item.left) + abs(row.top - item.top),
+            )
+            if fresh.name != item.name:
+                raise RuntimeError("conversation row identity changed")
+            if abs(fresh.left - item.left) + abs(fresh.top - item.top) > 24:
+                raise RuntimeError("conversation row moved before selection")
+            return fresh
+
     candidates = [row for row in current if row.name == item.name]
     if not candidates:
         raise RuntimeError("conversation row is no longer available")

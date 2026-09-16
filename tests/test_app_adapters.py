@@ -26,6 +26,14 @@ class AppAdapterRegistryTests(unittest.TestCase):
         self.assertEqual(terminal.submit_mode, "enter")
         self.assertEqual(terminal.verification_mode, "unverified")
 
+    def test_supported_chat_apps_expose_conversation_picker(self):
+        for process_name in ("whatsapp.exe", "discord.exe", "slack.exe", "teams.exe"):
+            spec = adapter_for_process(process_name)
+            self.assertIsNotNone(spec)
+            self.assertEqual(spec.action, "Chats")
+            self.assertEqual(spec.chat_picker, "conversations")
+            self.assertTrue(spec.supports_background_type)
+
     def test_unknown_and_non_adapter_processes_fail_closed(self):
         self.assertIsNone(adapter_for_process("unknown.exe"))
         self.assertFalse(is_actionable_process("notepad.exe"))

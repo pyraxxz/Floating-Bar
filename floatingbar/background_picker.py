@@ -71,6 +71,8 @@ class BackgroundAppPicker:
     """Small hover popup that never foregrounds the selected target app."""
 
     HOVER_DELAY_MS = 140
+    TRANSITION_GRACE_MS = 220
+    ACTION_GRACE_MS = 220
     WIDTH = 210
     ROW_HEIGHT = 30
 
@@ -104,7 +106,7 @@ class BackgroundAppPicker:
 
     def _owner_leave(self, _event=None) -> None:
         self._inside_owner = False
-        self._schedule_hide()
+        self._schedule_hide(self.TRANSITION_GRACE_MS)
 
     def _popup_enter(self, _event=None) -> None:
         self._inside_popup = True
@@ -112,7 +114,7 @@ class BackgroundAppPicker:
 
     def _popup_leave(self, _event=None) -> None:
         self._inside_popup = False
-        self._schedule_hide()
+        self._schedule_hide(self.TRANSITION_GRACE_MS)
 
     def _actions_enter(self, _event=None) -> None:
         self._inside_actions = True
@@ -120,12 +122,12 @@ class BackgroundAppPicker:
 
     def _actions_leave(self, _event=None) -> None:
         self._inside_actions = False
-        self._schedule_hide()
+        self._schedule_hide(self.ACTION_GRACE_MS)
 
-    def _schedule_hide(self) -> None:
+    def _schedule_hide(self, delay_ms: int = TRANSITION_GRACE_MS) -> None:
         self._cancel_show()
         self._cancel_hide()
-        self._hide_job = self.owner.after(140, self._maybe_hide)
+        self._hide_job = self.owner.after(delay_ms, self._maybe_hide)
 
     def _maybe_hide(self) -> None:
         self._hide_job = None
@@ -218,7 +220,7 @@ class BackgroundAppPicker:
         self._show_actions(item, row)
 
     def _row_leave(self, _event=None) -> None:
-        self.owner.after(90, self._maybe_hide_actions)
+        self.owner.after(self.ACTION_GRACE_MS, self._maybe_hide_actions)
 
     def _maybe_hide_actions(self) -> None:
         if not self._inside_actions:

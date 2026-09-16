@@ -48,8 +48,8 @@ The app should let the user work in the foreground while sending/replying throug
 
 ## Phase 2 — Finish the current UX and reliability layer
 
-- [ ] Make hover movement between orb → app list → action menu more forgiving
-- [ ] Show useful “unavailable/unsupported” feedback instead of silently failing
+- [x] Make hover movement between orb → app list → action menu more forgiving
+- [x] Show safe picker availability/action affordances instead of silent unsupported selection
 - [ ] Keep selected app identity visible in the active bar without exposing window titles
 - [ ] Add deterministic tests for picker hover state transitions where practical
 - [x] Complete generic-app retry/recovery coverage for structurally pinned input controls
@@ -82,7 +82,7 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Discovery and generic typing foundation
 - [x] Adapter capability contract
 - [x] Dedicated structural composer target
-- [ ] Chat/conversation picker
+- [x] Generic conversation picker and background row selection
 - [ ] Background submit
 - [ ] Verification
 
@@ -91,6 +91,7 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Discovery and generic typing foundation
 - [x] Adapter capability contract
 - [x] Dedicated structural composer target
+- [x] Generic conversation picker and background row selection
 - [ ] Server/channel/DM targeting model
 - [ ] Background submit
 - [ ] Verification
@@ -100,7 +101,8 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Discovery and generic typing foundation
 - [x] Adapter capability contract
 - [x] Dedicated structural composer target
-- [ ] Conversation targeting
+- [x] Generic conversation picker and background row selection
+- [ ] Conversation targeting refinements
 - [ ] Background submit
 - [ ] Verification
 
@@ -109,7 +111,8 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Discovery and generic typing foundation
 - [x] Adapter capability contract
 - [x] Dedicated structural composer target
-- [ ] Conversation targeting
+- [x] Generic conversation picker and background row selection
+- [ ] Conversation targeting refinements
 - [ ] Background submit
 - [ ] Verification
 
@@ -128,8 +131,10 @@ The key transition is from “whatever control currently has focus” to “the 
 
 - [ ] Identify useful/reply-needed chats without scraping message content
 - [ ] Prioritize unread/relevant conversations where application APIs/UI expose safe structural signals
-- [ ] Keep chat selection content-free where possible
+- [x] Keep chat selection content-free where possible
 - [x] Refresh/revalidate rows immediately before background selection
+- [x] Prefer UI Automation runtime identity when available; use name/geometry only as a guarded fallback
+- [x] Keep the currently selected conversation visible in the short picker window
 - [ ] Avoid assuming visual ordering is stable across app versions
 
 ## Phase 6 — Verification and reliability
