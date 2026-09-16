@@ -13,6 +13,7 @@ class AppAdapterSpec:
     target_mode: str = "focused-child"
     submit_mode: str = "enter"
     verification_mode: str = "unverified"
+    conversation_attention_mode: str = "none"
     implemented: bool = True
     supports_background_type: bool = True
     chat_picker: Optional[str] = None
@@ -27,6 +28,7 @@ _ADAPTERS = (
         target_mode="telegram-compose",
         submit_mode="telegram-send",
         verification_mode="compose-clear",
+        conversation_attention_mode="none",
         chat_picker="telegram",
     ),
     AppAdapterSpec(
@@ -37,6 +39,7 @@ _ADAPTERS = (
         target_mode="chat-structured-focus",
         submit_mode="enter",
         verification_mode="unverified",
+        conversation_attention_mode="none",
         chat_picker="conversations",
     ),
     AppAdapterSpec(
@@ -47,6 +50,7 @@ _ADAPTERS = (
         target_mode="chat-structured-focus",
         submit_mode="enter",
         verification_mode="unverified",
+        conversation_attention_mode="none",
         chat_picker="conversations",
     ),
     AppAdapterSpec(
@@ -57,6 +61,7 @@ _ADAPTERS = (
         target_mode="chat-structured-focus",
         submit_mode="enter",
         verification_mode="unverified",
+        conversation_attention_mode="none",
         chat_picker="conversations",
     ),
     AppAdapterSpec(
@@ -67,6 +72,7 @@ _ADAPTERS = (
         target_mode="chat-structured-focus",
         submit_mode="enter",
         verification_mode="unverified",
+        conversation_attention_mode="none",
         chat_picker="conversations",
     ),
     AppAdapterSpec(
@@ -77,6 +83,7 @@ _ADAPTERS = (
         target_mode="terminal-structured-focus",
         submit_mode="enter",
         verification_mode="unverified",
+        conversation_attention_mode="none",
     ),
     AppAdapterSpec(
         key="cmd",
@@ -86,6 +93,7 @@ _ADAPTERS = (
         target_mode="terminal-structured-focus",
         submit_mode="enter",
         verification_mode="unverified",
+        conversation_attention_mode="none",
     ),
     AppAdapterSpec(
         key="powershell",
@@ -95,6 +103,7 @@ _ADAPTERS = (
         target_mode="terminal-structured-focus",
         submit_mode="enter",
         verification_mode="unverified",
+        conversation_attention_mode="none",
     ),
 )
 
