@@ -24,8 +24,15 @@ def main() -> None:
     # recovery, explicit retry UX, non-content Telegram context checks, and
     # an immutable per-attempt Telegram target lease.
     from floatingbar.bound_context_overlay import OrbRelayWindow
+    from floatingbar.hotkey import GlobalHotkey, HotkeySpec
 
     app = OrbRelayWindow()
+    hotkey = GlobalHotkey(
+        HotkeySpec(config.HOTKEY_MODIFIERS, config.HOTKEY_VIRTUAL_KEY),
+        on_trigger=app._expand,
+        tk_root=app,
+    )
+    hotkey.start()
     try:
         app.run()
     except Exception:
@@ -42,6 +49,8 @@ def main() -> None:
         except Exception:
             pass
         raise
+    finally:
+        hotkey.stop()
 
 
 if __name__ == "__main__":
