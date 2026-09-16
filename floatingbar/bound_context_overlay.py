@@ -1,5 +1,7 @@
 """Production entry point with background application and chat pickers."""
 
+import tkinter as tk
+
 from .context_overlay import OrbRelayWindow as _ContextOrbRelayWindow
 from .app_adapters import adapter_for_process
 from .app_targets import target_for_adapter
@@ -47,6 +49,34 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self._generic_retry_adapter_key = ""
         self._pending_chat = None
         self._pending_conversation = None
+        self._background_identity_label = tk.Label(
+            self.bar,
+            bg=self.bar.cget("bg"),
+            fg="#a1a1aa",
+            font=("Segoe UI", 8, "bold"),
+            anchor="w",
+        )
+
+    def _show_bar(self):
+        super()._show_bar()
+        spec = adapter_for_process(getattr(self, "_background_process_name", ""))
+        label = spec.label if spec is not None else ""
+        if label:
+            self._background_identity_label.config(text=label)
+            self._background_identity_label.place(
+                x=8,
+                y=12,
+                width=66,
+                height=16,
+            )
+            self.entry.place(
+                x=78,
+                y=10,
+                width=max(40, self.winfo_width() - 86),
+                height=20,
+            )
+        else:
+            self._background_identity_label.place_forget()
 
     def _select_background_window(self, item: PickerItem) -> None:
         """Bind an actionable process/window without foregrounding it."""
