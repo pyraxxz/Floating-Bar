@@ -6,9 +6,25 @@ child belonging to that same process. It does not discover another window or
 bring the target to the foreground.
 """
 
+from dataclasses import dataclass
+
 from . import winapi
 from .control_candidates import enumerate_input_candidates, InputCandidate
 from .transaction import TargetScope
+
+
+@dataclass(frozen=True)
+class TargetProbe:
+    """Content-free snapshot of generic target readiness."""
+
+    scope: TargetScope
+    available: bool
+    focused_hwnd: int
+    candidate_hwnds: tuple[int, ...]
+
+    @property
+    def candidate_count(self) -> int:
+        return len(self.candidate_hwnds)
 
 
 class BackgroundTypingTarget:
@@ -53,6 +69,30 @@ class BackgroundTypingTarget:
             return ()
         return enumerate_input_candidates(scope.hwnd)
 
+    def probe(self) -> TargetProbe:
+        """Capture structural target state without reading control content."""
+        scope = self.scope()
+        available = self.available()
+        if not available:
+            return TargetProbe(scope, False, 0, ())
+
+        try:
+            focused = winapi.get_focused_hwnd(scope.hwnd)
+        except Exception:
+            focused = 0
+
+        try:
+            candidates = self.input_candidates()
+        except Exception:
+            candidates = ()
+
+        return TargetProbe(
+            scope=scope,
+            available=True,
+            focused_hwnd=focused if focused else 0,
+            candidate_hwnds=tuple(candidate.hwnd for candidate in candidates),
+        )
+
     def _focused_target(self) -> int:
         scope = self._scope
         if scope is None or not self.available():
@@ -73,4 +113,4 @@ class BackgroundTypingTarget:
         return "posted-enter (unverified)"
 
 
-__all__ = ["BackgroundTypingTarget"]
+__all__ = ["BackgroundTypingTarget", "TargetProbe"]
