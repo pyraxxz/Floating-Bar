@@ -3,7 +3,7 @@
 import tkinter as tk
 
 from .context_overlay import OrbRelayWindow as _ContextOrbRelayWindow
-from .app_adapters import adapter_for_process
+from .app_adapters import actionable_adapter_for_process
 from .app_targets import target_for_adapter
 from .background_picker import BackgroundAppPicker, PickerItem
 from .background_windows import enumerate_background_windows
@@ -62,7 +62,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
 
     def _show_bar(self):
         super()._show_bar()
-        spec = adapter_for_process(getattr(self, "_background_process_name", ""))
+        spec = actionable_adapter_for_process(getattr(self, "_background_process_name", ""))
         label = spec.label if spec is not None else ""
         if label:
             self._background_identity_label.config(text=label)
@@ -112,7 +112,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         """Choose an actionable process/window without foregrounding it."""
         if not item.actionable or not item.hwnd or not item.pid:
             return
-        spec = adapter_for_process(item.process_name)
+        spec = actionable_adapter_for_process(item.process_name)
         if spec is None or not spec.implemented or not spec.supports_background_type:
             return
         self._advance_selection_generation()
@@ -176,7 +176,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         if conversation is None or self._sending:
             return
         try:
-            spec = adapter_for_process(self._background_process_name)
+            spec = actionable_adapter_for_process(self._background_process_name)
             scope = self._background_typer.bind(conversation.hwnd, conversation.pid)
             self._bind_adapter_metadata(spec)
             if scope.hwnd != self._work_hwnd or scope.pid != conversation.pid:
@@ -240,7 +240,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         """Route non-Telegram picker selections through their app-specific target."""
         process_name = getattr(self, "_background_process_name", "")
         adapter_key = getattr(self, "_background_adapter_key", "")
-        spec = adapter_for_process(process_name)
+        spec = actionable_adapter_for_process(process_name)
         if not process_name or spec is None:
             return super()._send_worker_request(request)
         if adapter_key == "telegram":
@@ -288,7 +288,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         scope = self._generic_retry_scope
         if scope is None:
             return super()._retry_failed_draft()
-        spec = adapter_for_process(self._generic_retry_process_name)
+        spec = actionable_adapter_for_process(self._generic_retry_process_name)
         if spec is None or not spec.implemented or not spec.supports_background_type:
             self._show_feedback("The original background app is no longer supported safely.")
             return
