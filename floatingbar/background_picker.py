@@ -1,15 +1,16 @@
 """Hover picker for visible background applications.
 
 The picker is intentionally process-level: it never displays window titles,
-chat names, or message content. Supported applications expose a capability
-from the centralized adapter registry; everything else remains discovery-only.
+chat names, or message content. Known applications expose a named adapter;
+unknown applications may expose a generic Type action, with structural input
+inspection remaining the readiness gate before the bar opens.
 """
 
 from dataclasses import dataclass
 import tkinter as tk
 from typing import Callable, Optional, Sequence
 
-from .app_adapters import adapter_for_process
+from .app_adapters import actionable_adapter_for_process
 from .background_windows import BackgroundWindow
 
 
@@ -67,10 +68,8 @@ def to_picker_items(windows: Sequence[BackgroundWindow]) -> tuple[PickerItem, ..
     """Convert catalog entries into title-free picker rows."""
     items = []
     for item in windows:
-        spec = adapter_for_process(item.process_name)
-        actionable = bool(
-            spec and spec.implemented and spec.supports_background_type
-        )
+        spec = actionable_adapter_for_process(item.process_name)
+        actionable = bool(spec and spec.implemented and spec.supports_background_type)
         items.append(
             PickerItem(
                 hwnd=item.hwnd,
@@ -90,7 +89,7 @@ def to_picker_items(windows: Sequence[BackgroundWindow]) -> tuple[PickerItem, ..
 
 def action_for_item(item: PickerItem) -> str:
     """Return the safe action exposed when hovering an application row."""
-    spec = adapter_for_process(item.process_name)
+    spec = actionable_adapter_for_process(item.process_name)
     if not item.actionable or not spec or not spec.implemented:
         return "Preview"
     if not spec.supports_background_type:
