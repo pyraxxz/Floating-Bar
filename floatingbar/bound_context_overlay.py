@@ -126,8 +126,6 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self._work_hwnd = item.hwnd
         self._generic_attempt_id = 0
 
-        # Conversation pickers must be opened before binding a composer. The
-        # chosen row determines the exact UI scope that will later be probed.
         if spec.chat_picker == "telegram":
             self._pending_chat = None
             self._telegram_chat_picker.show()
@@ -224,6 +222,10 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             selected = self.target.select_for_send(preferred_hwnd=chat.hwnd)
             if selected != chat.hwnd:
                 raise RuntimeError("Telegram selected a different window")
+            self.target.bind_chat_identity(chat)
+            if not self.target.chat_identity_matches():
+                self.target.release()
+                raise RuntimeError("Telegram changed away from the selected chat")
             self._work_hwnd = chat.hwnd
             self._attempt_context = capture(chat.hwnd)
             self.injector.set_window_context(self._attempt_context)
@@ -239,7 +241,16 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         process_name = getattr(self, "_background_process_name", "")
         adapter_key = getattr(self, "_background_adapter_key", "")
         spec = adapter_for_process(process_name)
-        if not process_name or spec is None or adapter_key == "telegram":
+        if not process_name or spec is None:
+            return super()._send_worker_request(request)
+        if adapter_key == "telegram":
+            if getattr(request, "valid", False) and not self.target.chat_identity_matches():
+                self._queue_completion(
+                    getattr(request, "attempt_id", 0),
+                    None,
+                    "The selected Telegram chat changed before sending, so the draft was stopped safely.",
+                )
+                return
             return super()._send_worker_request(request)
         if not getattr(request, "valid", False):
             return super()._send_worker_request(request)
