@@ -1,0 +1,92 @@
+import unittest
+from unittest.mock import Mock, patch
+
+from floatingbar.bound_context_overlay import OrbRelayWindow
+from floatingbar.transaction import TargetScope
+
+
+class SelectionRaceTests(unittest.TestCase):
+    def _window(self):
+        window = OrbRelayWindow.__new__(OrbRelayWindow)
+        window._sending = False
+        window._pending_conversation = None
+        window._pending_chat = None
+        window._selection_generation = 0
+        window._state = "orb"
+        window._work_hwnd = 123
+        window._background_typer = Mock()
+        window._background_typer.bind.return_value = TargetScope(123, 200)
+        window._update_status = Mock()
+        window._show_bar = Mock()
+        window._show_feedback = Mock()
+        window.target = Mock()
+        return window
+
+    def test_stale_generic_selection_callback_cannot_bind_newer_conversation(self):
+        window = self._window()
+        older = Mock(hwnd=123, pid=200, name="Older")
+        newer = Mock(hwnd=123, pid=200, name="Newer")
+        callbacks = []
+        window.after = lambda _delay, callback: callbacks.append(callback)
+
+        with patch("floatingbar.bound_context_overlay.select_conversation"):
+            window._select_conversation(older)
+            first = callbacks.pop()
+            window._select_conversation(newer)
+            second = callbacks.pop()
+
+        first()
+        window._background_typer.bind.assert_not_called()
+        self.assertIs(window._pending_conversation, newer)
+
+        second()
+        window._background_typer.bind.assert_called_once_with(123, 200)
+
+    def test_stale_telegram_selection_callback_cannot_rebind_newer_chat(self):
+        window = self._window()
+        older = Mock(hwnd=123, pid=200, name="Older")
+        newer = Mock(hwnd=123, pid=200, name="Newer")
+        callbacks = []
+        window.after = lambda _delay, callback: callbacks.append(callback)
+        with patch("floatingbar.bound_context_overlay.select_telegram_chat"), \
+             patch("floatingbar.bound_context_overlay.capture", return_value=Mock()):
+            window._select_telegram_chat(older)
+            first = callbacks.pop()
+            window._select_telegram_chat(newer)
+            second = callbacks.pop()
+
+        first()
+        window.target.select_for_send.assert_not_called()
+        self.assertIs(window._pending_chat, newer)
+        second()
+        window.target.select_for_send.assert_called_once_with(preferred_hwnd=123)
+
+    def test_switching_background_window_invalidates_pending_selection(self):
+        window = self._window()
+        window._background_process_name = ""
+        window._background_adapter_key = ""
+        window._generic_attempt_id = 0
+        window._background_typer.release = Mock()
+        window._telegram_chat_picker = Mock()
+        window._conversation_picker = Mock()
+        window._generic_retry_scope = None
+        window._generic_retry_process_name = ""
+        window._generic_retry_adapter_key = ""
+
+        older = Mock(hwnd=123, pid=200, name="Older")
+        callbacks = []
+        window.after = lambda _delay, callback: callbacks.append(callback)
+        with patch("floatingbar.bound_context_overlay.select_conversation"):
+            window._select_conversation(older)
+
+        stale = callbacks.pop()
+        item = Mock(hwnd=456, pid=300, process_name="discord.exe", actionable=True)
+        with patch("floatingbar.bound_context_overlay.target_for_adapter", return_value=window._background_typer):
+            window._select_background_window(item)
+
+        stale()
+        window._background_typer.bind.assert_not_called()
+
+
+if __name__ == "__main__":
+    unittest.main()

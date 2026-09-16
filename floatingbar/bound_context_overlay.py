@@ -49,6 +49,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self._generic_retry_adapter_key = ""
         self._pending_chat = None
         self._pending_conversation = None
+        self._selection_generation = 0
         self._background_identity_label = tk.Label(
             self.bar,
             bg=self.bar.cget("bg"),
@@ -63,12 +64,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         label = spec.label if spec is not None else ""
         if label:
             self._background_identity_label.config(text=label)
-            self._background_identity_label.place(
-                x=8,
-                y=12,
-                width=66,
-                height=16,
-            )
+            self._background_identity_label.place(x=8, y=12, width=66, height=16)
             self.entry.place(
                 x=78,
                 y=10,
@@ -85,6 +81,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         spec = adapter_for_process(item.process_name)
         if spec is None or not spec.implemented or not spec.supports_background_type:
             return
+        self._selection_generation += 1
         self._background_typer.release()
         self._background_typer = target_for_adapter(spec)
         self._generic_retry_scope = None
@@ -114,6 +111,8 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         """Select a generic chat row in the background, then bind its composer target."""
         if self._sending:
             return
+        self._selection_generation += 1
+        token = self._selection_generation
         self._pending_conversation = conversation
         try:
             select_conversation(conversation)
@@ -122,9 +121,11 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             trace.trace(f"background conversation selection failed safely: {exc}")
             self._show_feedback("The selected conversation could not be opened safely.")
             return
-        self.after(160, self._finish_conversation_selection)
+        self.after(160, lambda generation=token: self._finish_conversation_selection(generation))
 
-    def _finish_conversation_selection(self) -> None:
+    def _finish_conversation_selection(self, generation=None) -> None:
+        if generation is not None and generation != self._selection_generation:
+            return
         conversation = self._pending_conversation
         self._pending_conversation = None
         if conversation is None or self._sending:
@@ -144,6 +145,8 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         """Select a Telegram chat in the background, then rebuild its context guard."""
         if self._sending:
             return
+        self._selection_generation += 1
+        token = self._selection_generation
         self._pending_chat = chat
         try:
             self.target.release()
@@ -153,9 +156,11 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             trace.trace(f"telegram chat selection failed safely: {exc}")
             self._show_feedback("The selected Telegram chat could not be opened safely.")
             return
-        self.after(160, self._finish_telegram_chat_selection)
+        self.after(160, lambda generation=token: self._finish_telegram_chat_selection(generation))
 
-    def _finish_telegram_chat_selection(self) -> None:
+    def _finish_telegram_chat_selection(self, generation=None) -> None:
+        if generation is not None and generation != self._selection_generation:
+            return
         chat = self._pending_chat
         self._pending_chat = None
         if chat is None or self._sending:
