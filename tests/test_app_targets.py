@@ -32,6 +32,24 @@ class AppTargetTests(unittest.TestCase):
         self.assertIsInstance(target, TerminalTypingTarget)
         self.assertEqual(target_mode_for(spec), "terminal-structured-focus")
 
+    def test_terminal_prefers_discovered_candidate_when_focus_is_elsewhere(self):
+        target = TerminalTypingTarget(100, 200)
+        focused_other = _Candidate(300, width=120, height=20, focused=True)
+        console = _Candidate(400, width=700, height=40, focused=False)
+        with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
+             patch("floatingbar.generic_target.winapi.is_minimized", return_value=False), \
+             patch("floatingbar.generic_target.winapi.get_window_pid", side_effect=[200, 200]), \
+             patch("floatingbar.generic_target.winapi.get_focused_hwnd", return_value=300), \
+             patch.object(target, "input_candidates", return_value=(console,)), \
+             patch("floatingbar.generic_target.winapi.post_text") as post_text, \
+             patch("floatingbar.generic_target.winapi.post_enter") as post_enter:
+            result = target.send("dir")
+
+        self.assertEqual(result, "posted-enter (unverified)")
+        post_text.assert_called_once_with(400, "dir")
+        post_enter.assert_called_once_with(400, target=400)
+
     def test_chat_apps_use_composer_target(self):
         for process in ("whatsapp.exe", "discord.exe", "slack.exe", "teams.exe"):
             with self.subTest(process=process):
