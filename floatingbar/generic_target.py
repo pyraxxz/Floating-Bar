@@ -66,8 +66,9 @@ class BackgroundTypingTarget:
             return False
         if not winapi.user32.IsWindowVisible(scope.hwnd):
             return False
-        if winapi.is_minimized(scope.hwnd):
-            return False
+        # Minimized apps remain legitimate background targets. Structural
+        # probing below determines whether their UI still exposes a usable
+        # input control instead of assuming minimized == unusable.
         return winapi.get_window_pid(scope.hwnd) == scope.pid
 
     def input_candidates(self) -> tuple[InputCandidate, ...]:
@@ -79,13 +80,7 @@ class BackgroundTypingTarget:
 
     @staticmethod
     def _candidate_identity(candidate: InputCandidate) -> tuple:
-        """Return a stable, content-free identity for one discovered control.
-
-        HWNDs can be recycled. The process id plus UI role/class makes a stale
-        pin harder to accidentally redirect after a control is destroyed and
-        replaced. Geometry is deliberately excluded because responsive UIs may
-        resize a legitimate composer between discovery and submission.
-        """
+        """Return a stable, content-free identity for one discovered control."""
         return (
             int(candidate.pid),
             str(getattr(candidate, "control_type", "")),
