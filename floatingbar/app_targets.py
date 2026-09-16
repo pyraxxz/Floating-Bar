@@ -7,13 +7,14 @@ from .terminal_target import TerminalTypingTarget
 
 
 _CHAT_TARGETS = {"whatsapp", "discord", "slack", "teams"}
+_TERMINAL_TARGETS = {"terminal", "cmd", "powershell"}
 
 
 def target_for_adapter(spec: Optional[AppAdapterSpec]):
     """Build the safest target implementation for an adapter capability."""
     if spec is None:
         return BackgroundTypingTarget()
-    if spec.key == "terminal":
+    if spec.key in _TERMINAL_TARGETS:
         return TerminalTypingTarget()
     if spec.key in _CHAT_TARGETS:
         return ChatComposerTarget()
