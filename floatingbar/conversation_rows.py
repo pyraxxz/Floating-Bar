@@ -1,0 +1,140 @@
+"""Ephemeral conversation-row discovery for background chat selection.
+
+Rows are discovered from UI Automation structure and user-visible names only.
+Message previews/bodies are never read or stored. The catalog is short-lived
+and every selection revalidates the row geometry and process before clicking.
+"""
+
+from dataclasses import dataclass
+import ctypes
+import ctypes.wintypes as wintypes
+
+from pywinauto import Application
+
+from . import winapi
+
+
+@dataclass(frozen=True)
+class ConversationItem:
+    hwnd: int
+    pid: int
+    name: str
+    left: int
+    top: int
+    right: int
+    bottom: int
+    selected: bool = False
+
+    @property
+    def center(self) -> tuple[int, int]:
+        return (
+            self.left + max(1, self.right - self.left) // 2,
+            self.top + max(1, self.bottom - self.top) // 2,
+        )
+
+
+def _selected(item) -> bool:
+    try:
+        return bool(item.is_selected())
+    except Exception:
+        pass
+    try:
+        return bool(item.iface_selection_item.CurrentIsSelected)
+    except Exception:
+        return False
+
+
+def _left_pane_cutoff(window_rect, fraction: float = 0.68) -> int:
+    return window_rect.left + int(max(1, window_rect.width()) * fraction)
+
+
+def enumerate_conversations(
+    hwnd: int,
+    limit: int = 6,
+    control_types: tuple[str, ...] = ("ListItem", "TreeItem"),
+) -> tuple[ConversationItem, ...]:
+    """Return a short ephemeral catalog of visible left-pane conversation rows."""
+    if not hwnd or limit <= 0:
+        return ()
+    try:
+        pid = winapi.get_window_pid(hwnd)
+        if not pid or not winapi.user32.IsWindow(hwnd):
+            return ()
+        app = Application(backend="uia").connect(handle=hwnd)
+        window = app.window(handle=hwnd).wrapper_object()
+        window_rect = window.rectangle()
+        cutoff = _left_pane_cutoff(window_rect)
+        rows = []
+        seen = set()
+        for control_type in control_types:
+            for item in window.descendants(control_type=control_type):
+                try:
+                    rect = item.rectangle()
+                    name = (item.element_info.name or "").strip()
+                except Exception:
+                    continue
+                if not name or rect.width() <= 80 or rect.height() <= 18:
+                    continue
+                if rect.left >= cutoff or rect.top < window_rect.top or rect.bottom > window_rect.bottom:
+                    continue
+                key = (rect.left, rect.top, rect.right, rect.bottom, name.casefold())
+                if key in seen:
+                    continue
+                seen.add(key)
+                rows.append(
+                    ConversationItem(
+                        hwnd=hwnd,
+                        pid=pid,
+                        name=name,
+                        left=rect.left,
+                        top=rect.top,
+                        right=rect.right,
+                        bottom=rect.bottom,
+                        selected=_selected(item),
+                    )
+                )
+        rows.sort(key=lambda row: (row.top, row.left, row.name.casefold()))
+        return tuple(rows[:limit])
+    except Exception:
+        return ()
+
+
+def _screen_to_client(hwnd: int, x: int, y: int) -> tuple[int, int]:
+    point = wintypes.POINT(int(x), int(y))
+    fn = winapi.user32.ScreenToClient
+    fn.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.POINT)]
+    fn.restype = wintypes.BOOL
+    if not fn(hwnd, ctypes.byref(point)):
+        raise RuntimeError("could not convert conversation point to client coordinates")
+    return int(point.x), int(point.y)
+
+
+def _refresh_row(item: ConversationItem) -> ConversationItem:
+    if winapi.get_window_pid(item.hwnd) != item.pid:
+        raise RuntimeError("conversation window process changed")
+    current = enumerate_conversations(item.hwnd, limit=32)
+    candidates = [row for row in current if row.name == item.name]
+    if not candidates:
+        raise RuntimeError("conversation row is no longer available")
+
+    def distance(row: ConversationItem) -> int:
+        return abs(row.left - item.left) + abs(row.top - item.top)
+
+    fresh = min(candidates, key=distance)
+    if distance(fresh) > 24:
+        raise RuntimeError("conversation row moved before selection")
+    return fresh
+
+
+def select_conversation(item: ConversationItem) -> None:
+    """Select a conversation with a background click after immediate revalidation."""
+    if not item.hwnd or not item.pid:
+        raise RuntimeError("conversation target is invalid")
+    if not winapi.user32.IsWindow(item.hwnd):
+        raise RuntimeError("conversation window no longer exists")
+    fresh = _refresh_row(item)
+    client_x, client_y = _screen_to_client(item.hwnd, *fresh.center)
+    winapi.post_click(item.hwnd, client_x, client_y)
+
+
+__all__ = ["ConversationItem", "enumerate_conversations", "select_conversation"]
