@@ -61,7 +61,7 @@ class BackgroundTypingTarget:
             raise ValueError("background typing text must be non-empty")
         focused = self._focused_target()
         winapi.post_text(focused, text)
-        winapi.post_enter(focused)
+        winapi.post_enter(focused, target=focused)
         return "posted-enter (unverified)"
 
 
