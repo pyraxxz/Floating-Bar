@@ -38,6 +38,12 @@ TEXT_COLOR = "#f0f0f0"
 CURSOR_COLOR = "#f0f0f0"
 ERROR_COLOR = "#ff6b6b"
 
+# --- Hotkey ----------------------------------------------------------------
+# Ctrl+Alt+Space summons the bar from any foreground application.
+# Registration failure is non-fatal; the orb remains click-accessible.
+HOTKEY_MODIFIERS = 0x0002 | 0x0001
+HOTKEY_VIRTUAL_KEY = 0x20
+
 # --- Timing ---------------------------------------------------------------
 IDLE_COLLAPSE_MS = 4000
 FOCUS_LOST_COLLAPSE_MS = 250
