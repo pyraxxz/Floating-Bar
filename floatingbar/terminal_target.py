@@ -8,6 +8,7 @@ focused field.
 
 from .generic_target import BackgroundTypingTarget
 from .control_candidates import best_input_candidate
+from . import winapi
 
 
 class TerminalTypingTarget(BackgroundTypingTarget):
@@ -20,15 +21,27 @@ class TerminalTypingTarget(BackgroundTypingTarget):
         return any(candidate.hwnd == hwnd for candidate in self._terminal_candidates())
 
     def _focused_target(self) -> int:
-        focused = super()._focused_target()
+        """Choose a discovered terminal control without requiring foreground focus."""
         candidates = self._terminal_candidates()
-        if any(candidate.hwnd == focused for candidate in candidates):
-            return focused
+        if not candidates:
+            raise RuntimeError("terminal target has no discovered editable target")
+
+        scope = self._scope
+        try:
+            focused_hwnd = winapi.get_focused_hwnd(scope.hwnd) if scope else 0
+        except Exception:
+            focused_hwnd = 0
+
+        focused = next(
+            (candidate for candidate in candidates if candidate.hwnd == focused_hwnd),
+            None,
+        )
+        if focused is not None:
+            return focused.hwnd
+
         preferred = best_input_candidate(candidates)
         if preferred is None:
-            raise RuntimeError(
-                "terminal focused control is not a discovered editable target"
-            )
+            raise RuntimeError("terminal target has no usable discovered target")
         return preferred.hwnd
 
     def pin_best_input(self):
