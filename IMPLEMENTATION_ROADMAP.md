@@ -26,7 +26,7 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Second-level app action popup
 - [x] Telegram chat picker foundation
 - [x] Generic background typing target with exact HWND/PID validation
-- [x] Generic retry preserves original HWND/PID scope
+- [x] Generic retry preserves original HWND/PID scope and adapter identity
 - [x] Windows CI compile + regression suite + PyInstaller build
 - [x] Release workflow separated from ordinary development pushes
 
@@ -35,7 +35,8 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Central `app_adapters.py` registry for supported executables
 - [x] Picker derives labels, capabilities, and actions from the registry
 - [x] Production routing derives adapter identity from the registry
-- [x] Tests cover aliases and adapter metadata
+- [x] Adapter metadata defines target mode, submit mode, and verification mode
+- [x] Tests cover aliases, capabilities, and adapter metadata
 - [ ] Replace the generic type adapter with per-app target/control discovery
 - [ ] Add per-app send verification
 
@@ -63,7 +64,8 @@ The app should let the user work in the foreground while sending/replying throug
 ### Terminal
 
 - [x] Discovery and generic typing path
-- [ ] Dedicated terminal adapter
+- [x] Adapter capability contract
+- [ ] Dedicated terminal target adapter
 - [ ] Explicit console-control targeting
 - [ ] Submission semantics appropriate to terminal
 - [ ] Verification/retry behavior
@@ -71,6 +73,7 @@ The app should let the user work in the foreground while sending/replying throug
 ### WhatsApp
 
 - [x] Discovery and generic typing foundation
+- [x] Adapter capability contract
 - [ ] Dedicated composer discovery
 - [ ] Chat/conversation picker
 - [ ] Background submit
@@ -79,6 +82,7 @@ The app should let the user work in the foreground while sending/replying throug
 ### Discord
 
 - [x] Discovery and generic typing foundation
+- [x] Adapter capability contract
 - [ ] Dedicated composer discovery
 - [ ] Server/channel/DM targeting model
 - [ ] Background submit
@@ -87,6 +91,7 @@ The app should let the user work in the foreground while sending/replying throug
 ### Slack
 
 - [x] Discovery and generic typing foundation
+- [x] Adapter capability contract
 - [ ] Dedicated composer discovery
 - [ ] Conversation targeting
 - [ ] Background submit
@@ -95,6 +100,7 @@ The app should let the user work in the foreground while sending/replying throug
 ### Microsoft Teams
 
 - [x] Discovery and generic typing foundation
+- [x] Adapter capability contract
 - [ ] Dedicated composer discovery
 - [ ] Conversation targeting
 - [ ] Background submit
