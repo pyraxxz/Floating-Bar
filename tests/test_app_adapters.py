@@ -11,8 +11,11 @@ class AppAdapterRegistryTests(unittest.TestCase):
     def test_process_aliases_resolve_to_same_adapter(self):
         self.assertEqual(adapter_for_process("WT.EXE").key, "terminal")
         self.assertEqual(adapter_for_process("windowsterminal.exe").key, "terminal")
+        self.assertEqual(adapter_for_process("WindowsTerminalPreview.EXE").key, "terminal")
+        self.assertEqual(adapter_for_process("conhost.exe").key, "terminal")
         self.assertEqual(adapter_for_process("teams.exe").key, "teams")
         self.assertEqual(adapter_for_process("MS-TEAMS.EXE").key, "teams")
+        self.assertEqual(adapter_for_process("PWSh.EXE").key, "powershell")
 
     def test_capability_metadata_describes_background_contract(self):
         telegram = adapter_for_process("telegram.exe")
