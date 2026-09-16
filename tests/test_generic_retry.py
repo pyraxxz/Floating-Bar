@@ -12,14 +12,16 @@ class GenericRetryTests(unittest.TestCase):
         window._background_typer.scope.return_value = TargetScope(410, 811)
         window._generic_attempt_id = 21
         window._background_process_name = "discord.exe"
+        window._background_adapter_key = "discord"
         window._generic_retry_scope = None
         window._generic_retry_process_name = ""
+        window._generic_retry_adapter_key = ""
         window._retry_draft = None
         window._sending = False
         window._work_hwnd = 0
         return window
 
-    def test_failed_generic_send_keeps_exact_scope_for_retry(self):
+    def test_failed_generic_send_keeps_exact_scope_and_adapter_for_retry(self):
         window = self._window()
         completion = SendCompletion.from_result(21, error="background typing target is unavailable")
 
@@ -36,13 +38,16 @@ class GenericRetryTests(unittest.TestCase):
 
         self.assertEqual(window._generic_retry_scope, TargetScope(410, 811))
         self.assertEqual(window._generic_retry_process_name, "discord.exe")
+        self.assertEqual(window._generic_retry_adapter_key, "discord")
         window._background_typer.release.assert_called_once_with()
         self.assertEqual(window._background_process_name, "")
+        self.assertEqual(window._background_adapter_key, "")
 
     def test_generic_retry_rebinds_original_scope_instead_of_foreground_path(self):
         window = self._window()
         window._generic_retry_scope = TargetScope(410, 811)
         window._generic_retry_process_name = "discord.exe"
+        window._generic_retry_adapter_key = "discord"
         window._retry_draft = "hello again"
         window._hide_feedback = Mock()
         window._show_bar = Mock()
@@ -57,6 +62,7 @@ class GenericRetryTests(unittest.TestCase):
 
         window._background_typer.bind.assert_called_once_with(410, 811)
         self.assertEqual(window._background_process_name, "discord.exe")
+        self.assertEqual(window._background_adapter_key, "discord")
         self.assertEqual(window._work_hwnd, 410)
         window._show_bar.assert_called_once_with()
         window._set_retry_menu_enabled.assert_called_once_with(True)
@@ -65,6 +71,7 @@ class GenericRetryTests(unittest.TestCase):
         window = self._window()
         window._generic_retry_scope = TargetScope(410, 811)
         window._generic_retry_process_name = "discord.exe"
+        window._generic_retry_adapter_key = "discord"
         window._telegram_chat_picker = Mock()
         window._state = "orb"
         window._sending = False
@@ -77,6 +84,8 @@ class GenericRetryTests(unittest.TestCase):
 
         self.assertIsNone(window._generic_retry_scope)
         self.assertEqual(window._generic_retry_process_name, "")
+        self.assertEqual(window._generic_retry_adapter_key, "")
+        self.assertEqual(window._background_adapter_key, "whatsapp")
         window._background_typer.release.assert_called_once_with()
         window._background_typer.bind.assert_called_once_with(512, 900)
 
