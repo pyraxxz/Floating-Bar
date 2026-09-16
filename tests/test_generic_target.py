@@ -47,7 +47,7 @@ class BackgroundTypingTargetTests(unittest.TestCase):
 
         self.assertEqual(result, "posted-enter (unverified)")
         post_text.assert_called_once_with(300, "hello")
-        post_enter.assert_called_once_with(300)
+        post_enter.assert_called_once_with(300, target=300)
 
     def test_send_rejects_focus_from_another_process_before_posting(self):
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
