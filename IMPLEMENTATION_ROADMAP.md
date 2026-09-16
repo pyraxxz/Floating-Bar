@@ -78,6 +78,8 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Safe send transaction
 - [x] Retry and evidence lifecycle
 - [x] Same-window chat-switch detection without message-content reads
+- [x] UIA unread-badge attention detector with fail-closed contract
+- [x] Unread chats surfaced ahead of current/ordinary chats in the short picker
 - [ ] Validate against traces from multiple Telegram Desktop builds
 - [ ] Build real desktop smoke matrix
 
@@ -146,8 +148,8 @@ The key transition is from “whatever control currently has focus” to “the 
 
 ## Phase 5 — Conversation intelligence
 
-- [ ] Identify useful/reply-needed chats without scraping message content
-- [ ] Implement app-specific unread/reply-needed structural signals where an application exposes them safely
+- [x] Identify useful/reply-needed chats without scraping message content when an explicit accessibility signal exists
+- [x] Implement app-specific unread/reply-needed structural signals where an application exposes them safely
 - [x] Keep chat selection content-free where possible
 - [x] Refresh/revalidate rows immediately before background selection
 - [x] Prefer UI Automation runtime identity when available; use structural control identity as a guarded fallback
