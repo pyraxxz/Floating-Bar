@@ -39,6 +39,10 @@ class BackgroundTypingTarget:
             return False
         if not winapi.user32.IsWindow(scope.hwnd):
             return False
+        if not winapi.user32.IsWindowVisible(scope.hwnd):
+            return False
+        if winapi.is_minimized(scope.hwnd):
+            return False
         return winapi.get_window_pid(scope.hwnd) == scope.pid
 
     def _focused_target(self) -> int:
