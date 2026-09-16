@@ -84,8 +84,14 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
     def _selection_generation_value(self) -> int:
         return int(self.__dict__.get("_selection_generation", 0))
 
+    def _bind_adapter_metadata(self, spec) -> None:
+        """Attach adapter semantics without changing the legacy bind call shape."""
+        binder = getattr(self._background_typer, "bind_adapter", None)
+        if binder is not None:
+            binder(spec)
+
     def _select_background_window(self, item: PickerItem) -> None:
-        """Bind an actionable process/window without foregrounding it."""
+        """Choose an actionable process/window without foregrounding it."""
         if not item.actionable or not item.hwnd or not item.pid:
             return
         spec = adapter_for_process(item.process_name)
@@ -94,7 +100,6 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self._advance_selection_generation()
         self._background_typer.release()
         self._background_typer = target_for_adapter(spec)
-        self._background_typer.bind(item.hwnd, item.pid, spec=spec)
         self._generic_retry_scope = None
         self._generic_retry_process_name = ""
         self._generic_retry_adapter_key = ""
@@ -102,6 +107,9 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self._background_adapter_key = spec.key
         self._work_hwnd = item.hwnd
         self._generic_attempt_id = 0
+
+        # Conversation pickers must be opened before binding a composer. The
+        # chosen row determines the exact UI scope that will later be probed.
         if spec.chat_picker == "telegram":
             self._pending_chat = None
             self._telegram_chat_picker.show()
@@ -110,10 +118,12 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             self._pending_conversation = None
             self._conversation_picker.show()
             return
+
         self._bind_generic_target(item.hwnd, item.pid, spec)
 
     def _bind_generic_target(self, hwnd: int, pid: int, spec=None) -> None:
-        self._background_typer.bind(hwnd, pid, spec=spec)
+        self._background_typer.bind(hwnd, pid)
+        self._bind_adapter_metadata(spec)
         self._update_status()
         try:
             probe = self._background_typer.probe()
@@ -150,7 +160,8 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             return
         try:
             spec = adapter_for_process(self._background_process_name)
-            scope = self._background_typer.bind(conversation.hwnd, conversation.pid, spec=spec)
+            scope = self._background_typer.bind(conversation.hwnd, conversation.pid)
+            self._bind_adapter_metadata(spec)
             if scope.hwnd != self._work_hwnd or scope.pid != conversation.pid:
                 raise RuntimeError("conversation selected a different window or process")
             self._update_status()
@@ -252,7 +263,8 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             self._show_feedback("The original background app is no longer supported safely.")
             return
         self._background_typer = target_for_adapter(spec)
-        self._background_typer.bind(scope.hwnd, scope.pid, spec=spec)
+        self._background_typer.bind(scope.hwnd, scope.pid)
+        self._bind_adapter_metadata(spec)
         self._background_process_name = self._generic_retry_process_name
         self._background_adapter_key = self._generic_retry_adapter_key
         self._work_hwnd = scope.hwnd
