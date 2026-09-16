@@ -3,6 +3,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+from floatingbar.conversation_attention import AttentionState, ConversationAttention
 from floatingbar.conversation_rows import (
     ConversationItem,
     enumerate_conversations,
@@ -73,6 +74,7 @@ class ConversationRowTests(unittest.TestCase):
         self.assertEqual(rows[0].hwnd, 123)
         self.assertEqual(rows[0].pid, 200)
         self.assertIsNotNone(rows[0].control_identity)
+        self.assertEqual(rows[0].attention.state, AttentionState.SELECTED)
 
     def test_selected_row_is_presented_before_unselected_rows(self):
         window = Mock()
@@ -90,6 +92,44 @@ class ConversationRowTests(unittest.TestCase):
             rows = enumerate_conversations(123, limit=2)
 
         self.assertEqual([row.name for row in rows], ["Current", "Later"])
+
+    def test_explicit_attention_detector_prioritizes_unread_rows(self):
+        window = Mock()
+        window.rectangle.return_value = _Rect(0, 0, 1000, 900)
+        first = _Item(_Rect(20, 100, 420, 160), "Normal", False, (1, 10))
+        second = _Item(_Rect(20, 200, 420, 260), "Unread", False, (1, 11))
+        window.descendants.side_effect = [[first, second], []]
+
+        def detector(item):
+            if item.element_info.name == "Unread":
+                return ConversationAttention(AttentionState.UNREAD, "test-detector")
+            return ConversationAttention()
+
+        with self._app_patch(window), \
+             patch("floatingbar.conversation_rows.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.conversation_rows.winapi.user32.IsWindow", return_value=True):
+            rows = enumerate_conversations(123, limit=2, attention_detector=detector)
+
+        self.assertEqual([row.name for row in rows], ["Unread", "Normal"])
+        self.assertTrue(rows[0].needs_attention)
+        self.assertEqual(rows[0].attention.source, "test-detector")
+
+    def test_attention_detector_failure_fails_closed_to_unknown(self):
+        window = Mock()
+        window.rectangle.return_value = _Rect(0, 0, 1000, 900)
+        item = _Item(_Rect(20, 100, 420, 160), "Chat", False, (1, 10))
+        window.descendants.side_effect = [[item], []]
+
+        def detector(_item):
+            raise RuntimeError("ambiguous UIA state")
+
+        with self._app_patch(window), \
+             patch("floatingbar.conversation_rows.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.conversation_rows.winapi.user32.IsWindow", return_value=True):
+            rows = enumerate_conversations(123, attention_detector=detector)
+
+        self.assertEqual(rows[0].attention.state, AttentionState.UNKNOWN)
+        self.assertFalse(rows[0].needs_attention)
 
     def test_selection_revalidates_row_before_background_click(self):
         item = ConversationItem(123, 200, "Alice", 20, 100, 420, 160, True, (1, 10), ("ListItem", "alice", "row", "uia"))
