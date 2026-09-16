@@ -28,6 +28,13 @@ class ChatVerificationTests(unittest.TestCase):
             return_value=(target._verification_candidate,),
         )
 
+    def _runtime_patches(self):
+        return (
+            patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True),
+            patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True),
+            patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200),
+        )
+
     def _live_target_patch(self, target):
         return patch.object(target, "available", return_value=True)
 
@@ -35,7 +42,8 @@ class ChatVerificationTests(unittest.TestCase):
         for process_name in ("whatsapp.exe", "discord.exe", "slack.exe", "teams.exe"):
             with self.subTest(process_name=process_name):
                 target = self._target(process_name)
-                with self._candidate_patch(target), self._live_target_patch(target), patch.object(
+                runtime = self._runtime_patches()
+                with runtime[0], runtime[1], runtime[2], self._candidate_patch(target), self._live_target_patch(target), patch.object(
                     target,
                     "_composer_value_length",
                     side_effect=[5, 8, 0],
@@ -50,7 +58,8 @@ class ChatVerificationTests(unittest.TestCase):
 
     def test_existing_draft_without_growth_never_becomes_verified(self):
         target = self._target()
-        with self._candidate_patch(target), self._live_target_patch(target), patch.object(
+        runtime = self._runtime_patches()
+        with runtime[0], runtime[1], runtime[2], self._candidate_patch(target), self._live_target_patch(target), patch.object(
             target,
             "_composer_value_length",
             side_effect=[5, 5],
@@ -67,7 +76,8 @@ class ChatVerificationTests(unittest.TestCase):
 
     def test_unreadable_baseline_fails_closed(self):
         target = self._target()
-        with self._candidate_patch(target), self._live_target_patch(target), patch.object(
+        runtime = self._runtime_patches()
+        with runtime[0], runtime[1], runtime[2], self._candidate_patch(target), self._live_target_patch(target), patch.object(
             target, "_composer_value_length", return_value=-1
         ):
             target._pin_candidate(target._verification_candidate)
