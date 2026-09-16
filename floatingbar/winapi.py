@@ -234,9 +234,13 @@ def get_focused_hwnd(hwnd: int) -> int:
     return hwnd
 
 
-def post_enter(hwnd: int, ctrl: bool = False) -> None:
-    """Post an Enter keypress without changing foreground focus."""
-    target = get_focused_hwnd(hwnd) or hwnd
+def post_enter(hwnd: int, ctrl: bool = False, target: int = 0) -> None:
+    """Post an Enter keypress without changing foreground focus.
+
+    ``target`` may pin the exact child HWND already validated by the caller;
+    otherwise the current focused child is resolved from ``hwnd`` as before.
+    """
+    target = target or get_focused_hwnd(hwnd) or hwnd
     char_code = 0x0A if ctrl else 0x0D
     if ctrl:
         _post(
