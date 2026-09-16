@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import tkinter as tk
 from typing import Callable, Optional, Sequence
 
+from .conversation_attention import AttentionState
 from .conversation_rows import ConversationItem
 
 
@@ -11,7 +12,16 @@ from .conversation_rows import ConversationItem
 class ConversationPickerRow:
     name: str
     selected: bool
+    attention: AttentionState
     conversation: ConversationItem
+
+    @property
+    def suffix(self) -> str:
+        if self.attention in {AttentionState.UNREAD, AttentionState.RELEVANT}:
+            return "  Needs attention"
+        if self.selected:
+            return "  Current"
+        return ""
 
 
 def to_conversation_picker_rows(
@@ -21,6 +31,7 @@ def to_conversation_picker_rows(
         ConversationPickerRow(
             name=item.name,
             selected=item.selected,
+            attention=item.attention.state,
             conversation=item,
         )
         for item in conversations
@@ -68,10 +79,9 @@ class ConversationPicker:
         frame = tk.Frame(popup, bg="#18181b", bd=0)
         frame.pack(fill="both", expand=True, padx=4, pady=4)
         for row in to_conversation_picker_rows(conversations):
-            suffix = "  Current" if row.selected else ""
             button = tk.Button(
                 frame,
-                text=row.name + suffix,
+                text=row.name + row.suffix,
                 anchor="w",
                 relief="flat",
                 bd=0,
