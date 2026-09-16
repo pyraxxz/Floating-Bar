@@ -74,6 +74,16 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         else:
             self._background_identity_label.place_forget()
 
+    def _advance_selection_generation(self) -> int:
+        """Advance callback generation without invoking Tk's __getattr__."""
+        generation = int(self.__dict__.get("_selection_generation", 0)) + 1
+        self.__dict__["_selection_generation"] = generation
+        return generation
+
+    def _selection_generation_value(self) -> int:
+        """Read callback generation safely from real and headless instances."""
+        return int(self.__dict__.get("_selection_generation", 0))
+
     def _select_background_window(self, item: PickerItem) -> None:
         """Bind an actionable process/window without foregrounding it."""
         if not item.actionable or not item.hwnd or not item.pid:
@@ -81,7 +91,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         spec = adapter_for_process(item.process_name)
         if spec is None or not spec.implemented or not spec.supports_background_type:
             return
-        self._selection_generation += 1
+        self._advance_selection_generation()
         self._background_typer.release()
         self._background_typer = target_for_adapter(spec)
         self._generic_retry_scope = None
@@ -111,8 +121,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         """Select a generic chat row in the background, then bind its composer target."""
         if self._sending:
             return
-        self._selection_generation += 1
-        token = self._selection_generation
+        token = self._advance_selection_generation()
         self._pending_conversation = conversation
         try:
             select_conversation(conversation)
@@ -124,7 +133,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self.after(160, lambda generation=token: self._finish_conversation_selection(generation))
 
     def _finish_conversation_selection(self, generation=None) -> None:
-        if generation is not None and generation != self._selection_generation:
+        if generation is not None and generation != self._selection_generation_value():
             return
         conversation = self._pending_conversation
         self._pending_conversation = None
@@ -145,8 +154,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         """Select a Telegram chat in the background, then rebuild its context guard."""
         if self._sending:
             return
-        self._selection_generation += 1
-        token = self._selection_generation
+        token = self._advance_selection_generation()
         self._pending_chat = chat
         try:
             self.target.release()
@@ -159,7 +167,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self.after(160, lambda generation=token: self._finish_telegram_chat_selection(generation))
 
     def _finish_telegram_chat_selection(self, generation=None) -> None:
-        if generation is not None and generation != self._selection_generation:
+        if generation is not None and generation != self._selection_generation_value():
             return
         chat = self._pending_chat
         self._pending_chat = None
