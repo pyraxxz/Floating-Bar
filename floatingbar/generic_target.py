@@ -2,14 +2,14 @@
 
 The adapter binds one exact top-level HWND/PID scope and can only post text to a
 structurally discovered editable child in that same process. Submission is
-performed by the selected adapter policy, so typing and pressing Enter are no
-longer inseparably coupled at this layer.
+performed by the selected adapter policy, and unsupported submit modes are
+rejected before any text is delivered.
 """
 
 from dataclasses import dataclass
 
 from . import winapi
-from .adapter_submit import submit_background_target
+from .adapter_submit import submit_background_target, validate_submission_mode
 from .control_candidates import (
     InputCandidate,
     best_input_candidate,
@@ -182,6 +182,7 @@ class BackgroundTypingTarget:
         return target
 
     def send(self, text: str) -> str:
+        validate_submission_mode(self._adapter_spec)
         target = self.type_text(text)
         try:
             return submit_background_target(self._adapter_spec, target)
