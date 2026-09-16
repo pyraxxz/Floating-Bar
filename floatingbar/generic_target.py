@@ -8,6 +8,7 @@ rejected before any text is delivered.
 
 from dataclasses import dataclass
 
+from . import trace
 from . import winapi
 from .adapter_submit import submit_background_target, validate_submission_mode
 from .control_candidates import (
@@ -34,6 +35,20 @@ class TargetProbe:
         return len(self.candidate_hwnds)
 
 
+@dataclass(frozen=True)
+class PostSendCheck:
+    """Bounded, content-free health check performed after injection."""
+
+    scope_alive: bool
+    target_alive: bool
+    target_hwnd: int
+    reason: str = "ok"
+
+    @property
+    def healthy(self) -> bool:
+        return self.scope_alive and self.target_alive
+
+
 class BackgroundTypingTarget:
     """Exact-scope adapter for common apps whose current control accepts text."""
 
@@ -42,12 +57,14 @@ class BackgroundTypingTarget:
         self._pinned_hwnd = 0
         self._pinned_identity = None
         self._adapter_spec = None
+        self._last_post_send_check = None
 
     def bind(self, hwnd: int, pid: int, spec=None) -> TargetScope:
         scope = TargetScope(hwnd, pid)
         self._scope = scope
         self._adapter_spec = spec
         self.clear_pinned_input()
+        self._last_post_send_check = None
         return scope
 
     def bind_adapter(self, spec) -> None:
@@ -56,6 +73,7 @@ class BackgroundTypingTarget:
     def release(self) -> None:
         self._scope = None
         self._adapter_spec = None
+        self._last_post_send_check = None
         self.clear_pinned_input()
 
     def scope(self) -> TargetScope:
@@ -119,6 +137,11 @@ class BackgroundTypingTarget:
     def pinned_hwnd(self) -> int:
         return self._pinned_hwnd
 
+    @property
+    def last_post_send_check(self) -> PostSendCheck | None:
+        """Return the most recent bounded post-send health result."""
+        return self._last_post_send_check
+
     def probe(self) -> TargetProbe:
         """Capture structural target state without reading control content."""
         scope = self.scope()
@@ -180,6 +203,29 @@ class BackgroundTypingTarget:
             raise RuntimeError("background typing pinned control identity changed")
         return pinned
 
+    def _post_send_check(self, target_hwnd: int) -> PostSendCheck:
+        """Check only window/process liveness; never inspect message content."""
+        scope = self._scope
+        if scope is None or not scope.valid:
+            return PostSendCheck(False, False, target_hwnd, "scope-missing")
+        try:
+            scope_alive = self.available()
+        except Exception:
+            scope_alive = False
+        if not scope_alive:
+            return PostSendCheck(False, False, target_hwnd, "scope-changed")
+        try:
+            target_alive = bool(
+                target_hwnd and
+                winapi.user32.IsWindow(target_hwnd) and
+                winapi.get_window_pid(target_hwnd) == scope.pid
+            )
+        except Exception:
+            target_alive = False
+        if not target_alive:
+            return PostSendCheck(True, False, target_hwnd, "target-changed")
+        return PostSendCheck(True, True, target_hwnd, "ok")
+
     def type_text(self, text: str) -> int:
         if not isinstance(text, str) or not text.strip():
             raise ValueError("background typing text must be non-empty")
@@ -192,11 +238,22 @@ class BackgroundTypingTarget:
 
     def send(self, text: str) -> str:
         validate_submission_mode(self._adapter_spec)
+        spec_key = getattr(self._adapter_spec, "key", "legacy")
+        trace.trace(f"stage=adapter key={spec_key}")
         target = self.type_text(text)
+        trace.trace(f"stage=target hwnd={target} scope={self.scope().hwnd}/{self.scope().pid}")
         try:
-            return submit_background_target(self._adapter_spec, target)
+            strategy = submit_background_target(self._adapter_spec, target)
+            self._last_post_send_check = self._post_send_check(target)
+            trace.trace(
+                "stage=post-send "
+                f"scope={'ok' if self._last_post_send_check.scope_alive else 'changed'} "
+                f"target={'ok' if self._last_post_send_check.target_alive else 'changed'} "
+                f"reason={self._last_post_send_check.reason}"
+            )
+            return strategy
         finally:
             self.clear_pinned_input()
 
 
-__all__ = ["BackgroundTypingTarget", "TargetProbe"]
+__all__ = ["BackgroundTypingTarget", "PostSendCheck", "TargetProbe"]

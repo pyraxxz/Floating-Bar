@@ -30,6 +30,7 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Generic retry preserves original HWND/PID scope and adapter identity
 - [x] Structural candidate scoring without reading text/value content
 - [x] Exact input-control pinning and revalidation for generic background sends
+- [x] Bounded post-send scope/control liveness checks without message-content reads
 - [x] Windows CI compile + regression suite + PyInstaller build
 - [x] Release workflow separated from ordinary development pushes
 - [x] Background picker can include minimized application windows
@@ -162,14 +163,15 @@ Every adapter should eventually produce one of:
 `verified | submitted-but-unverified | failed | blocked`
 
 - [x] Central typed evidence model
+- [x] Explicit `blocked` evidence and transaction lifecycle state for deliberate safety stops
 - [x] Adapter-specific verification contract in the registry
 - [x] Conservative evidence normalization that cannot upgrade unsupported adapters
 - [x] Explicit submission policy for generic adapters
 - [ ] App-specific verification hooks for generic chat and terminal adapters
-- [ ] Bounded post-send checks
+- [x] Bounded post-send checks
 - [ ] Duplicate-send-safe retry rules
 - [x] Clear user feedback for blocked targets
-- [ ] Trace adapter, target, and verification stages without message content
+- [x] Trace adapter, target, and verification stages without message content
 
 ## Phase 7 — Real Windows validation
 

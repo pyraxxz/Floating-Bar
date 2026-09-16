@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import patch
 
 from floatingbar.control_candidates import InputCandidate, best_input_candidate, candidate_score
-from floatingbar.generic_target import BackgroundTypingTarget, TargetProbe
+from floatingbar.generic_target import BackgroundTypingTarget, PostSendCheck, TargetProbe
 from floatingbar.transaction import TargetScope
 
 
@@ -90,10 +90,45 @@ class BackgroundTypingTargetTests(unittest.TestCase):
         self.assertEqual(probe.candidate_hwnds, ())
         self.assertEqual(probe.pinned_hwnd, 0)
 
+    def test_post_send_check_reports_healthy_scope_and_target(self):
+        with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
+             patch("floatingbar.generic_target.winapi.get_window_pid", side_effect=[200, 200]):
+            check = self.target._post_send_check(301)
+
+        self.assertIsInstance(check, PostSendCheck)
+        self.assertTrue(check.healthy)
+        self.assertTrue(check.scope_alive)
+        self.assertTrue(check.target_alive)
+        self.assertEqual(check.target_hwnd, 301)
+        self.assertEqual(check.reason, "ok")
+
+    def test_post_send_check_detects_scope_replacement_without_content_read(self):
+        with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
+             patch("floatingbar.generic_target.winapi.get_window_pid", return_value=999):
+            check = self.target._post_send_check(301)
+
+        self.assertFalse(check.healthy)
+        self.assertFalse(check.scope_alive)
+        self.assertFalse(check.target_alive)
+        self.assertEqual(check.reason, "scope-changed")
+
+    def test_post_send_check_detects_control_replacement(self):
+        with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
+             patch("floatingbar.generic_target.winapi.get_window_pid", side_effect=[200, 999]):
+            check = self.target._post_send_check(301)
+
+        self.assertTrue(check.scope_alive)
+        self.assertFalse(check.target_alive)
+        self.assertFalse(check.healthy)
+        self.assertEqual(check.reason, "target-changed")
+
     def test_send_posts_to_focused_child_inside_bound_process(self):
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
-             patch("floatingbar.generic_target.winapi.get_window_pid", side_effect=[200, 200, 200]), \
+             patch("floatingbar.generic_target.winapi.get_window_pid", side_effect=[200, 200, 200, 200]), \
              patch("floatingbar.generic_target.winapi.get_focused_hwnd", return_value=300), \
              patch("floatingbar.generic_target.winapi.post_text") as post_text, \
              patch("floatingbar.generic_target.winapi.post_enter") as post_enter:
@@ -102,12 +137,14 @@ class BackgroundTypingTargetTests(unittest.TestCase):
         self.assertEqual(result, "posted-enter (unverified)")
         post_text.assert_called_once_with(300, "hello")
         post_enter.assert_called_once_with(300, target=300)
+        self.assertIsNotNone(self.target.last_post_send_check)
+        self.assertTrue(self.target.last_post_send_check.healthy)
 
     def test_pin_best_input_and_send_uses_pinned_child(self):
         candidate = InputCandidate(301, 200, "Edit", "Edit", 0, 0, 600, 60, False, True, True)
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
-             patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.generic_target.winapi.get_window_pid", side_effect=[200, 200, 200, 200]), \
              patch.object(self.target, "input_candidates", return_value=(candidate,)), \
              patch("floatingbar.generic_target.winapi.post_text") as post_text, \
              patch("floatingbar.generic_target.winapi.post_enter") as post_enter:
@@ -120,6 +157,7 @@ class BackgroundTypingTargetTests(unittest.TestCase):
         post_text.assert_called_once_with(301, "hello")
         post_enter.assert_called_once_with(301, target=301)
         self.assertEqual(self.target.pinned_hwnd, 0)
+        self.assertIsNotNone(self.target.last_post_send_check)
 
     def test_pinned_child_identity_change_is_rejected_before_posting(self):
         original = InputCandidate(301, 200, "RichEdit", "Edit", 0, 0, 400, 30, False, True, True)
@@ -173,7 +211,7 @@ class BackgroundTypingTargetTests(unittest.TestCase):
     def test_send_never_restores_or_foregrounds_target(self):
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
-             patch("floatingbar.generic_target.winapi.get_window_pid", side_effect=[200, 200]), \
+             patch("floatingbar.generic_target.winapi.get_window_pid", side_effect=[200, 200, 200, 200]), \
              patch("floatingbar.generic_target.winapi.get_focused_hwnd", return_value=300), \
              patch("floatingbar.generic_target.winapi.post_text"), \
              patch("floatingbar.generic_target.winapi.post_enter"), \
