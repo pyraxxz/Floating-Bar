@@ -170,12 +170,12 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
                 preferred_hwnd=preferred,
             )
         except TransactionRejected as exc:
-            lifecycle.reject()
+            lifecycle.block()
             trace.trace(
-                f"transaction: preparation rejected safely: {exc}; "
+                f"transaction: preparation blocked safely: {exc}; "
                 f"state={lifecycle.state.value}"
             )
-            self._queue_completion(request.attempt_id, None, str(exc))
+            self._queue_completion(request.attempt_id, "preflight (blocked)")
             return
         except Exception as exc:
             lifecycle.reject()

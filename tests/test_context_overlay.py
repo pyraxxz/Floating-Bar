@@ -45,8 +45,6 @@ class ContextOverlayTests(unittest.TestCase):
 
     def test_bound_context_overlay_adds_picker_without_replacing_parent_completion(self):
         self.assertIsNot(BoundContextOverlay.__init__, OrbRelayWindow.__init__)
-        # Generic background targets need their own completion path so the
-        # Telegram coordinator's lease is never released for a non-Telegram attempt.
         self.assertIsNot(BoundContextOverlay._send_finished, OrbRelayWindow._send_finished)
         self.assertIn("_background_picker", BoundContextOverlay.__init__.__code__.co_names)
         self.assertIn("_generic_attempt_id", BoundContextOverlay._send_finished.__code__.co_names)
@@ -153,7 +151,7 @@ class ContextOverlayTests(unittest.TestCase):
         )
         execute_attempt.assert_called_once_with("hello", 700, 8)
 
-    def test_transaction_rejection_is_returned_as_typed_safe_failure(self):
+    def test_transaction_rejection_is_returned_as_blocked_typed_completion(self):
         window = self._window()
         window.coordinator.prepare_request.side_effect = TransactionRejected("blocked")
 
@@ -162,10 +160,11 @@ class ContextOverlayTests(unittest.TestCase):
         completion = window._result_q.get_nowait()
         self.assertIsInstance(completion, SendCompletion)
         self.assertEqual(completion.attempt_id, 9)
-        self.assertIsNone(completion.strategy)
-        self.assertEqual(completion.error, "blocked")
+        self.assertEqual(completion.strategy, "preflight (blocked)")
+        self.assertIsNone(completion.error)
+        self.assertEqual(completion.evidence_state.name, "BLOCKED")
         self.assertIsNotNone(window._active_lifecycle)
-        self.assertEqual(window._active_lifecycle.state, TransactionState.REJECTED)
+        self.assertEqual(window._active_lifecycle.state, TransactionState.BLOCKED)
 
     def test_unexpected_coordinator_failure_is_returned_as_typed_safe_failure(self):
         window = self._window()
