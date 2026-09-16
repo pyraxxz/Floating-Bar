@@ -60,11 +60,7 @@ class ChatComposerTarget(BackgroundTypingTarget):
         candidate = best_input_candidate(candidates)
         if candidate is None:
             raise RuntimeError("background typing target has no discovered editable composer")
-        scope = self.scope()
-        if not scope.hwnd or candidate.pid != scope.pid:
-            raise RuntimeError("background typing candidate escaped the bound process")
-        self._pinned_hwnd = candidate.hwnd
-        return candidate
+        return self._pin_candidate(candidate)
 
     def _pinned_target(self) -> int:
         pinned = super()._pinned_target()
