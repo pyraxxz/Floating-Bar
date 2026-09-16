@@ -47,15 +47,39 @@ class TelegramChatPickerTests(unittest.TestCase):
                 select_telegram_chat(chat)
         post_click.assert_not_called()
 
-    def test_select_chat_posts_background_click_without_foreground_helper(self):
+    def test_select_chat_refreshes_row_before_background_click(self):
         chat = TelegramChatItem(100, 200, "Alice", 100, 200, 300, 260)
+        refreshed = TelegramChatItem(100, 200, "Alice", 110, 210, 310, 270)
         with patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.telegram_chats.enumerate_telegram_chats", return_value=(refreshed,)) as enumerate_rows, \
              patch("floatingbar.telegram_chats._screen_to_client", return_value=(120, 140)) as to_client, \
              patch("floatingbar.telegram_chats.winapi.post_click") as post_click:
             select_telegram_chat(chat)
-        to_client.assert_called_once_with(100, 200, 230)
+        enumerate_rows.assert_called_once_with(100, limit=24)
+        to_client.assert_called_once_with(100, 200, 340)
         post_click.assert_called_once_with(100, 120, 140)
+
+    def test_select_chat_rejects_missing_row_before_background_click(self):
+        chat = TelegramChatItem(100, 200, "Alice", 100, 200, 300, 260)
+        with patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.telegram_chats.enumerate_telegram_chats", return_value=()), \
+             patch("floatingbar.telegram_chats.winapi.post_click") as post_click:
+            with self.assertRaisesRegex(RuntimeError, "no longer available"):
+                select_telegram_chat(chat)
+        post_click.assert_not_called()
+
+    def test_select_chat_rejects_large_row_move_before_background_click(self):
+        chat = TelegramChatItem(100, 200, "Alice", 100, 200, 300, 260)
+        moved = TelegramChatItem(100, 200, "Alice", 200, 260, 400, 320)
+        with patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.telegram_chats.enumerate_telegram_chats", return_value=(moved,)), \
+             patch("floatingbar.telegram_chats.winapi.post_click") as post_click:
+            with self.assertRaisesRegex(RuntimeError, "moved"):
+                select_telegram_chat(chat)
+        post_click.assert_not_called()
 
     def test_picker_show_hides_existing_popup_when_refresh_fails(self):
         picker = TelegramChatPicker.__new__(TelegramChatPicker)
