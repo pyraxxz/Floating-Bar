@@ -77,13 +77,11 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             self._background_identity_label.place_forget()
 
     def _advance_selection_generation(self) -> int:
-        """Advance callback generation without invoking Tk's __getattr__."""
         generation = int(self.__dict__.get("_selection_generation", 0)) + 1
         self.__dict__["_selection_generation"] = generation
         return generation
 
     def _selection_generation_value(self) -> int:
-        """Read callback generation safely from real and headless instances."""
         return int(self.__dict__.get("_selection_generation", 0))
 
     def _select_background_window(self, item: PickerItem) -> None:
@@ -96,6 +94,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self._advance_selection_generation()
         self._background_typer.release()
         self._background_typer = target_for_adapter(spec)
+        self._background_typer.bind(item.hwnd, item.pid, spec=spec)
         self._generic_retry_scope = None
         self._generic_retry_process_name = ""
         self._generic_retry_adapter_key = ""
@@ -111,10 +110,10 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             self._pending_conversation = None
             self._conversation_picker.show()
             return
-        self._bind_generic_target(item.hwnd, item.pid)
+        self._bind_generic_target(item.hwnd, item.pid, spec)
 
-    def _bind_generic_target(self, hwnd: int, pid: int) -> None:
-        self._background_typer.bind(hwnd, pid)
+    def _bind_generic_target(self, hwnd: int, pid: int, spec=None) -> None:
+        self._background_typer.bind(hwnd, pid, spec=spec)
         self._update_status()
         try:
             probe = self._background_typer.probe()
@@ -129,7 +128,6 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             self._show_bar()
 
     def _select_conversation(self, conversation: ConversationItem) -> None:
-        """Select a generic chat row in the background, then bind its composer target."""
         if self._sending:
             return
         token = self._advance_selection_generation()
@@ -151,7 +149,8 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         if conversation is None or self._sending:
             return
         try:
-            scope = self._background_typer.bind(conversation.hwnd, conversation.pid)
+            spec = adapter_for_process(self._background_process_name)
+            scope = self._background_typer.bind(conversation.hwnd, conversation.pid, spec=spec)
             if scope.hwnd != self._work_hwnd or scope.pid != conversation.pid:
                 raise RuntimeError("conversation selected a different window or process")
             self._update_status()
@@ -169,7 +168,6 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             self._show_feedback("The selected conversation has no safe background typing control yet.")
 
     def _select_telegram_chat(self, chat: TelegramChatItem) -> None:
-        """Select a Telegram chat in the background, then rebuild its context guard."""
         if self._sending:
             return
         token = self._advance_selection_generation()
@@ -244,7 +242,6 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             )
 
     def _retry_failed_draft(self) -> None:
-        """Restore a failed generic draft against its original HWND/PID and adapter."""
         if self._sending or not self._retry_draft:
             return
         scope = self._generic_retry_scope
@@ -255,7 +252,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             self._show_feedback("The original background app is no longer supported safely.")
             return
         self._background_typer = target_for_adapter(spec)
-        self._background_typer.bind(scope.hwnd, scope.pid)
+        self._background_typer.bind(scope.hwnd, scope.pid, spec=spec)
         self._background_process_name = self._generic_retry_process_name
         self._background_adapter_key = self._generic_retry_adapter_key
         self._work_hwnd = scope.hwnd
