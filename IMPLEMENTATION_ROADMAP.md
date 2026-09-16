@@ -62,7 +62,10 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Generic adapter factory provides safe fallback Type capabilities for unknown executable names
 - [x] Generic adapter verification hooks preserve the fail-closed evidence contract
 - [x] WhatsApp `compose-clear` verification with content-free baseline/clear checks
-- [ ] Add app-specific verification implementations for Discord/Slack/Teams/terminal
+- [x] Discord `compose-clear` verification using the shared structural chat target
+- [x] Slack `compose-clear` verification using the shared structural chat target
+- [x] Teams `compose-clear` verification using the shared structural chat target
+- [ ] Add app-specific verification implementations for terminal and app-specific chat semantics where shared compose-clear evidence is insufficient
 
 ## Phase 2 — Finish the current UX and reliability layer
 
@@ -119,8 +122,9 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Dedicated structural composer target
 - [x] Generic conversation picker and background row selection
 - [x] Explicit Enter submission contract
+- [x] Content-free `compose-clear` verification hook with pre-injection baseline
 - [ ] Server/channel/DM targeting model
-- [ ] Background verification
+- [ ] Real Windows smoke validation across Discord Desktop builds
 
 ### Slack
 
@@ -129,8 +133,9 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Dedicated structural composer target
 - [x] Generic conversation picker and background row selection
 - [x] Explicit Enter submission contract
+- [x] Content-free `compose-clear` verification hook with pre-injection baseline
 - [ ] Conversation targeting refinements
-- [ ] Background verification
+- [ ] Real Windows smoke validation across Slack Desktop builds
 
 ### Microsoft Teams
 
@@ -139,8 +144,9 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Dedicated structural composer target
 - [x] Generic conversation picker and background row selection
 - [x] Explicit Enter submission contract
+- [x] Content-free `compose-clear` verification hook with pre-injection baseline
 - [ ] Conversation targeting refinements
-- [ ] Background verification
+- [ ] Real Windows smoke validation across Teams Desktop builds
 
 ### Generic background app
 
@@ -191,7 +197,8 @@ Every adapter should eventually produce one of:
 - [x] Explicit submission policy for generic adapters
 - [x] App-specific verification hook architecture for chat targets
 - [x] WhatsApp content-free `compose-clear` verification with pre-injection baseline
-- [ ] App-specific verification hooks for Discord/Slack/Teams/terminal adapters
+- [x] Shared content-free `compose-clear` verification for Discord/Slack/Teams through the structural chat target
+- [ ] App-specific verification hooks for terminal and chat adapters where shared compose-clear evidence is insufficient
 - [x] Bounded post-send checks
 - [x] Generic post-send target loss cannot become an automatic retry
 - [x] Generic submit exceptions after text injection cannot become an automatic retry
