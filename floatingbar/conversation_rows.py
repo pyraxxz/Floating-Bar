@@ -76,7 +76,7 @@ def _left_pane_cutoff(window_rect, fraction: float = 0.68) -> int:
     return window_rect.left + int(max(1, window_rect.width()) * fraction)
 
 
-def _row_sort_key(row: ConversationItem) -> tuple[int, int, int, str]:
+def _row_sort_key(row: ConversationItem) -> tuple[int, int, int, int, str]:
     """Prioritize proven attention, then current conversation, then pane order."""
     attention_rank = {
         AttentionState.UNREAD: 0,
@@ -91,6 +91,17 @@ def _row_sort_key(row: ConversationItem) -> tuple[int, int, int, str]:
         row.left,
         row.name.casefold(),
     )
+
+
+def _selected_compat(item) -> bool:
+    """Keep the legacy selected flag available to callers and tests."""
+    try:
+        return bool(item.is_selected())
+    except Exception:
+        try:
+            return bool(item.iface_selection_item.CurrentIsSelected)
+        except Exception:
+            return False
 
 
 def enumerate_conversations(
@@ -148,7 +159,7 @@ def enumerate_conversations(
                         top=rect.top,
                         right=rect.right,
                         bottom=rect.bottom,
-                        selected=(attention.state is AttentionState.SELECTED or not attention.actionable and _selected_compat(item)),
+                        selected=_selected_compat(item),
                         runtime_id=runtime_id,
                         control_identity=control_identity,
                         attention=attention,
@@ -158,17 +169,6 @@ def enumerate_conversations(
         return tuple(rows[:limit])
     except Exception:
         return ()
-
-
-def _selected_compat(item) -> bool:
-    """Keep the legacy selected flag available to callers and tests."""
-    try:
-        return bool(item.is_selected())
-    except Exception:
-        try:
-            return bool(item.iface_selection_item.CurrentIsSelected)
-        except Exception:
-            return False
 
 
 def _screen_to_client(hwnd: int, x: int, y: int) -> tuple[int, int]:
