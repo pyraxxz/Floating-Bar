@@ -236,6 +236,14 @@ class BackgroundTypingTarget:
         winapi.post_text(target, text)
         return target
 
+    def begin_submission_verification(self, target_hwnd: int):
+        """Optional adapter hook executed after text injection and before submit."""
+        return None
+
+    def finish_submission_verification(self, target_hwnd: int, state, strategy: str) -> str:
+        """Optional adapter hook executed after submit; defaults to raw strategy."""
+        return strategy
+
     def _verification_unavailable_after_submit(self, target: int, phase: str) -> str:
         """Record liveness after an ambiguous post-injection outcome."""
         trace.trace(
@@ -257,7 +265,14 @@ class BackgroundTypingTarget:
         trace.trace(f"stage=adapter key={spec_key}")
         target = self.type_text(text)
         trace.trace(f"stage=target hwnd={target} scope={self.scope().hwnd}/{self.scope().pid}")
+        verification_state = None
         try:
+            try:
+                verification_state = self.begin_submission_verification(target)
+            except Exception:
+                verification_state = None
+                trace.trace("stage=verification pre-submit unavailable")
+
             try:
                 strategy = submit_background_target(self._adapter_spec, target)
             except Exception:
@@ -270,13 +285,13 @@ class BackgroundTypingTarget:
                 f"target={'ok' if self._last_post_send_check.target_alive else 'changed'} "
                 f"reason={self._last_post_send_check.reason}"
             )
-            # The generic path has no content-level receipt. A target that
-            # disappears after submission is therefore uncertain, not a clean
-            # failure: returning an explicit verification-unavailable marker
-            # prevents the evidence layer from offering a duplicate retry.
             if not self._last_post_send_check.healthy:
                 return "posted-enter (verification-unavailable)"
-            return strategy
+
+            try:
+                return self.finish_submission_verification(target, verification_state, strategy)
+            except Exception:
+                return "posted-enter (verification-unavailable)"
         finally:
             self.clear_pinned_input()
 
