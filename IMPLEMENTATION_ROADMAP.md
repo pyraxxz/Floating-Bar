@@ -47,8 +47,9 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Dedicated chat composer target rejects controls outside the structural Edit/Document inventory
 - [x] Adapter evidence policy prevents unverified adapters from claiming `VERIFIED`
 - [x] Telegram verification contract is explicitly `compose-clear`
+- [x] Adapter-bound submission policy separates typing from submission semantics
+- [x] Production generic targets bind the explicit adapter policy before sending
 - [ ] Add app-specific verification implementations for WhatsApp/Discord/Slack/Teams/terminal
-- [x] Add dedicated structural target/control adapters for chat applications
 
 ## Phase 2 — Finish the current UX and reliability layer
 
@@ -80,8 +81,8 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Exact-scope binding
 - [x] Exact-control revalidation for pinned sends
 - [x] Prefer a discovered console control when focus is elsewhere
+- [x] Explicit submission mode contract
 - [ ] Explicit console-control targeting across terminal variants
-- [ ] Submission semantics appropriate to terminal
 - [ ] Verification/retry behavior
 
 ### WhatsApp
@@ -90,8 +91,8 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Adapter capability contract
 - [x] Dedicated structural composer target
 - [x] Generic conversation picker and background row selection
-- [ ] Background submit
-- [ ] Verification
+- [x] Explicit Enter submission contract
+- [ ] Background verification
 
 ### Discord
 
@@ -99,9 +100,9 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Adapter capability contract
 - [x] Dedicated structural composer target
 - [x] Generic conversation picker and background row selection
+- [x] Explicit Enter submission contract
 - [ ] Server/channel/DM targeting model
-- [ ] Background submit
-- [ ] Verification
+- [ ] Background verification
 
 ### Slack
 
@@ -109,9 +110,9 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Adapter capability contract
 - [x] Dedicated structural composer target
 - [x] Generic conversation picker and background row selection
+- [x] Explicit Enter submission contract
 - [ ] Conversation targeting refinements
-- [ ] Background submit
-- [ ] Verification
+- [ ] Background verification
 
 ### Microsoft Teams
 
@@ -119,9 +120,9 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Adapter capability contract
 - [x] Dedicated structural composer target
 - [x] Generic conversation picker and background row selection
+- [x] Explicit Enter submission contract
 - [ ] Conversation targeting refinements
-- [ ] Background submit
-- [ ] Verification
+- [ ] Background verification
 
 ## Phase 4 — Target/control intelligence
 
@@ -155,6 +156,7 @@ Every adapter should eventually produce one of:
 - [x] Central typed evidence model
 - [x] Adapter-specific verification contract in the registry
 - [x] Conservative evidence normalization that cannot upgrade unsupported adapters
+- [x] Explicit submission policy for generic adapters
 - [ ] App-specific verification hooks for generic chat and terminal adapters
 - [ ] Bounded post-send checks
 - [ ] Duplicate-send-safe retry rules
