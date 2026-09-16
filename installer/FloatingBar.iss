@@ -25,7 +25,6 @@ ArchitecturesInstallIn64BitMode=x64
 PrivilegesRequired=lowest
 WizardStyle=modern
 UninstallDisplayIcon={app}\{#MyAppExeName}
-SetupIconFile=..\assets\icon.ico
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"
