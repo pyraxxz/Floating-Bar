@@ -6,6 +6,7 @@ from .background_windows import enumerate_background_windows
 from .generic_target import BackgroundTypingTarget
 from .telegram_chats import enumerate_telegram_chats, select_telegram_chat, TelegramChatItem
 from .telegram_chat_picker import TelegramChatPicker
+from .context import capture
 from .transaction import SendCompletion
 from . import trace
 from .overlay import OrbRelayWindow as _BaseOverlay
@@ -43,9 +44,6 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self._work_hwnd = item.hwnd
         self._generic_attempt_id = 0
         if item.process_name == "telegram.exe":
-            # Telegram remains on the full guarded transaction path. The chat
-            # chooser can move the selected conversation without foregrounding.
-            self._background_process_name = "telegram.exe"
             self._pending_chat = None
             self._telegram_chat_picker.show()
             return
@@ -82,7 +80,8 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             if selected != chat.hwnd:
                 raise RuntimeError("Telegram selected a different window")
             self._work_hwnd = chat.hwnd
-            self._attempt_context = self._capture_target_context(chat.hwnd) or self._attempt_context
+            self._attempt_context = capture(chat.hwnd)
+            self.injector.set_window_context(self._attempt_context)
             self._update_status()
             if self._state != "bar":
                 self._show_bar()
