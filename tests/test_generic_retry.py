@@ -53,11 +53,12 @@ class GenericRetryTests(unittest.TestCase):
         window._show_bar = Mock()
         window._set_retry_menu_enabled = Mock()
 
-        with patch.object(
-            BoundContextOverlay._send_finished.__globals__["_BaseOverlay"],
-            "_retry_failed_draft",
-            side_effect=AssertionError("generic retry must not fall back to Telegram/base path"),
-        ):
+        with patch("floatingbar.bound_context_overlay.target_for_adapter", return_value=window._background_typer), \
+             patch.object(
+                 BoundContextOverlay._send_finished.__globals__["_BaseOverlay"],
+                 "_retry_failed_draft",
+                 side_effect=AssertionError("generic retry must not fall back to Telegram/base path"),
+             ):
             window._retry_failed_draft()
 
         window._background_typer.bind.assert_called_once_with(410, 811)
@@ -80,7 +81,8 @@ class GenericRetryTests(unittest.TestCase):
         window._work_hwnd = 0
 
         item = Mock(hwnd=512, pid=900, process_name="whatsapp.exe", actionable=True)
-        window._select_background_window(item)
+        with patch("floatingbar.bound_context_overlay.target_for_adapter", return_value=window._background_typer):
+            window._select_background_window(item)
 
         self.assertIsNone(window._generic_retry_scope)
         self.assertEqual(window._generic_retry_process_name, "")

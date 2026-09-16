@@ -26,7 +26,7 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Second-level app action popup
 - [x] Telegram chat picker foundation
 - [x] Generic background typing target with exact HWND/PID validation
-- [x] Generic target probing with content-free focus/control diagnostics
+- [x] Generic target structural probe and editable-control discovery
 - [x] Generic retry preserves original HWND/PID scope and adapter identity
 - [x] Windows CI compile + regression suite + PyInstaller build
 - [x] Release workflow separated from ordinary development pushes
@@ -35,12 +35,13 @@ The app should let the user work in the foreground while sending/replying throug
 
 - [x] Central `app_adapters.py` registry for supported executables
 - [x] Picker derives labels, capabilities, and actions from the registry
-- [x] Picker respects `implemented` and `supports_background_type` capability flags
 - [x] Production routing derives adapter identity from the registry
 - [x] Adapter metadata defines target mode, submit mode, and verification mode
 - [x] Tests cover aliases, capabilities, and adapter metadata
-- [ ] Replace the generic type adapter with per-app target/control discovery
-- [ ] Add per-app send verification
+- [x] Adapter target factory separates per-app implementations from UI routing
+- [x] Dedicated Terminal target rejects focused controls that are not structurally discovered as editable
+- [ ] Add app-specific verification implementations
+- [ ] Add dedicated target/control adapters for chat applications
 
 ## Phase 2 — Finish the current UX and reliability layer
 
@@ -65,10 +66,10 @@ The app should let the user work in the foreground while sending/replying throug
 
 ### Terminal
 
-- [x] Discovery and generic typing path
-- [x] Adapter capability contract
-- [ ] Dedicated terminal target adapter
-- [ ] Explicit console-control targeting
+- [x] Discovery and adapter capability contract
+- [x] Dedicated structural target adapter
+- [x] Exact-scope binding
+- [ ] Explicit console-control targeting across terminal variants
 - [ ] Submission semantics appropriate to terminal
 - [ ] Verification/retry behavior
 
@@ -114,17 +115,17 @@ The key transition is from “whatever control currently has focus” to “the 
 
 - [x] Inspect UI Automation structure without reading message content
 - [x] Identify editable controls by role/class/capability
-- [x] Provide content-free candidate ranking by focus, geometry, and stable identity
 - [ ] Reject search/navigation fields when a composer is available
+- [ ] Support multiple candidate controls with evidence scoring
 - [ ] Pin the selected control for the duration of a send
-- [ ] Abort safely when the control or process changes
+- [x] Abort safely when the control or process changes
 
 ## Phase 5 — Conversation intelligence
 
 - [ ] Identify useful/reply-needed chats without scraping message content
 - [ ] Prioritize unread/relevant conversations where application APIs/UI expose safe structural signals
 - [ ] Keep chat selection content-free where possible
-- [ ] Refresh/revalidate rows immediately before background selection
+- [x] Refresh/revalidate rows immediately before background selection
 - [ ] Avoid assuming visual ordering is stable across app versions
 
 ## Phase 6 — Verification and reliability
@@ -136,7 +137,7 @@ Every adapter should eventually produce one of:
 - [ ] App-specific verification hooks
 - [ ] Bounded post-send checks
 - [ ] Duplicate-send-safe retry rules
-- [ ] Clear user feedback for blocked targets
+- [x] Clear user feedback for blocked targets
 - [ ] Trace adapter, target, and verification stages without message content
 
 ## Phase 7 — Real Windows validation

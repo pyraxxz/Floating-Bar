@@ -2,9 +2,9 @@
 
 from .context_overlay import OrbRelayWindow as _ContextOrbRelayWindow
 from .app_adapters import adapter_for_process
+from .app_targets import target_for_adapter
 from .background_picker import BackgroundAppPicker, PickerItem
 from .background_windows import enumerate_background_windows
-from .generic_target import BackgroundTypingTarget
 from .telegram_chats import enumerate_telegram_chats, select_telegram_chat, TelegramChatItem
 from .telegram_chat_picker import TelegramChatPicker
 from .context import capture
@@ -31,7 +31,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             refresh=lambda: enumerate_telegram_chats(self._work_hwnd),
             on_select=self._select_telegram_chat,
         )
-        self._background_typer = BackgroundTypingTarget()
+        self._background_typer = target_for_adapter(None)
         self._generic_attempt_id = 0
         self._background_process_name = ""
         self._background_adapter_key = ""
@@ -45,9 +45,10 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         if not item.actionable or not item.hwnd or not item.pid:
             return
         spec = adapter_for_process(item.process_name)
-        if spec is None or not spec.implemented:
+        if spec is None or not spec.implemented or not spec.supports_background_type:
             return
         self._background_typer.release()
+        self._background_typer = target_for_adapter(spec)
         self._generic_retry_scope = None
         self._generic_retry_process_name = ""
         self._generic_retry_adapter_key = ""
@@ -104,7 +105,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             )
 
     def _send_worker_request(self, request):
-        """Route non-Telegram picker selections through exact-scope typing."""
+        """Route non-Telegram picker selections through their app-specific target."""
         process_name = getattr(self, "_background_process_name", "")
         adapter_key = getattr(self, "_background_adapter_key", "")
         spec = adapter_for_process(process_name)
@@ -138,12 +139,17 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             )
 
     def _retry_failed_draft(self) -> None:
-        """Restore a failed generic draft against its original HWND/PID scope."""
+        """Restore a failed generic draft against its original HWND/PID and adapter."""
         if self._sending or not self._retry_draft:
             return
         scope = self._generic_retry_scope
         if scope is None:
             return super()._retry_failed_draft()
+        spec = adapter_for_process(self._generic_retry_process_name)
+        if spec is None or not spec.implemented or not spec.supports_background_type:
+            self._show_feedback("The original background app is no longer supported safely.")
+            return
+        self._background_typer = target_for_adapter(spec)
         self._background_typer.bind(scope.hwnd, scope.pid)
         self._background_process_name = self._generic_retry_process_name
         self._background_adapter_key = self._generic_retry_adapter_key

@@ -22,7 +22,7 @@ class AppAdapterRegistryTests(unittest.TestCase):
 
         self.assertEqual(terminal.action, "Type")
         self.assertIsNone(terminal.chat_picker)
-        self.assertEqual(terminal.target_mode, "focused-child")
+        self.assertEqual(terminal.target_mode, "terminal-structured-focus")
         self.assertEqual(terminal.submit_mode, "enter")
         self.assertEqual(terminal.verification_mode, "unverified")
 
