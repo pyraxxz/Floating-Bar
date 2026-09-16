@@ -70,6 +70,17 @@ class BackgroundTypingTargetTests(unittest.TestCase):
         self.assertTrue(probe.available)
         self.assertEqual(probe.reason, "no-input")
 
+    def test_probe_reports_inspection_error_reason_without_exposing_exception(self):
+        with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
+             patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.generic_target.winapi.get_focused_hwnd", return_value=0), \
+             patch("floatingbar.generic_target.enumerate_input_candidates", side_effect=RuntimeError("private UI detail")):
+            probe = self.target.probe()
+        self.assertTrue(probe.available)
+        self.assertEqual(probe.candidate_hwnds, ())
+        self.assertEqual(probe.reason, "inspection-error")
+
     def test_probe_fails_closed_when_target_is_unavailable(self):
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=False):
             probe = self.target.probe()
