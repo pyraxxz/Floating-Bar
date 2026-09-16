@@ -99,6 +99,36 @@ class BackgroundTypingTargetTests(unittest.TestCase):
         post_enter.assert_called_once_with(301, target=301)
         self.assertEqual(self.target.pinned_hwnd, 0)
 
+    def test_pinned_child_identity_change_is_rejected_before_posting(self):
+        original = InputCandidate(301, 200, "RichEdit", "Edit", 0, 0, 400, 30, False, True, True)
+        replacement = InputCandidate(301, 200, "OtherControl", "Edit", 0, 0, 400, 30, False, True, True)
+        with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
+             patch("floatingbar.generic_target.winapi.is_minimized", return_value=False), \
+             patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200), \
+             patch.object(self.target, "input_candidates", side_effect=[(original,), (replacement,)]), \
+             patch("floatingbar.generic_target.winapi.post_text") as post_text:
+            self.target.pin_best_input()
+            with self.assertRaisesRegex(RuntimeError, "identity changed"):
+                self.target.send("hello")
+        post_text.assert_not_called()
+
+    def test_pinned_child_allows_geometry_change_for_same_control(self):
+        original = InputCandidate(301, 200, "RichEdit", "Edit", 0, 0, 400, 30, False, True, True)
+        resized = InputCandidate(301, 200, "RichEdit", "Edit", 0, 0, 700, 44, False, True, True)
+        with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
+             patch("floatingbar.generic_target.winapi.is_minimized", return_value=False), \
+             patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200), \
+             patch.object(self.target, "input_candidates", side_effect=[(original,), (resized,)]), \
+             patch("floatingbar.generic_target.winapi.post_text") as post_text, \
+             patch("floatingbar.generic_target.winapi.post_enter") as post_enter:
+            self.target.pin_best_input()
+            result = self.target.send("hello")
+        self.assertEqual(result, "posted-enter (unverified)")
+        post_text.assert_called_once_with(301, "hello")
+        post_enter.assert_called_once_with(301, target=301)
+
     def test_pinned_child_must_still_exist_in_structural_inventory(self):
         self.target._pinned_hwnd = 301
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
@@ -120,7 +150,6 @@ class BackgroundTypingTargetTests(unittest.TestCase):
              patch("floatingbar.generic_target.winapi.post_text") as post_text:
             with self.assertRaisesRegex(RuntimeError, "outside the bound process"):
                 self.target.send("hello")
-
         post_text.assert_not_called()
 
     def test_send_never_restores_or_foregrounds_target(self):
@@ -134,7 +163,6 @@ class BackgroundTypingTargetTests(unittest.TestCase):
              patch("floatingbar.generic_target.winapi.ensure_restored") as ensure_restored, \
              patch("floatingbar.generic_target.winapi.set_foreground_window") as set_foreground:
             self.target.send("hello")
-
         ensure_restored.assert_not_called()
         set_foreground.assert_not_called()
 
