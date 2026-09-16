@@ -177,6 +177,11 @@ class SendCompletion:
     def failed(self) -> bool:
         return self.resolved_evidence.state is EvidenceState.FAILED
 
+    @property
+    def blocked(self) -> bool:
+        """Whether this completion proves that the send was stopped before submission."""
+        return self.resolved_evidence.state is EvidenceState.BLOCKED
+
 
 __all__ = [
     "TargetScope",

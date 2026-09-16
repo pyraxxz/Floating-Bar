@@ -14,6 +14,7 @@ from .target import TelegramNotFound
 from .transaction import SendCompletion, SendRequest
 from .transaction_coordinator import SendTransactionCoordinator, TransactionRejected
 from .transaction_state import TransactionLifecycle, TransactionState
+from .evidence import EvidenceState
 
 
 class OrbRelayWindow(_RecoveryOrbRelayWindow):
@@ -161,6 +162,7 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
         lifecycle = TransactionLifecycle(request.attempt_id)
         lifecycle.begin_prepare()
         self._active_lifecycle = lifecycle
+        trace.trace("stage=adapter key=telegram")
 
         work_hwnd = request.restore_hwnd
         preferred = work_hwnd if self._is_telegram_window(work_hwnd) else 0
@@ -196,6 +198,10 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
         self._work_hwnd = transaction.target.hwnd
         self._attempt_context = transaction.context
         self.injector.set_window_context(transaction.context)
+        trace.trace(
+            f"stage=target hwnd={transaction.target.hwnd} "
+            f"scope={transaction.target.hwnd}/{transaction.target.pid}"
+        )
         lifecycle.begin_send()
         trace.trace(
             f"transaction: attempt={transaction.attempt_id} "
@@ -245,12 +251,22 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
             active_lifecycle is not None and
             active_lifecycle.attempt_id == completion.attempt_id
         ) else None
+        evidence = completion.resolved_evidence
         try:
             super()._send_finished(completion)
             if not is_current:
                 return
+            trace.trace(
+                f"stage=verification adapter=telegram state={evidence.state.value} "
+                f"confirmed={'yes' if evidence.confirmed else 'no'}"
+            )
+            if evidence.state is EvidenceState.BLOCKED:
+                self._show_feedback(
+                    evidence.detail or "Send was blocked before submission.",
+                    config.ERROR_COLOR,
+                )
             if lifecycle is not None and lifecycle.state is TransactionState.SENDING:
-                lifecycle.complete_from_evidence(completion.resolved_evidence.state)
+                lifecycle.complete_from_evidence(evidence.state)
                 trace.trace(
                     f"transaction: attempt={completion.attempt_id} "
                     f"state={lifecycle.state.value}"
