@@ -2,7 +2,7 @@
 
 The picker and production routing consume this table rather than each
 maintaining executable-name logic. Capability metadata also defines the
-contract that future per-app target and verification adapters will implement.
+contract that per-app target and verification adapters implement.
 """
 
 from dataclasses import dataclass
@@ -48,8 +48,9 @@ _ADAPTERS = (
         label="Terminal",
         processes=("windowsterminal.exe", "wt.exe"),
         action="Type",
-        target_mode="focused-child",
+        target_mode="terminal-structured-focus",
         submit_mode="enter",
+        verification_mode="unverified",
     ),
     AppAdapterSpec(key="cmd", label="Command Prompt", processes=("cmd.exe",), action="Type"),
     AppAdapterSpec(key="powershell", label="PowerShell", processes=("powershell.exe",), action="Type"),
