@@ -12,6 +12,7 @@ from .conversation_rows import ConversationItem, enumerate_conversations, select
 from .telegram_chats import enumerate_telegram_chats, select_telegram_chat, TelegramChatItem
 from .telegram_chat_picker import TelegramChatPicker
 from .context import capture
+from .adapter_evidence import evidence_for_adapter
 from .transaction import SendCompletion
 from . import trace
 from .overlay import OrbRelayWindow as _BaseOverlay
@@ -26,6 +27,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             self,
             refresh=lambda: enumerate_background_windows(
                 exclude_hwnds={self.winfo_id()},
+                include_minimized=True,
             ),
             on_select=self._select_background_window,
         )
@@ -221,10 +223,14 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
                 raise RuntimeError("selected background target changed before send")
             self._background_typer.pin_best_input()
             strategy = self._background_typer.send(request.text)
+            evidence = evidence_for_adapter(spec, strategy=strategy)
             self._result_q.put(
-                SendCompletion.from_result(
+                SendCompletion(
                     attempt_id=request.attempt_id,
                     strategy=strategy,
+                    error=evidence.detail,
+                    evidence_state=evidence.state,
+                    evidence=evidence,
                 )
             )
         except Exception as exc:
