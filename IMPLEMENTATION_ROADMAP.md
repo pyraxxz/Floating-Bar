@@ -103,7 +103,9 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Prefer a discovered console control when focus is elsewhere
 - [x] Explicit submission mode contract
 - [x] Explicit console-control process coverage across Windows Terminal, Terminal Preview, conhost, and PowerShell Core aliases
-- [ ] Verification/retry behavior
+- [x] Fail-closed post-send liveness handling and no automatic retry for unverified outcomes
+- [ ] Verification that proves command acceptance without reading terminal content
+- [ ] App/version-specific retry behavior after a genuinely failed terminal send
 
 ### WhatsApp
 
@@ -198,6 +200,7 @@ Every adapter should eventually produce one of:
 - [x] App-specific verification hook architecture for chat targets
 - [x] WhatsApp content-free `compose-clear` verification with pre-injection baseline
 - [x] Shared content-free `compose-clear` verification for Discord/Slack/Teams through the structural chat target
+- [x] Explicit fail-closed handling for terminal submission outcomes without claiming command verification
 - [ ] App-specific verification hooks for terminal and chat adapters where shared compose-clear evidence is insufficient
 - [x] Bounded post-send checks
 - [x] Generic post-send target loss cannot become an automatic retry
