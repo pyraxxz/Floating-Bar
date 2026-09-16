@@ -26,6 +26,7 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Second-level app action popup
 - [x] Telegram chat picker foundation
 - [x] Generic background typing target with exact HWND/PID validation
+- [x] Generic target probing with content-free focus/control diagnostics
 - [x] Generic retry preserves original HWND/PID scope and adapter identity
 - [x] Windows CI compile + regression suite + PyInstaller build
 - [x] Release workflow separated from ordinary development pushes
@@ -34,6 +35,7 @@ The app should let the user work in the foreground while sending/replying throug
 
 - [x] Central `app_adapters.py` registry for supported executables
 - [x] Picker derives labels, capabilities, and actions from the registry
+- [x] Picker respects `implemented` and `supports_background_type` capability flags
 - [x] Production routing derives adapter identity from the registry
 - [x] Adapter metadata defines target mode, submit mode, and verification mode
 - [x] Tests cover aliases, capabilities, and adapter metadata
@@ -110,10 +112,10 @@ The app should let the user work in the foreground while sending/replying throug
 
 The key transition is from “whatever control currently has focus” to “the correct input control for this application.”
 
-- [ ] Inspect UI Automation structure without reading message content
-- [ ] Identify editable controls by role/class/capability
+- [x] Inspect UI Automation structure without reading message content
+- [x] Identify editable controls by role/class/capability
+- [x] Provide content-free candidate ranking by focus, geometry, and stable identity
 - [ ] Reject search/navigation fields when a composer is available
-- [ ] Support multiple candidate controls with evidence scoring
 - [ ] Pin the selected control for the duration of a send
 - [ ] Abort safely when the control or process changes
 
