@@ -135,9 +135,9 @@ The key transition is from “whatever control currently has focus” to “the 
 - [ ] Prioritize unread/relevant conversations where application APIs/UI expose safe structural signals
 - [x] Keep chat selection content-free where possible
 - [x] Refresh/revalidate rows immediately before background selection
-- [x] Prefer UI Automation runtime identity when available; use name/geometry only as a guarded fallback
+- [x] Prefer UI Automation runtime identity when available; use structural control identity as a guarded fallback
 - [x] Keep the currently selected conversation visible in the short picker window
-- [ ] Avoid assuming visual ordering is stable across app versions
+- [x] Avoid treating visual ordering as conversation identity
 
 ## Phase 6 — Verification and reliability
 

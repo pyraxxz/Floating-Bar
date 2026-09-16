@@ -25,9 +25,16 @@ class _Rect:
 
 
 class _Item:
-    def __init__(self, rect, name, selected=False, runtime_id=None):
+    def __init__(self, rect, name, selected=False, runtime_id=None, control_identity=None):
         self._rect = rect
-        self.element_info = SimpleNamespace(name=name, runtime_id=runtime_id)
+        self.element_info = SimpleNamespace(
+            name=name,
+            runtime_id=runtime_id,
+            control_type=(control_identity[0] if control_identity else "ListItem"),
+            automation_id=(control_identity[1] if control_identity and len(control_identity) > 1 else ""),
+            class_name=(control_identity[2] if control_identity and len(control_identity) > 2 else ""),
+            framework_id=(control_identity[3] if control_identity and len(control_identity) > 3 else ""),
+        )
         self._selected = selected
 
     def rectangle(self):
@@ -65,6 +72,7 @@ class ConversationRowTests(unittest.TestCase):
         self.assertEqual(rows[0].runtime_id, (1, 10))
         self.assertEqual(rows[0].hwnd, 123)
         self.assertEqual(rows[0].pid, 200)
+        self.assertIsNotNone(rows[0].control_identity)
 
     def test_selected_row_is_presented_before_unselected_rows(self):
         window = Mock()
@@ -84,8 +92,8 @@ class ConversationRowTests(unittest.TestCase):
         self.assertEqual([row.name for row in rows], ["Current", "Later"])
 
     def test_selection_revalidates_row_before_background_click(self):
-        item = ConversationItem(123, 200, "Alice", 20, 100, 420, 160, True, (1, 10))
-        fresh = ConversationItem(123, 200, "Alice", 24, 104, 424, 164, True, (1, 10))
+        item = ConversationItem(123, 200, "Alice", 20, 100, 420, 160, True, (1, 10), ("ListItem", "alice", "row", "uia"))
+        fresh = ConversationItem(123, 200, "Alice", 24, 104, 424, 164, True, (1, 10), ("ListItem", "alice", "row", "uia"))
         with patch("floatingbar.conversation_rows.winapi.get_window_pid", return_value=200), \
              patch("floatingbar.conversation_rows.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.conversation_rows._refresh_row", return_value=fresh), \
@@ -96,9 +104,9 @@ class ConversationRowTests(unittest.TestCase):
         post_click.assert_called_once_with(123, 220, 134)
 
     def test_runtime_identity_takes_precedence_over_duplicate_names(self):
-        item = ConversationItem(123, 200, "Alice", 20, 100, 420, 160, False, (9, 9))
-        fresh = ConversationItem(123, 200, "Alice", 22, 102, 422, 162, False, (9, 9))
-        wrong = ConversationItem(123, 200, "Alice", 21, 300, 421, 360, False, (9, 10))
+        item = ConversationItem(123, 200, "Alice", 20, 100, 420, 160, False, (9, 9), ("ListItem", "alice", "row", "uia"))
+        fresh = ConversationItem(123, 200, "Alice", 22, 102, 422, 162, False, (9, 9), ("ListItem", "alice", "row", "uia"))
+        wrong = ConversationItem(123, 200, "Alice", 21, 300, 421, 360, False, (9, 10), ("ListItem", "alice", "row", "uia"))
         with patch("floatingbar.conversation_rows.winapi.get_window_pid", return_value=200), \
              patch("floatingbar.conversation_rows.enumerate_conversations", return_value=(wrong, fresh)):
             from floatingbar.conversation_rows import _refresh_row
@@ -111,6 +119,25 @@ class ConversationRowTests(unittest.TestCase):
              patch("floatingbar.conversation_rows.enumerate_conversations", return_value=(changed,)):
             from floatingbar.conversation_rows import _refresh_row
             with self.assertRaisesRegex(RuntimeError, "identity changed"):
+                _refresh_row(item)
+
+    def test_structural_identity_prevents_duplicate_name_ambiguity(self):
+        item = ConversationItem(123, 200, "Alice", 20, 100, 420, 160, False, None, ("ListItem", "alice-1", "row", "uia"))
+        correct = ConversationItem(123, 200, "Alice", 22, 102, 422, 162, False, None, ("ListItem", "alice-1", "row", "uia"))
+        duplicate_name = ConversationItem(123, 200, "Alice", 24, 300, 424, 360, False, None, ("ListItem", "alice-2", "row", "uia"))
+        with patch("floatingbar.conversation_rows.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.conversation_rows.enumerate_conversations", return_value=(duplicate_name, correct)):
+            from floatingbar.conversation_rows import _refresh_row
+            self.assertEqual(_refresh_row(item), correct)
+
+    def test_ambiguous_structural_identity_is_rejected(self):
+        item = ConversationItem(123, 200, "Alice", 20, 100, 420, 160, False, None, ("ListItem", "shared", "row", "uia"))
+        first = ConversationItem(123, 200, "Alice", 22, 102, 422, 162, False, None, ("ListItem", "shared", "row", "uia"))
+        second = ConversationItem(123, 200, "Alice", 24, 104, 424, 164, False, None, ("ListItem", "shared", "row", "uia"))
+        with patch("floatingbar.conversation_rows.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.conversation_rows.enumerate_conversations", return_value=(first, second)):
+            from floatingbar.conversation_rows import _refresh_row
+            with self.assertRaisesRegex(RuntimeError, "ambiguous"):
                 _refresh_row(item)
 
     def test_selection_rejects_replaced_process(self):

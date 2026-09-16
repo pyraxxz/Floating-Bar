@@ -24,6 +24,7 @@ class ConversationItem:
     bottom: int
     selected: bool = False
     runtime_id: tuple[int, ...] | None = None
+    control_identity: tuple[str, ...] | None = None
 
     @property
     def center(self) -> tuple[int, int]:
@@ -48,6 +49,22 @@ def _runtime_id(item) -> tuple[int, ...] | None:
     return result or None
 
 
+def _control_identity(item) -> tuple[str, ...] | None:
+    """Return stable structural UI metadata for runtimes without runtime_id."""
+    try:
+        info = item.element_info
+        values = (
+            getattr(info, "control_type", None),
+            getattr(info, "automation_id", None),
+            getattr(info, "class_name", None),
+            getattr(info, "framework_id", None),
+        )
+    except Exception:
+        return None
+    normalized = tuple(str(value).strip() for value in values if value not in (None, ""))
+    return normalized or None
+
+
 def _selected(item) -> bool:
     try:
         return bool(item.is_selected())
@@ -64,7 +81,7 @@ def _left_pane_cutoff(window_rect, fraction: float = 0.68) -> int:
 
 
 def _row_sort_key(row: ConversationItem) -> tuple[int, int, str, int]:
-    """Prefer the current conversation, then use geometry only as presentation order."""
+    """Prefer the current conversation; geometry is presentation order only."""
     return (0 if row.selected else 1, row.top, row.left, row.name.casefold())
 
 
@@ -100,7 +117,15 @@ def enumerate_conversations(
                 if rect.left >= cutoff or rect.top < window_rect.top or rect.bottom > window_rect.bottom:
                     continue
                 runtime_id = _runtime_id(item)
-                key = runtime_id or (rect.left, rect.top, rect.right, rect.bottom, name.casefold())
+                control_identity = _control_identity(item)
+                key = runtime_id or (
+                    control_identity,
+                    name.casefold(),
+                    rect.left,
+                    rect.top,
+                    rect.right,
+                    rect.bottom,
+                )
                 if key in seen:
                     continue
                 seen.add(key)
@@ -115,6 +140,7 @@ def enumerate_conversations(
                         bottom=rect.bottom,
                         selected=_selected(item),
                         runtime_id=runtime_id,
+                        control_identity=control_identity,
                     )
                 )
         rows.sort(key=_row_sort_key)
@@ -150,6 +176,19 @@ def _refresh_row(item: ConversationItem) -> ConversationItem:
             if abs(fresh.left - item.left) + abs(fresh.top - item.top) > 24:
                 raise RuntimeError("conversation row moved before selection")
             return fresh
+
+    if item.control_identity is not None:
+        structural_matches = [
+            row for row in current
+            if row.control_identity == item.control_identity and row.name == item.name
+        ]
+        if len(structural_matches) == 1:
+            fresh = structural_matches[0]
+            if abs(fresh.left - item.left) + abs(fresh.top - item.top) > 24:
+                raise RuntimeError("conversation row moved before selection")
+            return fresh
+        if len(structural_matches) > 1:
+            raise RuntimeError("conversation row structural identity is ambiguous")
 
     candidates = [row for row in current if row.name == item.name]
     if not candidates:
