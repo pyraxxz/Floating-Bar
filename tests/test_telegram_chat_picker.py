@@ -14,20 +14,20 @@ class TelegramChatPickerTests(unittest.TestCase):
             (ChatPickerRow("Alice", True, chat),),
         )
 
-    def test_chat_catalog_sorts_visible_rows_and_limits_results(self):
-        item_a = SimpleNamespace(
+    def test_chat_catalog_keeps_selected_chat_ahead_of_visual_order(self):
+        lower = SimpleNamespace(
             rectangle=lambda: SimpleNamespace(left=10, top=40, right=320, bottom=80, width=lambda: 310, height=lambda: 40),
             element_info=SimpleNamespace(name="Second"),
             is_selected=lambda: False,
         )
-        item_b = SimpleNamespace(
+        selected = SimpleNamespace(
             rectangle=lambda: SimpleNamespace(left=10, top=10, right=320, bottom=50, width=lambda: 310, height=lambda: 40),
             element_info=SimpleNamespace(name="First"),
             is_selected=lambda: True,
         )
         window = Mock()
         window.rectangle.return_value = SimpleNamespace(left=0, top=0, width=lambda: 500, bottom=500)
-        window.descendants.return_value = [item_a, item_b]
+        window.descendants.return_value = [lower, selected]
         with patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
              patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.telegram_chats.Application") as app_cls:
@@ -37,6 +37,28 @@ class TelegramChatPickerTests(unittest.TestCase):
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0].name, "First")
         self.assertTrue(result[0].selected)
+
+    def test_chat_catalog_preserves_visual_order_for_unselected_rows(self):
+        item_a = SimpleNamespace(
+            rectangle=lambda: SimpleNamespace(left=10, top=40, right=320, bottom=80, width=lambda: 310, height=lambda: 40),
+            element_info=SimpleNamespace(name="Second"),
+            is_selected=lambda: False,
+        )
+        item_b = SimpleNamespace(
+            rectangle=lambda: SimpleNamespace(left=10, top=10, right=320, bottom=50, width=lambda: 310, height=lambda: 40),
+            element_info=SimpleNamespace(name="First"),
+            is_selected=lambda: False,
+        )
+        window = Mock()
+        window.rectangle.return_value = SimpleNamespace(left=0, top=0, width=lambda: 500, bottom=500)
+        window.descendants.return_value = [item_a, item_b]
+        with patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.telegram_chats.Application") as app_cls:
+            connected = app_cls.return_value.connect.return_value
+            connected.window.return_value.wrapper_object.return_value = window
+            result = enumerate_telegram_chats(100, limit=2)
+        self.assertEqual([item.name for item in result], ["First", "Second"])
 
     def test_select_chat_rejects_recycled_window_scope(self):
         chat = TelegramChatItem(100, 200, "Alice", 0, 10, 300, 60)
