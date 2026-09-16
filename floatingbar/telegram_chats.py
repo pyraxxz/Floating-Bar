@@ -1,18 +1,19 @@
 """Ephemeral, read-only Telegram chat-row catalog for the background picker.
 
 Only user-visible chat names and screen geometry needed for an explicit click,
-plus content-free UI Automation identity, are kept in memory. Nothing from this
-catalog is persisted or logged.
+plus content-free UI Automation identity and attention state, are kept in
+memory. Nothing from this catalog is persisted or logged.
 """
 
 from dataclasses import dataclass
 import ctypes
 import ctypes.wintypes as wintypes
-from typing import Sequence
 
 from pywinauto import Application
 
 from . import winapi
+from .conversation_attention import AttentionState, ConversationAttention
+from .telegram_attention import telegram_badge_attention
 
 
 @dataclass(frozen=True)
@@ -27,6 +28,7 @@ class TelegramChatItem:
     selected: bool = False
     runtime_id: tuple[int, ...] | None = None
     control_identity: tuple[str, ...] | None = None
+    attention: ConversationAttention = ConversationAttention()
 
     @property
     def center(self) -> tuple[int, int]:
@@ -34,6 +36,10 @@ class TelegramChatItem:
             self.left + max(1, self.right - self.left) // 2,
             self.top + max(1, self.bottom - self.top) // 2,
         )
+
+    @property
+    def needs_attention(self) -> bool:
+        return self.attention.actionable
 
 
 def _runtime_id(item) -> tuple[int, ...] | None:
@@ -78,9 +84,26 @@ def _selected(item) -> bool:
         return False
 
 
-def _row_sort_key(row: TelegramChatItem) -> tuple[int, int, int, str]:
-    """Keep the current chat visible while preserving pane order otherwise."""
-    return (0 if row.selected else 1, row.top, row.left, row.name.casefold())
+def _row_attention(item) -> ConversationAttention:
+    """Use only the app-specific structural unread detector."""
+    return telegram_badge_attention(item)
+
+
+def _row_sort_key(row: TelegramChatItem) -> tuple[int, int, int, int, str]:
+    """Prioritize explicit unread state, then current chat, then visual order."""
+    attention_rank = {
+        AttentionState.UNREAD: 0,
+        AttentionState.RELEVANT: 1,
+        AttentionState.SELECTED: 2,
+        AttentionState.UNKNOWN: 3,
+    }[row.attention.state]
+    return (
+        attention_rank,
+        0 if row.selected else 1,
+        row.top,
+        row.left,
+        row.name.casefold(),
+    )
 
 
 def enumerate_telegram_chats(hwnd: int, limit: int = 6) -> tuple[TelegramChatItem, ...]:
@@ -132,6 +155,7 @@ def enumerate_telegram_chats(hwnd: int, limit: int = 6) -> tuple[TelegramChatIte
                     selected=_selected(item),
                     runtime_id=runtime_id,
                     control_identity=control_identity,
+                    attention=_row_attention(item),
                 )
             )
         rows.sort(key=_row_sort_key)
