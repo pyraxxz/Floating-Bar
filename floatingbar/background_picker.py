@@ -1,42 +1,19 @@
 """Hover picker for visible background applications.
 
 The picker is intentionally process-level: it never displays window titles,
-chat names, or message content. Telegram and a small set of common typing /
-submit applications are actionable; everything else remains discovery-only.
+chat names, or message content. Supported applications expose a capability
+from the centralized adapter registry; everything else remains discovery-only.
 """
 
 from dataclasses import dataclass
 import tkinter as tk
 from typing import Callable, Optional, Sequence
 
+from .app_adapters import adapter_for_process
 from .background_windows import BackgroundWindow
 
 
-_ACTIONABLE = {
-    "telegram.exe",
-    "whatsapp.exe",
-    "discord.exe",
-    "slack.exe",
-    "msteams.exe",
-    "ms-teams.exe",
-    "teams.exe",
-    "windowsterminal.exe",
-    "wt.exe",
-    "cmd.exe",
-    "powershell.exe",
-}
 _LABELS = {
-    "telegram.exe": "Telegram",
-    "whatsapp.exe": "WhatsApp",
-    "discord.exe": "Discord",
-    "slack.exe": "Slack",
-    "msteams.exe": "Microsoft Teams",
-    "ms-teams.exe": "Microsoft Teams",
-    "teams.exe": "Microsoft Teams",
-    "windowsterminal.exe": "Terminal",
-    "wt.exe": "Terminal",
-    "cmd.exe": "Command Prompt",
-    "powershell.exe": "PowerShell",
     "notepad.exe": "Notepad",
     "code.exe": "VS Code",
 }
@@ -52,30 +29,37 @@ class PickerItem:
     actionable: bool
     foreground: bool
     process_name: str = ""
+    adapter_key: str = ""
 
 
 def to_picker_items(windows: Sequence[BackgroundWindow]) -> tuple[PickerItem, ...]:
     """Convert catalog entries into title-free picker rows."""
-    return tuple(
-        PickerItem(
-            hwnd=item.hwnd,
-            pid=item.pid,
-            label=_LABELS.get(item.process_name, item.label.removesuffix(".exe").title()),
-            actionable=item.process_name in _ACTIONABLE,
-            foreground=item.foreground,
-            process_name=item.process_name,
+    items = []
+    for item in windows:
+        spec = adapter_for_process(item.process_name)
+        items.append(
+            PickerItem(
+                hwnd=item.hwnd,
+                pid=item.pid,
+                label=spec.label if spec else _LABELS.get(
+                    item.process_name,
+                    item.label.removesuffix(".exe").title(),
+                ),
+                actionable=bool(spec and spec.implemented),
+                foreground=item.foreground,
+                process_name=item.process_name,
+                adapter_key=spec.key if spec else "",
+            )
         )
-        for item in windows
-    )
+    return tuple(items)
 
 
 def action_for_item(item: PickerItem) -> str:
     """Return the safe action exposed when hovering an application row."""
-    if not item.actionable:
+    spec = adapter_for_process(item.process_name)
+    if not item.actionable or not spec:
         return "Preview"
-    if item.process_name == "telegram.exe":
-        return "Chats"
-    return "Type"
+    return spec.action
 
 
 class BackgroundAppPicker:
