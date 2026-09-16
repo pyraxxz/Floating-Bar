@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 from floatingbar.bound_target import BoundTelegramTarget
 from floatingbar.target import TelegramNotFound, TelegramTarget
 from floatingbar.target_contract import BackgroundTarget
+from floatingbar.telegram_chats import TelegramChatItem
 from floatingbar.transaction import TargetScope
 
 
@@ -122,6 +123,28 @@ class BoundTargetTests(unittest.TestCase):
                 target.compose_box()
 
         inner.select_for_send.assert_called_once_with(preferred_hwnd=100)
+
+    def test_chat_identity_can_be_bound_and_validated_without_message_content(self):
+        target = BoundTelegramTarget(self._inner())
+        chat = TelegramChatItem(100, 7, "Alice", 0, 0, 100, 40, True, (1, 2))
+        with patch("floatingbar.bound_target.chat_identity_matches", return_value=True) as matches:
+            target.bind_chat_identity(chat)
+            self.assertTrue(target.chat_identity_matches())
+        matches.assert_called_once_with(chat)
+
+    def test_chat_identity_does_not_match_after_manual_switch(self):
+        target = BoundTelegramTarget(self._inner())
+        chat = TelegramChatItem(100, 7, "Alice", 0, 0, 100, 40, True, (1, 2))
+        with patch("floatingbar.bound_target.chat_identity_matches", return_value=False):
+            target.bind_chat_identity(chat)
+            self.assertFalse(target.chat_identity_matches())
+
+    def test_release_clears_chat_identity_lease(self):
+        target = BoundTelegramTarget(self._inner())
+        chat = TelegramChatItem(100, 7, "Alice", 0, 0, 100, 40, True, (1, 2))
+        target.bind_chat_identity(chat)
+        target.release()
+        self.assertTrue(target.chat_identity_matches())
 
     def test_release_allows_a_fresh_target_selection(self):
         inner = self._inner()
