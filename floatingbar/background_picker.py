@@ -15,18 +15,30 @@ from .background_windows import BackgroundWindow
 _ACTIONABLE = {
     "telegram.exe",
     "whatsapp.exe",
+    "discord.exe",
+    "slack.exe",
+    "msteams.exe",
+    "ms-teams.exe",
+    "teams.exe",
     "windowsterminal.exe",
     "wt.exe",
     "cmd.exe",
     "powershell.exe",
+    "notepad.exe",
 }
 _LABELS = {
     "telegram.exe": "Telegram",
     "whatsapp.exe": "WhatsApp",
+    "discord.exe": "Discord",
+    "slack.exe": "Slack",
+    "msteams.exe": "Microsoft Teams",
+    "ms-teams.exe": "Microsoft Teams",
+    "teams.exe": "Microsoft Teams",
     "windowsterminal.exe": "Terminal",
     "wt.exe": "Terminal",
     "cmd.exe": "Command Prompt",
     "powershell.exe": "PowerShell",
+    "notepad.exe": "Notepad",
     "code.exe": "VS Code",
 }
 
