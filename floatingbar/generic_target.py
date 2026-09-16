@@ -134,14 +134,20 @@ class BackgroundTypingTarget:
         try:
             candidates = self.input_candidates()
         except Exception:
-            candidates = ()
+            candidates = None
 
-        reason = "ready" if candidates else "no-input"
+        if candidates is None:
+            reason = "inspection-error"
+            candidate_hwnds = ()
+        else:
+            reason = "ready" if candidates else "no-input"
+            candidate_hwnds = tuple(candidate.hwnd for candidate in candidates)
+
         return TargetProbe(
             scope=scope,
             available=True,
             focused_hwnd=focused if focused else 0,
-            candidate_hwnds=tuple(candidate.hwnd for candidate in candidates),
+            candidate_hwnds=candidate_hwnds,
             pinned_hwnd=self._pinned_hwnd,
             reason=reason,
         )
