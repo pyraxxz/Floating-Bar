@@ -17,17 +17,24 @@ class ChatVerificationTests(unittest.TestCase):
             control_type="Edit",
             is_likely_composer_shape=True,
         )
-        with patch.object(target, "input_candidates", return_value=(candidate,)):
-            target._pin_candidate(candidate)
+        target._verification_candidate = candidate
         return target
+
+    def _candidate_patch(self, target):
+        return patch.object(
+            target,
+            "input_candidates",
+            return_value=(target._verification_candidate,),
+        )
 
     def test_whatsapp_contract_verifies_after_baseline_growth_and_clear(self):
         target = self._target()
-        with patch.object(
+        with self._candidate_patch(target), patch.object(
             target,
             "_composer_value_length",
             side_effect=[5, 8, 0],
         ):
+            target._pin_candidate(target._verification_candidate)
             baseline = target.prepare_submission_verification()
             self.assertEqual(baseline, 5)
             self.assertEqual(target.begin_submission_verification(301, baseline), 5)
@@ -37,11 +44,12 @@ class ChatVerificationTests(unittest.TestCase):
 
     def test_existing_draft_without_growth_never_becomes_verified(self):
         target = self._target()
-        with patch.object(
+        with self._candidate_patch(target), patch.object(
             target,
             "_composer_value_length",
             side_effect=[5, 5],
         ), patch("floatingbar.chat_composer_target.time.sleep"):
+            target._pin_candidate(target._verification_candidate)
             baseline = target.prepare_submission_verification()
             self.assertEqual(baseline, 5)
             self.assertIsNone(target.begin_submission_verification(301, baseline))
@@ -53,7 +61,8 @@ class ChatVerificationTests(unittest.TestCase):
 
     def test_unreadable_baseline_fails_closed(self):
         target = self._target()
-        with patch.object(target, "_composer_value_length", return_value=-1):
+        with self._candidate_patch(target), patch.object(target, "_composer_value_length", return_value=-1):
+            target._pin_candidate(target._verification_candidate)
             self.assertIsNone(target.prepare_submission_verification())
             self.assertIsNone(target.begin_submission_verification(301, None))
 
