@@ -1,9 +1,10 @@
 import unittest
 from unittest.mock import patch
 
-from floatingbar.app_adapters import adapter_for_process
+from floatingbar.app_adapters import adapter_for_process, generic_adapter_for_process
 from floatingbar.app_targets import target_for_adapter, target_mode_for
 from floatingbar.chat_composer_target import ChatComposerTarget
+from floatingbar.generic_target import BackgroundTypingTarget
 from floatingbar.terminal_target import TerminalTypingTarget
 
 
@@ -63,6 +64,14 @@ class AppTargetTests(unittest.TestCase):
                 spec = adapter_for_process(process)
                 self.assertIsInstance(target_for_adapter(spec), ChatComposerTarget)
                 self.assertEqual(target_mode_for(spec), "chat-structured-focus")
+
+    def test_generic_adapter_gets_generic_background_target(self):
+        spec = generic_adapter_for_process("myeditor.exe")
+        target = target_for_adapter(spec)
+        self.assertIsInstance(target, BackgroundTypingTarget)
+        self.assertEqual(target_mode_for(spec), "focused-child")
+        self.assertNotIsInstance(target, TerminalTypingTarget)
+        self.assertNotIsInstance(target, ChatComposerTarget)
 
     def test_unknown_factory_falls_back_to_generic_target(self):
         self.assertEqual(target_mode_for(None), "unsupported")
