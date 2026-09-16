@@ -6,9 +6,15 @@ multiple editable fields exist, so a focused search/navigation field does not
 win merely because it owns focus.
 """
 
+import time
+
 from .generic_target import BackgroundTypingTarget
 from .control_candidates import best_input_candidate
 from . import winapi
+
+
+_VERIFY_ATTEMPTS = 10
+_VERIFY_INTERVAL_S = 0.1
 
 
 class ChatComposerTarget(BackgroundTypingTarget):
@@ -69,6 +75,61 @@ class ChatComposerTarget(BackgroundTypingTarget):
         if match is None or not self._is_composer(match):
             raise RuntimeError("chat pinned control is not a discovered editable composer")
         return pinned
+
+    @staticmethod
+    def _composer_value_length(hwnd: int) -> int:
+        """Read only the UIA value length; never retain or log the text itself."""
+        try:
+            from pywinauto import Desktop
+
+            element = Desktop(backend="uia").window(handle=hwnd).wrapper_object()
+            try:
+                value = element.iface_value.CurrentValue or ""
+                return len(value)
+            except Exception:
+                legacy = element.legacy_properties()
+                if isinstance(legacy, dict):
+                    return len(legacy.get("Value") or "")
+        except Exception:
+            pass
+        return -1
+
+    @classmethod
+    def _wait_for_length(cls, hwnd: int, predicate) -> bool | None:
+        """Return True when predicate matches, False on timeout, None if unreadable."""
+        readable = False
+        for attempt in range(_VERIFY_ATTEMPTS):
+            length = cls._composer_value_length(hwnd)
+            if length >= 0:
+                readable = True
+                if predicate(length):
+                    return True
+            if attempt < _VERIFY_ATTEMPTS - 1:
+                time.sleep(_VERIFY_INTERVAL_S)
+        return False if readable else None
+
+    def begin_submission_verification(self, target_hwnd: int):
+        spec = self._adapter_spec
+        if getattr(spec, "verification_mode", "") != "compose-clear":
+            return None
+        result = self._wait_for_length(target_hwnd, lambda length: length > 0)
+        if result is not True:
+            return None
+        return True
+
+    def finish_submission_verification(self, target_hwnd: int, state, strategy: str) -> str:
+        spec = self._adapter_spec
+        if getattr(spec, "verification_mode", "") != "compose-clear":
+            return strategy
+        if state is not True:
+            return "posted-enter (verification-unavailable)"
+        result = self._wait_for_length(target_hwnd, lambda length: length == 0)
+        if result is True:
+            suffix = strategy.split(" ", 1)[0] if strategy else "posted-enter"
+            return f"{suffix} (VERIFIED)"
+        if result is None:
+            return "posted-enter (verification-unavailable)"
+        return "posted-enter (unverified)"
 
 
 __all__ = ["ChatComposerTarget"]
