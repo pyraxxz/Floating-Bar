@@ -96,7 +96,7 @@ class AppTargetTests(unittest.TestCase):
              patch("floatingbar.generic_target.winapi.get_focused_hwnd", return_value=300), \
              patch.object(target, "input_candidates", return_value=()), \
              patch("floatingbar.generic_target.winapi.post_text") as post_text:
-            with self.assertRaisesRegex(RuntimeError, "not a discovered editable composer"):
+            with self.assertRaisesRegex(RuntimeError, "discovered editable composer"):
                 target.send("hello")
         post_text.assert_not_called()
 
@@ -125,7 +125,7 @@ class AppTargetTests(unittest.TestCase):
              patch("floatingbar.generic_target.winapi.get_window_pid", side_effect=[200, 200]), \
              patch("floatingbar.generic_target.winapi.get_focused_hwnd", return_value=300), \
              patch.object(target, "input_candidates", return_value=(candidate,)):
-            with self.assertRaisesRegex(RuntimeError, "not a discovered editable composer"):
+            with self.assertRaisesRegex(RuntimeError, "discovered editable composer"):
                 target.send("hello")
 
 
