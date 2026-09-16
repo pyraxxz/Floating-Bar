@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from floatingbar.telegram_chat_picker import ChatPickerRow, TelegramChatPicker, to_chat_picker_rows
-from floatingbar.telegram_chats import TelegramChatItem, enumerate_telegram_chats, select_telegram_chat
+from floatingbar.telegram_chats import TelegramChatItem, chat_identity_matches, enumerate_telegram_chats, select_telegram_chat
 
 
 class TelegramChatPickerTests(unittest.TestCase):
@@ -17,12 +17,12 @@ class TelegramChatPickerTests(unittest.TestCase):
     def test_chat_catalog_keeps_selected_chat_ahead_of_visual_order(self):
         lower = SimpleNamespace(
             rectangle=lambda: SimpleNamespace(left=10, top=40, right=320, bottom=80, width=lambda: 310, height=lambda: 40),
-            element_info=SimpleNamespace(name="Second"),
+            element_info=SimpleNamespace(name="Second", runtime_id=(1, 2), control_type="ListItem", automation_id="second", class_name="row", framework_id="uia"),
             is_selected=lambda: False,
         )
         selected = SimpleNamespace(
             rectangle=lambda: SimpleNamespace(left=10, top=10, right=320, bottom=50, width=lambda: 310, height=lambda: 40),
-            element_info=SimpleNamespace(name="First"),
+            element_info=SimpleNamespace(name="First", runtime_id=(1, 1), control_type="ListItem", automation_id="first", class_name="row", framework_id="uia"),
             is_selected=lambda: True,
         )
         window = Mock()
@@ -37,6 +37,8 @@ class TelegramChatPickerTests(unittest.TestCase):
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0].name, "First")
         self.assertTrue(result[0].selected)
+        self.assertEqual(result[0].runtime_id, (1, 1))
+        self.assertIsNotNone(result[0].control_identity)
 
     def test_chat_catalog_preserves_visual_order_for_unselected_rows(self):
         item_a = SimpleNamespace(
@@ -81,6 +83,29 @@ class TelegramChatPickerTests(unittest.TestCase):
         enumerate_rows.assert_called_once_with(100, limit=24)
         to_client.assert_called_once_with(100, 210, 240)
         post_click.assert_called_once_with(100, 120, 140)
+
+    def test_select_chat_rejects_runtime_identity_change(self):
+        chat = TelegramChatItem(100, 200, "Alice", 100, 200, 300, 260, False, (1, 2))
+        replacement = TelegramChatItem(100, 200, "Bob", 100, 200, 300, 260, False, (1, 2))
+        with patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.telegram_chats.enumerate_telegram_chats", return_value=(replacement,)), \
+             patch("floatingbar.telegram_chats.winapi.post_click") as post_click:
+            with self.assertRaisesRegex(RuntimeError, "identity changed"):
+                select_telegram_chat(chat)
+        post_click.assert_not_called()
+
+    def test_chat_identity_matches_only_when_the_same_row_is_selected(self):
+        chat = TelegramChatItem(100, 200, "Alice", 100, 200, 300, 260, True, (1, 2))
+        same_selected = TelegramChatItem(100, 200, "Alice", 110, 210, 310, 270, True, (1, 2))
+        with patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.telegram_chats.enumerate_telegram_chats", return_value=(same_selected,)):
+            self.assertTrue(chat_identity_matches(chat))
+
+        switched = TelegramChatItem(100, 200, "Alice", 110, 210, 310, 270, False, (1, 2))
+        with patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.telegram_chats.enumerate_telegram_chats", return_value=(switched,)):
+            self.assertFalse(chat_identity_matches(chat))
 
     def test_select_chat_rejects_missing_row_before_background_click(self):
         chat = TelegramChatItem(100, 200, "Alice", 100, 200, 300, 260)
