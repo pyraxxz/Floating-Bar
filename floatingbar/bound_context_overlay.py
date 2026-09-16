@@ -101,8 +101,8 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             return
         try:
             scope = self._background_typer.bind(conversation.hwnd, conversation.pid)
-            if scope.hwnd != self._work_hwnd:
-                raise RuntimeError("conversation selected a different window")
+            if scope.hwnd != self._work_hwnd or scope.pid != conversation.pid:
+                raise RuntimeError("conversation selected a different window or process")
             self._update_status()
             if self._state != "bar":
                 self._show_bar()
