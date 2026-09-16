@@ -236,6 +236,21 @@ class BackgroundTypingTarget:
         winapi.post_text(target, text)
         return target
 
+    def _verification_unavailable_after_submit(self, target: int, phase: str) -> str:
+        """Record liveness after an ambiguous post-injection outcome."""
+        trace.trace(
+            f"stage=submit exception phase={phase} "
+            "outcome=verification-unavailable"
+        )
+        self._last_post_send_check = self._post_send_check(target)
+        trace.trace(
+            "stage=post-send "
+            f"scope={'ok' if self._last_post_send_check.scope_alive else 'changed'} "
+            f"target={'ok' if self._last_post_send_check.target_alive else 'changed'} "
+            f"reason={self._last_post_send_check.reason}"
+        )
+        return "posted-enter (verification-unavailable)"
+
     def send(self, text: str) -> str:
         validate_submission_mode(self._adapter_spec)
         spec_key = getattr(self._adapter_spec, "key", "legacy")
@@ -243,7 +258,11 @@ class BackgroundTypingTarget:
         target = self.type_text(text)
         trace.trace(f"stage=target hwnd={target} scope={self.scope().hwnd}/{self.scope().pid}")
         try:
-            strategy = submit_background_target(self._adapter_spec, target)
+            try:
+                strategy = submit_background_target(self._adapter_spec, target)
+            except Exception:
+                return self._verification_unavailable_after_submit(target, "submission")
+
             self._last_post_send_check = self._post_send_check(target)
             trace.trace(
                 "stage=post-send "
