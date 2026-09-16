@@ -19,7 +19,7 @@ from .overlay import OrbRelayWindow as _BaseOverlay
 
 
 class OrbRelayWindow(_ContextOrbRelayWindow):
-    """Production overlay with background app and conversation selection."""
+    """Production overlay with background application and conversation selection."""
 
     def __init__(self):
         super().__init__()
@@ -98,6 +98,8 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             return "That background app closed or changed before it could be used."
         if reason == "no-input":
             return "That app is open, but no safe typing control is available there yet."
+        if reason == "inspection-error":
+            return "That app is open, but its background typing controls could not be inspected safely."
         return "That app could not expose a safe background typing control."
 
     def _select_background_window(self, item: PickerItem) -> None:
@@ -141,7 +143,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             trace.trace(f"background target readiness probe failed safely: {exc}")
             self._show_feedback("That app could not expose a safe background typing control.")
             return
-        if not probe.available or probe.candidate_count <= 0:
+        if not probe.available or probe.candidate_count <= 0 or getattr(probe, "reason", "ready") != "ready":
             self._show_feedback(self._probe_feedback(probe))
             return
         if self._state != "bar" and not self._sending:
@@ -180,7 +182,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             except Exception as exc:
                 trace.trace(f"conversation target readiness probe failed safely: {exc}")
                 raise RuntimeError("selected conversation has no safe background typing control")
-            if not probe.available or probe.candidate_count <= 0:
+            if not probe.available or probe.candidate_count <= 0 or getattr(probe, "reason", "ready") != "ready":
                 raise RuntimeError(self._probe_feedback(probe))
             if self._state != "bar":
                 self._show_bar()
