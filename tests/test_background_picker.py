@@ -1,6 +1,5 @@
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
 
 from floatingbar.background_picker import PickerItem, to_picker_items
 
@@ -29,11 +28,48 @@ class BackgroundPickerTests(unittest.TestCase):
                     hwnd=11, pid=21, process_name="notepad.exe",
                     label="notepad.exe", foreground=False,
                 ),
+                SimpleNamespace(
+                    hwnd=12, pid=22, process_name="discord.exe",
+                    label="discord.exe", foreground=False,
+                ),
+                SimpleNamespace(
+                    hwnd=13, pid=23, process_name="slack.exe",
+                    label="slack.exe", foreground=False,
+                ),
+                SimpleNamespace(
+                    hwnd=14, pid=24, process_name="ms-teams.exe",
+                    label="ms-teams.exe", foreground=False,
+                ),
             ]
         )
-        self.assertEqual([item.label for item in result], ["Terminal", "Notepad"])
-        self.assertEqual([item.actionable for item in result], [True, False])
-        self.assertEqual(result[0].process_name, "windowsterminal.exe")
+        self.assertEqual(
+            [item.label for item in result],
+            ["Terminal", "Notepad", "Discord", "Slack", "Microsoft Teams"],
+        )
+        self.assertEqual([item.actionable for item in result], [True, True, True, True, True])
+
+    def test_known_chat_and_terminal_aliases_share_actionability(self):
+        result = to_picker_items(
+            [
+                SimpleNamespace(
+                    hwnd=10, pid=20, process_name="wt.exe",
+                    label="wt.exe", foreground=False,
+                ),
+                SimpleNamespace(
+                    hwnd=11, pid=21, process_name="teams.exe",
+                    label="teams.exe", foreground=False,
+                ),
+                SimpleNamespace(
+                    hwnd=12, pid=22, process_name="msteams.exe",
+                    label="msteams.exe", foreground=False,
+                ),
+            ]
+        )
+        self.assertEqual(
+            [item.label for item in result],
+            ["Terminal", "Microsoft Teams", "Microsoft Teams"],
+        )
+        self.assertTrue(all(item.actionable for item in result))
 
     def test_unknown_process_has_title_free_human_label(self):
         result = to_picker_items(
