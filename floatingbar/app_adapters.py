@@ -125,4 +125,11 @@ def is_actionable_process(process_name: str) -> bool:
     return bool(spec and spec.implemented and spec.supports_background_type)
 
 
-__all__ = ["AppAdapterSpec", "adapter_for_process", "is_actionable_process"]
+def attention_capability(spec: Optional[AppAdapterSpec]) -> str:
+    """Return the adapter's declared conversation-attention capability."""
+    if spec is None:
+        return "none"
+    return str(spec.conversation_attention_mode or "none")
+
+
+__all__ = ["AppAdapterSpec", "adapter_for_process", "attention_capability", "is_actionable_process"]
