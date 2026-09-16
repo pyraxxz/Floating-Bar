@@ -7,6 +7,7 @@ bring the target to the foreground.
 """
 
 from . import winapi
+from .control_candidates import enumerate_input_candidates, InputCandidate
 from .transaction import TargetScope
 
 
@@ -44,6 +45,13 @@ class BackgroundTypingTarget:
         if winapi.is_minimized(scope.hwnd):
             return False
         return winapi.get_window_pid(scope.hwnd) == scope.pid
+
+    def input_candidates(self) -> tuple[InputCandidate, ...]:
+        """Return content-free editable controls inside the exact target."""
+        scope = self._scope
+        if scope is None or not self.available():
+            return ()
+        return enumerate_input_candidates(scope.hwnd)
 
     def _focused_target(self) -> int:
         scope = self._scope
