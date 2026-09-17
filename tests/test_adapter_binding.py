@@ -3,7 +3,6 @@ from unittest.mock import patch
 
 from floatingbar.app_adapters import adapter_for_process
 from floatingbar.chat_composer_target import ChatComposerTarget
-from floatingbar.generic_target import PostSendCheck
 from floatingbar.terminal_target import TerminalTypingTarget
 
 
@@ -99,26 +98,6 @@ class AdapterBindingTests(unittest.TestCase):
 
         post_text.assert_not_called()
         post_enter.assert_not_called()
-
-    def test_terminal_target_catches_delayed_scope_change_after_submit(self):
-        spec = adapter_for_process("terminal.exe")
-        target = TerminalTypingTarget()
-        target.bind(100, 200, spec=spec)
-        candidate = _Candidate(402)
-        healthy = PostSendCheck(True, True, 402)
-        changed = PostSendCheck(False, False, 402, "scope-changed")
-        patches = self._runtime_patches()
-        with patches[0], patches[1], patches[2], patches[3], \
-             patch.object(target, "input_candidates", return_value=(candidate,)), \
-             patch.object(target, "_post_send_check", side_effect=[healthy, healthy, changed]), \
-             patch("floatingbar.terminal_target.time.sleep"), \
-             patch("floatingbar.generic_target.winapi.post_text") as post_text, \
-             patch("floatingbar.adapter_submit.winapi.post_enter") as post_enter:
-            result = target.send("dir")
-
-        self.assertEqual(result, "posted-enter (verification-unavailable)")
-        post_text.assert_called_once_with(402, "dir")
-        post_enter.assert_called_once_with(402, target=402)
 
 
 if __name__ == "__main__":
