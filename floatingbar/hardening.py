@@ -12,7 +12,7 @@ import config
 from . import clipboard_guard
 from . import trace
 from . import winapi
-from .evidence import SubmissionEvidence, from_result
+from .evidence import EvidenceStrategy, SubmissionEvidence, from_result
 from .injector import InjectionFailed, TelegramInjector, _combo
 from .transaction import candidate_parts
 
@@ -45,7 +45,7 @@ class HardenedTelegramInjector(TelegramInjector):
         return self._last_submission_evidence
 
     def send(self, *args, **kwargs):
-        """Preserve the legacy strategy return while retaining typed evidence."""
+        """Preserve the legacy strategy return while carrying typed evidence."""
         self._last_submission_evidence = None
         try:
             strategy = super().send(*args, **kwargs)
@@ -53,7 +53,9 @@ class HardenedTelegramInjector(TelegramInjector):
             self._last_submission_evidence = from_result(None, str(exc))
             raise
         self._last_submission_evidence = from_result(strategy)
-        return strategy
+        if isinstance(strategy, EvidenceStrategy):
+            return strategy
+        return EvidenceStrategy(strategy, self._last_submission_evidence)
 
     def _assert_target_scope(self, hwnd: int, stage: str) -> None:
         """Refuse to continue if Telegram's top-level target changed mid-send."""
