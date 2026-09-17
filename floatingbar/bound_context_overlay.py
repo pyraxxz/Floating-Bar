@@ -141,6 +141,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             return
         if spec.chat_picker == "conversations":
             self._pending_conversation = None
+            self._conversation_picker.set_title(spec.label)
             self._conversation_picker.show()
             return
 
