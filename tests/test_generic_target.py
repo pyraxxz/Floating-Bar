@@ -52,7 +52,7 @@ class BackgroundTypingTargetTests(unittest.TestCase):
 
     def test_unavailable_when_top_level_window_is_hidden(self):
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
-             patch("floatingbar.generic_target.winapi.IsWindowVisible", return_value=False), \
+             patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=False), \
              patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200):
             self.assertFalse(self.target.available())
 
@@ -222,7 +222,6 @@ class BackgroundTypingTargetTests(unittest.TestCase):
         resized = InputCandidate(301, 200, "RichEdit", "Edit", 0, 0, 700, 44, False, True, True)
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
-             patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200), \
              patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200), \
              patch.object(self.target, "input_candidates", side_effect=[(original,), (resized,)]), \
              patch("floatingbar.generic_target.winapi.post_text") as post_text, \
