@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from floatingbar.smoke_matrix import (
     RESULT_BLOCKED,
@@ -48,6 +49,16 @@ class SmokeReportTests(unittest.TestCase):
 
         errors = validate_report(report)
         self.assertIn("invalid schema_version", errors)
+
+    def test_adapter_registry_integrity_is_part_of_report_validation(self):
+        report = build_report()
+        with patch(
+            "floatingbar.smoke_matrix.registry_validation_errors",
+            return_value=("verification contract mismatch: example",),
+        ):
+            errors = validate_report(report)
+
+        self.assertIn("adapter registry: verification contract mismatch: example", errors)
 
     def test_summary_counts_results_without_reading_notes(self):
         report = build_report()
