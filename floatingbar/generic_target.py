@@ -105,13 +105,13 @@ class BackgroundTypingTarget:
 
     def scope_matches(self, hwnd: int, pid: int) -> bool:
         scope = self._scope
-        return bool(
-            self._bind_verified
-            and scope
-            and scope.hwnd == hwnd
-            and scope.pid == pid
-            and self.available()
-        )
+        if not scope or scope.hwnd != hwnd or scope.pid != pid:
+            return False
+        # A bind can race with a just-created window. Revalidate a previously
+        # rejected bind so transient readiness does not become a permanent block.
+        if not self._bind_verified:
+            self._bind_verified = self._verify_bound_scope(scope)
+        return bool(self._bind_verified and self.available())
 
     def available(self) -> bool:
         scope = self._scope
