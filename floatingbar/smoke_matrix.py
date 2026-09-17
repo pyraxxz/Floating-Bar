@@ -8,10 +8,12 @@ human tester records PASS, FAIL, or BLOCKED after exercising the real desktop.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import hashlib
+import json
 from typing import Iterable, Mapping
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 RESULT_PENDING = "PENDING"
 RESULT_PASS = "PASS"
@@ -70,10 +72,10 @@ def default_cases() -> tuple[SmokeCase, ...]:
         SmokeCase("chat.restart", "chat", "Chat-app process replacement invalidates the active target", ("WhatsApp", "Discord", "Slack", "Microsoft Teams"), "high"),
         SmokeCase("terminal.discovery", "terminal", "Terminal structural target discovery when focus is elsewhere", ("Terminal", "Command Prompt", "PowerShell"), "high"),
         SmokeCase("terminal.submit", "terminal", "Terminal Enter submission reaches the pinned control", ("Terminal", "Command Prompt", "PowerShell"), "critical"),
-        SmokeCase("terminal.acceptance.wt", "terminal", "Windows Terminal stable input-clear verification proves the pinned control accepted and cleared the line without reading command content", ("Windows Terminal stable"), "critical"),
-        SmokeCase("terminal.acceptance.preview", "terminal", "Windows Terminal Preview input-clear verification proves the pinned control accepted and cleared the line without reading command content", ("Windows Terminal Preview"), "critical"),
-        SmokeCase("terminal.acceptance.conhost", "terminal", "conhost/CMD input-clear verification proves the pinned control accepted and cleared the line without reading command content", ("conhost/CMD"), "critical"),
-        SmokeCase("terminal.acceptance.pwsh", "terminal", "PowerShell Core input-clear verification proves the pinned control accepted and cleared the line without reading command content", ("PowerShell Core"), "critical"),
+        SmokeCase("terminal.acceptance.wt", "terminal", "Windows Terminal stable input-clear verification proves the pinned control accepted and cleared the line without reading command content", ("Windows Terminal stable",), "critical"),
+        SmokeCase("terminal.acceptance.preview", "terminal", "Windows Terminal Preview input-clear verification proves the pinned control accepted and cleared the line without reading command content", ("Windows Terminal Preview",), "critical"),
+        SmokeCase("terminal.acceptance.conhost", "terminal", "conhost/CMD input-clear verification proves the pinned control accepted and cleared the line without reading command content", ("conhost/CMD",), "critical"),
+        SmokeCase("terminal.acceptance.pwsh", "terminal", "PowerShell Core input-clear verification proves the pinned control accepted and cleared the line without reading command content", ("PowerShell Core",), "critical"),
         SmokeCase("terminal.uncertain", "terminal", "Terminal outcome remains submitted-but-unverified when acceptance is unproven", ("Terminal", "Command Prompt", "PowerShell"), "critical"),
         SmokeCase("terminal.restart", "terminal", "Terminal process replacement blocks the stale target", ("Terminal", "Command Prompt", "PowerShell"), "high"),
         SmokeCase("privacy.trace", "privacy", "Diagnostics and traces contain no message or conversation content", ("all",), "critical"),
@@ -87,6 +89,28 @@ def case_ids(cases: Iterable[SmokeCase] | None = None) -> tuple[str, ...]:
     return tuple(case.case_id for case in selected)
 
 
+def matrix_fingerprint(cases: Iterable[SmokeCase] | None = None) -> str:
+    """Return a stable hash of the safe smoke-case definitions.
+
+    The fingerprint makes a manual report self-describing: a report created
+    from an older matrix cannot silently validate against a newer matrix.
+    """
+    selected = tuple(cases or default_cases())
+    payload = [
+        {
+            "case_id": case.case_id,
+            "area": case.area,
+            "title": case.title,
+            "apps": list(case.apps),
+            "priority": case.priority,
+            "destructive": case.destructive,
+        }
+        for case in selected
+    ]
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def build_report(
     environment: Mapping[str, object] | None = None,
     cases: Iterable[SmokeCase] | None = None,
@@ -95,6 +119,7 @@ def build_report(
     selected = tuple(cases or default_cases())
     return {
         "schema_version": SCHEMA_VERSION,
+        "matrix_fingerprint": matrix_fingerprint(selected),
         "environment": dict(environment or {}),
         "cases": [
             {
@@ -115,9 +140,16 @@ def validate_report(report: Mapping[str, object]) -> tuple[str, ...]:
     if int(report.get("schema_version", -1)) != SCHEMA_VERSION:
         errors.append("unsupported schema_version")
 
+    expected_fingerprint = matrix_fingerprint()
+    actual_fingerprint = str(report.get("matrix_fingerprint", "")).strip()
+    if not actual_fingerprint:
+        errors.append("matrix_fingerprint is missing")
+    elif actual_fingerprint != expected_fingerprint:
+        errors.append("matrix_fingerprint does not match current smoke matrix")
+
     raw_cases = report.get("cases")
     if not isinstance(raw_cases, list):
-        return ("cases must be a list",)
+        return tuple(errors) + ("cases must be a list",)
 
     expected = set(case_ids())
     seen = set()
@@ -182,6 +214,7 @@ __all__ = [
     "build_report",
     "case_ids",
     "default_cases",
+    "matrix_fingerprint",
     "pending_case_ids",
     "summarize_report",
     "validate_report",
