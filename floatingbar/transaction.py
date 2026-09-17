@@ -130,6 +130,7 @@ class SendCompletion:
         attempt_id: int,
         strategy: Optional[str] = None,
         error: Optional[str] = None,
+        evidence: Optional[SubmissionEvidence] = None,
     ) -> "SendCompletion":
         # Legacy callers may still hand the completion helper the old
         # `(attempt_id, strategy, error)` tuple as a single first argument.
@@ -144,13 +145,18 @@ class SendCompletion:
                     strategy = legacy_strategy
                 if error is None:
                     error = legacy_error
-        evidence = from_result(strategy, error)
+        if error:
+            resolved = from_result(strategy, error)
+        elif isinstance(evidence, SubmissionEvidence):
+            resolved = evidence
+        else:
+            resolved = from_result(strategy, error)
         return cls(
             attempt_id=attempt_id,
-            strategy=strategy,
-            error=error,
-            evidence_state=evidence.state,
-            evidence=evidence,
+            strategy=strategy or resolved.strategy,
+            error=error or resolved.detail,
+            evidence_state=resolved.state,
+            evidence=resolved,
         )
 
     @property
