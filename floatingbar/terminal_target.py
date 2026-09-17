@@ -17,6 +17,7 @@ import time
 from .app_verification import is_terminal_input_verification
 from .generic_target import BackgroundTypingTarget
 from .control_candidates import best_input_candidate
+from .evidence import EvidenceState, EvidenceStrategy, SubmissionEvidence
 from . import winapi
 
 
@@ -118,6 +119,16 @@ class TerminalTypingTarget(BackgroundTypingTarget):
         """Require the exact adapter contract before claiming terminal evidence."""
         return is_terminal_input_verification(self._adapter_spec)
 
+    def _typed_verification_result(self, strategy: str, state: EvidenceState, detail: str) -> EvidenceStrategy:
+        mode = getattr(self._adapter_spec, "verification_mode", "unknown")
+        evidence = SubmissionEvidence(
+            state=state,
+            strategy=strategy,
+            detail=f"contract={mode}; {detail}",
+            retryable=False,
+        )
+        return EvidenceStrategy(strategy, evidence)
+
     def prepare_submission_verification(self):
         if not self._supports_terminal_verification():
             return None
@@ -145,23 +156,41 @@ class TerminalTypingTarget(BackgroundTypingTarget):
             return None
         return state
 
-    def finish_submission_verification(self, target_hwnd: int, state, strategy: str) -> str:
+    def finish_submission_verification(self, target_hwnd: int, state, strategy: str):
         if not self._supports_terminal_verification():
             return strategy
         if state is None:
-            return "posted-enter (verification-unavailable)"
+            return self._typed_verification_result(
+                "posted-enter (verification-unavailable)",
+                EvidenceState.UNAVAILABLE,
+                "baseline or post-injection growth was not proven",
+            )
         try:
             target_hwnd = self._verification_target(target_hwnd)
         except Exception:
-            return "posted-enter (verification-unavailable)"
+            return self._typed_verification_result(
+                "posted-enter (verification-unavailable)",
+                EvidenceState.UNAVAILABLE,
+                "pinned terminal control changed before verification",
+            )
         result = self._wait_for_length(target_hwnd, lambda length: length == 0)
         if result is True:
-            # This only proves the exact input control accepted and cleared
-            # the submitted line. It does not claim command execution.
-            return "posted-enter (VERIFIED)"
+            return self._typed_verification_result(
+                "posted-enter (VERIFIED)",
+                EvidenceState.VERIFIED,
+                "exact terminal input observed grow then clear",
+            )
         if result is None:
-            return "posted-enter (verification-unavailable)"
-        return "posted-enter (unverified)"
+            return self._typed_verification_result(
+                "posted-enter (verification-unavailable)",
+                EvidenceState.UNAVAILABLE,
+                "terminal value became unreadable during verification",
+            )
+        return self._typed_verification_result(
+            "posted-enter (unverified)",
+            EvidenceState.SUBMITTED,
+            "terminal input did not clear within the bounded verification window",
+        )
 
 
 __all__ = ["TerminalTypingTarget"]
