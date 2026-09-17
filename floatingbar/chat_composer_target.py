@@ -11,6 +11,7 @@ import time
 from .app_verification import is_chat_compose_verification
 from .generic_target import BackgroundTypingTarget
 from .control_candidates import best_input_candidate
+from .evidence import EvidenceState, EvidenceStrategy, SubmissionEvidence
 from . import winapi
 
 
@@ -123,6 +124,16 @@ class ChatComposerTarget(BackgroundTypingTarget):
         """Require the adapter's exact app contract, not merely a shared mode."""
         return is_chat_compose_verification(self._adapter_spec)
 
+    def _typed_verification_result(self, strategy: str, state: EvidenceState, detail: str) -> EvidenceStrategy:
+        mode = getattr(self._adapter_spec, "verification_mode", "unknown")
+        evidence = SubmissionEvidence(
+            state=state,
+            strategy=strategy,
+            detail=f"contract={mode}; {detail}",
+            retryable=False,
+        )
+        return EvidenceStrategy(strategy, evidence)
+
     def prepare_submission_verification(self):
         if not self._supports_compose_verification():
             return None
@@ -150,24 +161,42 @@ class ChatComposerTarget(BackgroundTypingTarget):
             return None
         return state
 
-    def finish_submission_verification(self, target_hwnd: int, state, strategy: str) -> str:
+    def finish_submission_verification(self, target_hwnd: int, state, strategy: str):
         if not self._supports_compose_verification():
             return strategy
         if state is None:
-            return "posted-enter (verification-unavailable)"
+            return self._typed_verification_result(
+                "posted-enter (verification-unavailable)",
+                EvidenceState.UNAVAILABLE,
+                "baseline or post-injection growth was not proven",
+            )
         try:
             target_hwnd = self._verification_target(target_hwnd)
         except Exception:
-            return "posted-enter (verification-unavailable)"
+            return self._typed_verification_result(
+                "posted-enter (verification-unavailable)",
+                EvidenceState.UNAVAILABLE,
+                "pinned composer changed before verification",
+            )
         result = self._wait_for_length(target_hwnd, lambda length: length == 0)
         if result is True:
             prefix = strategy.split(" ", 1)[0] if strategy else "posted-enter"
-            # The exact adapter contract has already been revalidated by
-            # is_chat_compose_verification(); this only records evidence.
-            return f"{prefix} (VERIFIED)"
+            return self._typed_verification_result(
+                f"{prefix} (VERIFIED)",
+                EvidenceState.VERIFIED,
+                "exact composer observed grow then clear",
+            )
         if result is None:
-            return "posted-enter (verification-unavailable)"
-        return "posted-enter (unverified)"
+            return self._typed_verification_result(
+                "posted-enter (verification-unavailable)",
+                EvidenceState.UNAVAILABLE,
+                "composer value became unreadable during verification",
+            )
+        return self._typed_verification_result(
+            "posted-enter (unverified)",
+            EvidenceState.SUBMITTED,
+            "composer did not clear within the bounded verification window",
+        )
 
 
 __all__ = ["ChatComposerTarget"]
