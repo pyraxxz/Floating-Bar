@@ -10,6 +10,25 @@ from floatingbar.app_verification import (
 
 
 class AppVerificationContractTests(unittest.TestCase):
+    def _spec(self, key, mode):
+        defaults = {
+            "telegram": ("telegram-compose", "telegram-send"),
+            "whatsapp": ("chat-structured-focus", "enter"),
+            "discord": ("chat-structured-focus", "enter"),
+            "slack": ("chat-structured-focus", "enter"),
+            "teams": ("chat-structured-focus", "enter"),
+            "terminal": ("terminal-structured-focus", "enter"),
+            "cmd": ("terminal-structured-focus", "enter"),
+            "powershell": ("terminal-structured-focus", "enter"),
+        }
+        target_mode, submit_mode = defaults[key]
+        return SimpleNamespace(
+            key=key,
+            verification_mode=mode,
+            target_mode=target_mode,
+            submit_mode=submit_mode,
+        )
+
     def test_each_supported_chat_has_its_own_contract(self):
         expected = {
             "telegram": "telegram-compose-clear",
@@ -20,7 +39,7 @@ class AppVerificationContractTests(unittest.TestCase):
         }
         for key, mode in expected.items():
             with self.subTest(key=key):
-                spec = SimpleNamespace(key=key, verification_mode=mode)
+                spec = self._spec(key, mode)
                 contract = verification_contract(spec)
                 self.assertIsNotNone(contract)
                 self.assertEqual(contract.mode, mode)
@@ -30,17 +49,14 @@ class AppVerificationContractTests(unittest.TestCase):
     def test_terminal_contract_covers_all_terminal_adapters(self):
         for key in ("terminal", "cmd", "powershell"):
             with self.subTest(key=key):
-                spec = SimpleNamespace(key=key, verification_mode="terminal-input-clear")
+                spec = self._spec(key, "terminal-input-clear")
                 contract = verification_contract(spec)
                 self.assertIsNotNone(contract)
                 self.assertEqual(contract.family, "terminal-input-clear")
                 self.assertTrue(is_terminal_input_verification(spec))
 
     def test_wrong_app_key_cannot_borrow_another_apps_contract(self):
-        spec = SimpleNamespace(
-            key="discord",
-            verification_mode="whatsapp-compose-clear",
-        )
+        spec = self._spec("discord", "whatsapp-compose-clear")
         self.assertIsNone(verification_contract(spec))
         self.assertFalse(is_chat_compose_verification(spec))
 
@@ -56,27 +72,51 @@ class AppVerificationContractTests(unittest.TestCase):
                 self.assertFalse(is_terminal_input_verification(spec))
 
     def test_registry_contracts_are_structurally_valid(self):
-        specs = (
-            SimpleNamespace(key="telegram", verification_mode="telegram-compose-clear"),
-            SimpleNamespace(key="whatsapp", verification_mode="whatsapp-compose-clear"),
-            SimpleNamespace(key="discord", verification_mode="discord-compose-clear"),
-            SimpleNamespace(key="slack", verification_mode="slack-compose-clear"),
-            SimpleNamespace(key="teams", verification_mode="teams-compose-clear"),
-            SimpleNamespace(key="terminal", verification_mode="terminal-input-clear"),
-            SimpleNamespace(key="cmd", verification_mode="terminal-input-clear"),
-            SimpleNamespace(key="powershell", verification_mode="terminal-input-clear"),
+        specs = tuple(
+            self._spec(key, mode)
+            for key, mode in (
+                ("telegram", "telegram-compose-clear"),
+                ("whatsapp", "whatsapp-compose-clear"),
+                ("discord", "discord-compose-clear"),
+                ("slack", "slack-compose-clear"),
+                ("teams", "teams-compose-clear"),
+                ("terminal", "terminal-input-clear"),
+                ("cmd", "terminal-input-clear"),
+                ("powershell", "terminal-input-clear"),
+            )
         )
         self.assertEqual(registry_validation_errors(specs), ())
 
     def test_registry_rejects_wrong_concrete_contract(self):
-        specs = (
-            SimpleNamespace(key="discord", verification_mode="whatsapp-compose-clear"),
-        )
+        specs = (self._spec("discord", "whatsapp-compose-clear"),)
         errors = registry_validation_errors(specs)
         self.assertIn(
             "verification contract mismatch: discord/whatsapp-compose-clear",
             errors,
         )
+
+    def test_registry_rejects_target_policy_drift(self):
+        spec = self._spec("whatsapp", "whatsapp-compose-clear")
+        spec.target_mode = "focused-child"
+        errors = registry_validation_errors((spec,))
+        self.assertIn(
+            "verification target contract mismatch: whatsapp/focused-child",
+            errors,
+        )
+
+    def test_registry_rejects_submit_policy_drift(self):
+        spec = self._spec("teams", "teams-compose-clear")
+        spec.submit_mode = "telegram-send"
+        errors = registry_validation_errors((spec,))
+        self.assertIn(
+            "verification submit contract mismatch: teams/telegram-send",
+            errors,
+        )
+
+    def test_verification_predicate_fails_closed_when_routing_drifts(self):
+        spec = self._spec("discord", "discord-compose-clear")
+        spec.target_mode = "focused-child"
+        self.assertFalse(is_chat_compose_verification(spec))
 
 
 if __name__ == "__main__":
