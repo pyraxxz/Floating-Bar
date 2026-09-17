@@ -1,8 +1,24 @@
 import unittest
 
 from floatingbar.conversation_attention import AttentionState, ConversationAttention
-from floatingbar.conversation_picker import ConversationPicker, to_conversation_picker_rows
+from floatingbar.conversation_picker import (
+    ConversationPicker,
+    paginate_conversations,
+    to_conversation_picker_rows,
+)
 from floatingbar.conversation_rows import ConversationItem
+
+
+def _item(number: int) -> ConversationItem:
+    return ConversationItem(
+        100,
+        200,
+        f"Chat {number}",
+        0,
+        10 + number * 20,
+        300,
+        60 + number * 20,
+    )
 
 
 class ConversationPickerRowTests(unittest.TestCase):
@@ -58,6 +74,42 @@ class ConversationPickerRowTests(unittest.TestCase):
         self.assertEqual(picker.title, "Microsoft Teams")
         picker.set_title("  ")
         self.assertEqual(picker.title, "Conversations")
+
+    def test_pagination_exposes_next_page_without_reordering(self):
+        conversations = tuple(_item(index) for index in range(8))
+        page, offset, has_previous, has_next = paginate_conversations(
+            conversations,
+            0,
+            6,
+        )
+        self.assertEqual([item.name for item in page], [f"Chat {index}" for index in range(6)])
+        self.assertEqual(offset, 0)
+        self.assertFalse(has_previous)
+        self.assertTrue(has_next)
+
+    def test_pagination_exposes_previous_page_and_clamps_end(self):
+        conversations = tuple(_item(index) for index in range(8))
+        page, offset, has_previous, has_next = paginate_conversations(
+            conversations,
+            999,
+            6,
+        )
+        self.assertEqual([item.name for item in page], ["Chat 6", "Chat 7"])
+        self.assertEqual(offset, 6)
+        self.assertTrue(has_previous)
+        self.assertFalse(has_next)
+
+    def test_pagination_uses_single_page_for_short_catalog(self):
+        conversations = tuple(_item(index) for index in range(3))
+        page, offset, has_previous, has_next = paginate_conversations(
+            conversations,
+            6,
+            6,
+        )
+        self.assertEqual([item.name for item in page], ["Chat 0", "Chat 1", "Chat 2"])
+        self.assertEqual(offset, 0)
+        self.assertFalse(has_previous)
+        self.assertFalse(has_next)
 
 
 if __name__ == "__main__":
