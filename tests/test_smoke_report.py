@@ -62,6 +62,7 @@ class SmokeReportTests(unittest.TestCase):
                 "windows_version": "10.0.26100",
                 "architecture": "AMD64",
                 "python_version": "3.12.10",
+                "source_commit": "0123456789abcdef0123456789abcdef01234567",
             }
         )
         report["cases"] = [
@@ -98,6 +99,7 @@ class SmokeReportTests(unittest.TestCase):
                 "windows_version": "",
                 "architecture": "x86_64",
                 "python_version": "3.12.10",
+                "source_commit": "0123456789abcdef0123456789abcdef01234567",
             }
         )
         report["cases"] = [
@@ -125,6 +127,42 @@ class SmokeReportTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 5)
         self.assertIn("environment snapshot is not a Windows validation snapshot", result.stdout)
+
+    def test_release_gate_rejects_missing_source_commit(self):
+        report = build_report(
+            environment={
+                "platform": "Windows",
+                "windows_release": "11",
+                "windows_version": "10.0.26100",
+                "architecture": "AMD64",
+                "python_version": "3.12.10",
+            }
+        )
+        report["cases"] = [
+            {**item, "result": RESULT_PASS}
+            for item in report["cases"]
+        ]
+
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "smoke.json"
+            path.write_text(json.dumps(report), encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(root / "tools" / "smoke_report.py"),
+                    "--validate",
+                    str(path),
+                    "--require-complete",
+                ],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 5)
+        self.assertIn("environment snapshot missing field: source_commit", result.stdout)
 
     def test_duplicate_and_unknown_case_ids_are_rejected(self):
         report = build_report()
