@@ -12,6 +12,7 @@ from .evidence import EvidenceState, SubmissionEvidence, from_result
 
 _VERIFICATION_ALLOWLIST = {
     "compose-clear": frozenset({EvidenceState.VERIFIED}),
+    "terminal-input-clear": frozenset({EvidenceState.VERIFIED}),
     "unverified": frozenset({EvidenceState.SUBMITTED}),
     "none": frozenset({EvidenceState.SUBMITTED}),
 }
