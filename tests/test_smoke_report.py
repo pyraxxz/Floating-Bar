@@ -42,6 +42,13 @@ class SmokeReportTests(unittest.TestCase):
         errors = validate_report(report)
         self.assertIn("matrix_fingerprint does not match current smoke matrix", errors)
 
+    def test_malformed_schema_version_is_reported_without_raising(self):
+        report = build_report()
+        report["schema_version"] = "not-a-number"
+
+        errors = validate_report(report)
+        self.assertIn("invalid schema_version", errors)
+
     def test_summary_counts_results_without_reading_notes(self):
         report = build_report()
         report["cases"][0]["result"] = RESULT_PASS
@@ -114,6 +121,7 @@ class SmokeReportTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("Release gate: PASS", result.stdout)
+        self.assertIn("matrix_fingerprint=", result.stdout)
 
     def test_release_gate_rejects_non_windows_environment(self):
         report = build_report(
@@ -202,8 +210,9 @@ class SmokeReportTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "smoke.json"
             path.write_text(json.dumps(report), encoding="utf-8")
-            self.assertIn('"schema_version": 2', path.read_text(encoding="utf-8"))
-            self.assertIn('"matrix_fingerprint":', path.read_text(encoding="utf-8"))
+            text = path.read_text(encoding="utf-8")
+            self.assertIn('"schema_version": 2', text)
+            self.assertIn('"matrix_fingerprint":', text)
 
 
 if __name__ == "__main__":
