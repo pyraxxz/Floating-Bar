@@ -54,6 +54,11 @@ def confirmed_telegram_chat_for_scope(hwnd: int, pid: int) -> TelegramChatItem |
     return _SELECTED_TELEGRAM_CHATS.get((int(hwnd), int(pid)))
 
 
+def clear_confirmed_telegram_chat_for_scope(hwnd: int, pid: int) -> None:
+    """Forget one session-only selection once its transaction scope is released."""
+    _SELECTED_TELEGRAM_CHATS.pop((int(hwnd), int(pid)), None)
+
+
 def _remember_confirmed_chat(chat: TelegramChatItem) -> None:
     key = (int(chat.hwnd), int(chat.pid))
     _SELECTED_TELEGRAM_CHATS[key] = chat
@@ -313,6 +318,7 @@ def select_telegram_chat(chat: TelegramChatItem) -> TelegramChatItem:
 
 __all__ = [
     "TelegramChatItem",
+    "clear_confirmed_telegram_chat_for_scope",
     "confirmed_telegram_chat_for_scope",
     "enumerate_telegram_chats",
     "chat_identity_matches",
