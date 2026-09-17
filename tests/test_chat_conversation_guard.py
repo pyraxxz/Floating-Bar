@@ -58,17 +58,9 @@ class ChatConversationGuardTests(unittest.TestCase):
     def test_conversation_switch_blocks_before_text_injection(self):
         target = self._target()
         target._conversation_guard = self._conversation(selected=True)
-        candidate = SimpleNamespace(
-            hwnd=301,
-            pid=200,
-            control_type="Edit",
-            class_name="Edit",
-            is_likely_composer_shape=True,
-        )
         runtime = self._scope_patches()
         with runtime[0], runtime[1], runtime[2], \
-             patch("floatingbar.chat_composer_target.refresh_conversation", return_value=self._conversation(selected=False)), \
-             patch.object(target, "input_candidates", return_value=(candidate,)), \
+             patch.object(target, "_conversation_is_still_selected", return_value=False), \
              patch("floatingbar.generic_target.winapi.post_text") as post_text:
             with self.assertRaisesRegex(RuntimeError, "discovered editable composer"):
                 target.send("hello")
