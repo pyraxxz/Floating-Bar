@@ -19,6 +19,8 @@ from .telegram_attention import telegram_badge_attention
 
 _SELECTION_CONFIRM_ATTEMPTS = 5
 _SELECTION_CONFIRM_INTERVAL_S = 0.05
+_SELECTED_TELEGRAM_CHATS: dict[tuple[int, int], "TelegramChatItem"] = {}
+_SELECTED_TELEGRAM_CHAT_LIMIT = 16
 
 
 @dataclass(frozen=True)
@@ -45,6 +47,19 @@ class TelegramChatItem:
     @property
     def needs_attention(self) -> bool:
         return self.attention.actionable
+
+
+def confirmed_telegram_chat_for_scope(hwnd: int, pid: int) -> TelegramChatItem | None:
+    """Return the last background-selected row for one exact Telegram scope."""
+    return _SELECTED_TELEGRAM_CHATS.get((int(hwnd), int(pid)))
+
+
+def _remember_confirmed_chat(chat: TelegramChatItem) -> None:
+    key = (int(chat.hwnd), int(chat.pid))
+    _SELECTED_TELEGRAM_CHATS[key] = chat
+    while len(_SELECTED_TELEGRAM_CHATS) > _SELECTED_TELEGRAM_CHAT_LIMIT:
+        oldest = next(iter(_SELECTED_TELEGRAM_CHATS))
+        _SELECTED_TELEGRAM_CHATS.pop(oldest, None)
 
 
 def _runtime_id(item) -> tuple[int, ...] | None:
@@ -260,8 +275,8 @@ def chat_identity_matches(chat: TelegramChatItem) -> bool:
     return len(candidates) == 1
 
 
-def select_telegram_chat(chat: TelegramChatItem) -> None:
-    """Select a chat row without foregrounding Telegram.
+def select_telegram_chat(chat: TelegramChatItem) -> TelegramChatItem:
+    """Select a chat row without foregrounding Telegram and return the confirmed row.
 
     The row is re-enumerated immediately before injection so a stale popup
     cannot reuse an old coordinate after Telegram scrolls or rebuilds its list.
@@ -275,7 +290,15 @@ def select_telegram_chat(chat: TelegramChatItem) -> None:
     current = _refresh_selected_row(chat)
     client_x, client_y = _screen_to_client(chat.hwnd, *current.center)
     winapi.post_click(chat.hwnd, client_x, client_y)
-    return _confirm_selected(current)
+    confirmed = _confirm_selected(current)
+    _remember_confirmed_chat(confirmed)
+    return confirmed
 
 
-__all__ = ["TelegramChatItem", "enumerate_telegram_chats", "chat_identity_matches", "select_telegram_chat"]
+__all__ = [
+    "TelegramChatItem",
+    "confirmed_telegram_chat_for_scope",
+    "enumerate_telegram_chats",
+    "chat_identity_matches",
+    "select_telegram_chat",
+]
