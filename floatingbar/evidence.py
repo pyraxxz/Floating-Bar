@@ -76,8 +76,30 @@ class SubmissionEvidence:
         return self.state is EvidenceState.BLOCKED
 
 
+class EvidenceStrategy(str):
+    """String-compatible strategy carrying trusted structured evidence.
+
+    The legacy UI and worker layers continue to receive a normal ``str`` for
+    compatibility, while the evidence parser can recover the producer's typed
+    result without reparsing human-readable strategy text.
+    """
+
+    def __new__(cls, strategy: str, evidence: SubmissionEvidence):
+        if not isinstance(strategy, str):
+            raise TypeError("strategy must be a string")
+        if not isinstance(evidence, SubmissionEvidence):
+            raise TypeError("evidence must be SubmissionEvidence")
+        obj = super().__new__(cls, strategy)
+        obj.submission_evidence = evidence
+        return obj
+
+
 def from_result(strategy: Optional[str], error: Optional[str] = None) -> SubmissionEvidence:
     """Convert a legacy injector result into structured evidence."""
+    typed = getattr(strategy, "submission_evidence", None)
+    if isinstance(typed, SubmissionEvidence) and not error:
+        return typed
+
     if error:
         return SubmissionEvidence(
             EvidenceState.FAILED,
