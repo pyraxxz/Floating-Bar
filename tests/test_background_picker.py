@@ -57,6 +57,22 @@ class BackgroundPickerTests(unittest.TestCase):
             (PickerItem(10, 20, "Telegram", True, True, "telegram.exe", "telegram"),),
         )
 
+    def test_multiple_same_app_windows_get_content_free_ordinals(self):
+        result = to_picker_items([
+            SimpleNamespace(hwnd=10, pid=20, process_name="telegram.exe", label="telegram.exe", foreground=True),
+            SimpleNamespace(hwnd=11, pid=21, process_name="telegram.exe", label="telegram.exe", foreground=False),
+        ])
+        self.assertEqual([item.label for item in result], ["Telegram 1", "Telegram 2"])
+        self.assertEqual([item.hwnd for item in result], [10, 11])
+        self.assertEqual([item.adapter_key for item in result], ["telegram", "telegram"])
+
+    def test_multiple_alias_windows_share_the_same_safe_label_ordinal(self):
+        result = to_picker_items([
+            SimpleNamespace(hwnd=10, pid=20, process_name="teams.exe", label="teams.exe", foreground=False),
+            SimpleNamespace(hwnd=11, pid=21, process_name="ms-teams.exe", label="ms-teams.exe", foreground=False),
+        ])
+        self.assertEqual([item.label for item in result], ["Microsoft Teams 1", "Microsoft Teams 2"])
+
     def test_known_typing_apps_are_actionable(self):
         result = to_picker_items(
             [
