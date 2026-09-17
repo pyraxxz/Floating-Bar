@@ -118,7 +118,9 @@ Expected:
 - The target chooses a structurally discovered editable console control even when another control owns focus.
 - The send remains bound to the exact console window/process and pinned control.
 - Enter submission follows the explicit terminal adapter policy.
-- A successful post-send liveness check does **not** claim that the command was executed; terminal outcomes remain submitted-but-unverified unless a future non-content acceptance signal is implemented.
+- When the exact pinned control exposes a readable UI Automation value, the new `terminal-input-clear` verification path waits for the value length to grow after injection and then return to zero after Enter.
+- A passing input-clear check means the pinned input control accepted and cleared the submitted line; it does **not** claim that the command executed successfully.
+- If the value is unreadable, never grows, or never clears, the result remains `verification-unavailable` or submitted-but-unverified rather than turning green by assumption.
 - Window/process replacement during or immediately after submission produces `verification-unavailable` and never automatic retry.
 - A genuinely failed send remains eligible for deliberate retry only when the failure evidence is explicit and the original target is still safely rebindable.
 
@@ -214,6 +216,6 @@ The next public **v0.2.0 reliability milestone** is intended to require:
 4. Conversation context protection behaves conservatively when Telegram exposes a useful title or compose runtime anchor, and degrades safely when neither is available.
 5. Send-button selection rejects voice/mic and unrelated named controls.
 6. Shared compose-clear verification is exercised against real Windows builds of WhatsApp, Discord, Slack, and Teams.
-7. Terminal background typing is validated across the supported console process aliases without falsely claiming command execution.
+7. Terminal background typing is validated across the supported console process aliases, including the new input-clear acceptance check where the target exposes a readable UIA value.
 8. Restart, retry, and opt-in recovery paths stop safely on target replacement.
 9. Mixed-DPI, multiple-window, background/minimized-state, Unicode, and repeated-send cases relevant to the supported matrix are exercised.
