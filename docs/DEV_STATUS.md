@@ -14,15 +14,19 @@ The production boundary also includes exact HWND/PID target binding, read-only p
 
 The newer generic background-input layer now has dedicated structural composer/terminal targets, exact control pinning with identity revalidation, minimized-window support for background selection, and an adapter evidence policy that prevents unsupported generic paths from claiming verified sends.
 
+Terminal, CMD, and PowerShell adapters now also have a bounded `terminal-input-clear` verification hook. When the exact pinned input control exposes a readable UI Automation value, the path observes only value length: it requires post-injection growth and a return to zero after Enter. It never stores, logs, or compares command content, and it cannot claim command execution semantics.
+
 ## Validation discipline
 
 Windows CI is the authoritative automated gate. A change is not considered complete merely because it compiles; the regression suite and Windows executable build must pass together.
 
 A recent Windows CI run exposed stale regression fixtures and legacy error-message expectations after the target hardening batch. Those failures were isolated to tests: Python compilation succeeded and the newly added evidence/background-window tests passed. The fixtures are now aligned with the current target contract and a fresh Windows run is validating the corrected state.
 
+The latest reliability batch adds explicit terminal verification tests for metadata, evidence normalization, readable value-growth/clear behavior, unreadable controls, and fail-closed outcomes. The latest GitHub commit is on `main`; workflow-run metadata is not yet attached to that commit, so release-gate status remains pending until the Windows gate reports back.
+
 ## Next engineering target
 
-Finish the reliability phase by turning the adapter evidence contract into real app-specific verification hooks. The immediate focus is bounded post-send checks for the generic chat and terminal adapters, while keeping all identity and diagnostics content-free. After that, proceed to stronger conversation targeting and real desktop smoke validation.
+Validate the new terminal input-clear contract across real Windows Terminal, Terminal Preview, conhost/CMD, and PowerShell Core variants. Then extend the same adapter-evidence architecture toward genuinely app-specific semantic verification where shared compose-clear or input-clear signals are insufficient, while preserving the content-free diagnostics and fail-closed safety boundary. After that, continue the real desktop acceptance matrix.
 
 ## Release gate
 
@@ -40,4 +44,5 @@ Before `v0.2.0`:
 10. mixed-DPI/multi-monitor behavior is validated;
 11. emoji and intentional whitespace survive intact;
 12. opt-in recovery stops safely when the original target is replaced;
-13. diagnostic JSON remains content-free and useful for support snapshots.
+13. diagnostic JSON remains content-free and useful for support snapshots;
+14. terminal input-control verification is validated on the supported Windows console variants without reading terminal content.
