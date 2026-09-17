@@ -109,6 +109,15 @@ jobs:
               core.setOutput('publish', 'true');
             }
 
+      - name: Validate completed real-Windows smoke report
+        if: steps.release.outputs.publish == 'true'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path -LiteralPath "smoke-report.json")) {
+            throw "Release source does not contain smoke-report.json. Run 'python tools/smoke_report.py --init smoke-report.json' on the Windows validation machine, complete the applicable cases, validate with --require-complete, and commit the report before tagging."
+          }
+          python tools/smoke_report.py --validate smoke-report.json --require-complete
+
       - name: Set up Python
         if: steps.release.outputs.publish == 'true'
         uses: actions/setup-python@v7
