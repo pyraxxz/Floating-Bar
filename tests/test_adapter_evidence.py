@@ -15,7 +15,7 @@ class AdapterEvidenceTests(unittest.TestCase):
         self.assertTrue(evidence.uncertain)
 
     def test_terminal_input_clear_contract_allows_verified_evidence(self):
-        spec = adapter_for_process("terminal.exe")
+        spec = adapter_for_process("wt.exe")
         evidence = evidence_for_adapter(spec, strategy="posted-enter (VERIFIED)")
         self.assertEqual(evidence.state, EvidenceState.VERIFIED)
         self.assertTrue(evidence.confirmed)
