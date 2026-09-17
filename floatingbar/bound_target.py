@@ -10,7 +10,11 @@ different Telegram window.
 from typing import Any, List, Optional, Tuple
 
 from . import winapi
-from .telegram_chats import TelegramChatItem, chat_identity_matches
+from .telegram_chats import (
+    TelegramChatItem,
+    chat_identity_matches,
+    confirmed_telegram_chat_for_scope,
+)
 from .target import TelegramNotFound, TelegramTarget
 from .transaction import SendCandidate, TargetScope
 
@@ -33,8 +37,21 @@ class BoundTelegramTarget:
         self._chat_identity = None
 
     def bind_chat_identity(self, chat: Optional[TelegramChatItem]) -> None:
-        """Remember the selected chat's non-content UIA identity for send-time checks."""
-        self._chat_identity = chat
+        """Remember the exact confirmed chat row for send-time checks.
+
+        The picker may hand us the row object it displayed before the click.
+        Prefer the row recorded by ``select_telegram_chat`` after Telegram
+        confirmed the background selection, while retaining the caller's row
+        when no confirmed row is available.
+        """
+        if chat is None:
+            self._chat_identity = None
+            return
+        try:
+            confirmed = confirmed_telegram_chat_for_scope(chat.hwnd, chat.pid)
+        except Exception:
+            confirmed = None
+        self._chat_identity = confirmed or chat
 
     def chat_identity_matches(self) -> bool:
         """Return whether the same remembered chat is still selected in Telegram."""
