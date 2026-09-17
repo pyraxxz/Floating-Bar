@@ -139,8 +139,10 @@ class ConversationRowTests(unittest.TestCase):
              patch("floatingbar.conversation_rows.refresh_conversation", return_value=fresh), \
              patch("floatingbar.conversation_rows._screen_to_client", return_value=(220, 134)), \
              patch("floatingbar.conversation_rows.winapi.post_click") as post_click:
-            select_conversation(item)
+            confirmed = select_conversation(item)
 
+        self.assertEqual(confirmed, fresh)
+        self.assertTrue(confirmed.selected)
         post_click.assert_called_once_with(123, 220, 134)
 
     def test_selection_waits_for_selected_state_after_background_click(self):
@@ -153,8 +155,10 @@ class ConversationRowTests(unittest.TestCase):
              patch("floatingbar.conversation_rows._screen_to_client", return_value=(220, 134)), \
              patch("floatingbar.conversation_rows.time.sleep") as sleep, \
              patch("floatingbar.conversation_rows.winapi.post_click") as post_click:
-            select_conversation(item)
+            confirmed = select_conversation(item)
 
+        self.assertEqual(confirmed, selected)
+        self.assertTrue(confirmed.selected)
         post_click.assert_called_once_with(123, 220, 134)
         self.assertEqual(sleep.call_count, 1)
 
