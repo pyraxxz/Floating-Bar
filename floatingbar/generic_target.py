@@ -16,6 +16,7 @@ from .control_candidates import (
     best_input_candidate,
     enumerate_input_candidates,
 )
+from .evidence import SubmissionEvidence, from_result
 from .transaction import TargetScope
 
 
@@ -58,6 +59,7 @@ class BackgroundTypingTarget:
         self._pinned_identity = None
         self._adapter_spec = None
         self._last_post_send_check = None
+        self._last_submission_evidence = None
 
     def bind(self, hwnd: int, pid: int, spec=None) -> TargetScope:
         scope = TargetScope(hwnd, pid)
@@ -65,6 +67,7 @@ class BackgroundTypingTarget:
         self._adapter_spec = spec
         self.clear_pinned_input()
         self._last_post_send_check = None
+        self._last_submission_evidence = None
         return scope
 
     def bind_adapter(self, spec) -> None:
@@ -74,6 +77,7 @@ class BackgroundTypingTarget:
         self._scope = None
         self._adapter_spec = None
         self._last_post_send_check = None
+        self._last_submission_evidence = None
         self.clear_pinned_input()
 
     def scope(self) -> TargetScope:
@@ -141,6 +145,15 @@ class BackgroundTypingTarget:
     def last_post_send_check(self) -> PostSendCheck | None:
         """Return the most recent bounded post-send health result."""
         return self._last_post_send_check
+
+    @property
+    def last_submission_evidence(self) -> SubmissionEvidence | None:
+        """Return typed evidence produced by the most recent send attempt."""
+        return self._last_submission_evidence
+
+    def _record_submission_evidence(self, strategy: str | None, error: str | None = None) -> str | None:
+        self._last_submission_evidence = from_result(strategy, error)
+        return strategy
 
     def probe(self) -> TargetProbe:
         """Capture structural target state without reading control content."""
@@ -261,10 +274,13 @@ class BackgroundTypingTarget:
             f"target={'ok' if self._last_post_send_check.target_alive else 'changed'} "
             f"reason={self._last_post_send_check.reason}"
         )
-        return "posted-enter (verification-unavailable)"
+        return self._record_submission_evidence(
+            "posted-enter (verification-unavailable)"
+        )
 
     def send(self, text: str) -> str:
         validate_submission_mode(self._adapter_spec)
+        self._last_submission_evidence = None
         spec_key = getattr(self._adapter_spec, "key", "legacy")
         trace.trace(f"stage=adapter key={spec_key}")
         verification_state = None
@@ -296,12 +312,21 @@ class BackgroundTypingTarget:
                 f"reason={self._last_post_send_check.reason}"
             )
             if not self._last_post_send_check.healthy:
-                return "posted-enter (verification-unavailable)"
+                return self._record_submission_evidence(
+                    "posted-enter (verification-unavailable)"
+                )
 
             try:
-                return self.finish_submission_verification(target, verification_state, strategy)
+                final_strategy = self.finish_submission_verification(
+                    target,
+                    verification_state,
+                    strategy,
+                )
             except Exception:
-                return "posted-enter (verification-unavailable)"
+                return self._record_submission_evidence(
+                    "posted-enter (verification-unavailable)"
+                )
+            return self._record_submission_evidence(final_strategy)
         finally:
             self.clear_pinned_input()
 
