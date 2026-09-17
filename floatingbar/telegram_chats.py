@@ -8,12 +8,17 @@ memory. Nothing from this catalog is persisted or logged.
 from dataclasses import dataclass
 import ctypes
 import ctypes.wintypes as wintypes
+import time
 
 from pywinauto import Application
 
 from . import winapi
 from .conversation_attention import AttentionState, ConversationAttention
 from .telegram_attention import telegram_badge_attention
+
+
+_SELECTION_CONFIRM_ATTEMPTS = 5
+_SELECTION_CONFIRM_INTERVAL_S = 0.05
 
 
 @dataclass(frozen=True)
@@ -220,6 +225,18 @@ def _refresh_selected_row(chat: TelegramChatItem) -> TelegramChatItem:
     return current
 
 
+def _confirm_selected(chat: TelegramChatItem) -> TelegramChatItem:
+    """Wait briefly for Telegram to expose the clicked row as selected."""
+    last = chat
+    for attempt in range(_SELECTION_CONFIRM_ATTEMPTS):
+        last = _refresh_selected_row(chat)
+        if last.selected:
+            return last
+        if attempt < _SELECTION_CONFIRM_ATTEMPTS - 1:
+            time.sleep(_SELECTION_CONFIRM_INTERVAL_S)
+    raise RuntimeError("Telegram chat row was not selected after background click")
+
+
 def chat_identity_matches(chat: TelegramChatItem) -> bool:
     """Return whether the same content-free chat identity is still selected."""
     if not chat.hwnd or not chat.pid:
@@ -248,6 +265,8 @@ def select_telegram_chat(chat: TelegramChatItem) -> None:
 
     The row is re-enumerated immediately before injection so a stale popup
     cannot reuse an old coordinate after Telegram scrolls or rebuilds its list.
+    The post-click selection state is also confirmed before the caller can bind
+    this chat for background sending.
     """
     if not chat.hwnd or not chat.pid:
         raise RuntimeError("Telegram chat target is invalid")
@@ -256,6 +275,7 @@ def select_telegram_chat(chat: TelegramChatItem) -> None:
     current = _refresh_selected_row(chat)
     client_x, client_y = _screen_to_client(chat.hwnd, *current.center)
     winapi.post_click(chat.hwnd, client_x, client_y)
+    return _confirm_selected(current)
 
 
 __all__ = ["TelegramChatItem", "enumerate_telegram_chats", "chat_identity_matches", "select_telegram_chat"]
