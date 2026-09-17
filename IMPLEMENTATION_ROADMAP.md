@@ -195,6 +195,7 @@ The key transition is from “whatever control currently has focus” to “the 
 - [x] Implement app-specific unread/reply-needed structural signals where an application exposes them safely
 - [x] Keep chat selection content-free where possible
 - [x] Refresh/revalidate rows immediately before background selection
+- [x] Confirm the clicked conversation becomes selected before binding it for send-time use
 - [x] Prefer UI Automation runtime identity when available; use structural control identity as a guarded fallback
 - [x] Keep the currently selected conversation visible in the short picker window
 - [x] Avoid treating visual ordering as conversation identity
