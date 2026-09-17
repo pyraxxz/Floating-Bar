@@ -212,6 +212,8 @@ def _refresh_selected_row(chat: TelegramChatItem) -> TelegramChatItem:
             if abs(current.left - chat.left) + abs(current.top - chat.top) > 24:
                 raise RuntimeError("Telegram chat row moved before selection")
             return current
+        if chat.control_identity is None:
+            raise RuntimeError("Telegram chat row runtime identity disappeared")
 
     if chat.control_identity is not None:
         structural_matches = [
@@ -226,16 +228,18 @@ def _refresh_selected_row(chat: TelegramChatItem) -> TelegramChatItem:
             return current
         if len(structural_matches) > 1:
             raise RuntimeError("Telegram chat row structural identity is ambiguous")
+        if chat.runtime_id is None:
+            raise RuntimeError("Telegram chat row structural identity disappeared")
 
     candidates = [row for row in current_rows if row.name == chat.name]
     if not candidates:
         raise RuntimeError("Telegram chat row is no longer available")
+    if len(candidates) > 1:
+        raise RuntimeError("Telegram chat row name is ambiguous")
 
-    def distance(row: TelegramChatItem) -> int:
-        return abs(row.left - chat.left) + abs(row.top - chat.top)
-
-    current = min(candidates, key=distance)
-    if distance(current) > 24:
+    current = candidates[0]
+    distance = abs(current.left - chat.left) + abs(current.top - chat.top)
+    if distance > 24:
         raise RuntimeError("Telegram chat row moved before selection")
     return current
 
@@ -263,6 +267,8 @@ def chat_identity_matches(chat: TelegramChatItem) -> bool:
         matches = [row for row in current_rows if row.runtime_id == chat.runtime_id]
         if len(matches) == 1:
             return bool(matches[0].selected and matches[0].name == chat.name)
+        if len(matches) > 1:
+            return False
     if chat.control_identity is not None:
         matches = [
             row
@@ -271,8 +277,18 @@ def chat_identity_matches(chat: TelegramChatItem) -> bool:
         ]
         if len(matches) == 1:
             return bool(matches[0].selected)
-    candidates = [row for row in current_rows if row.name == chat.name and row.selected]
-    return len(candidates) == 1
+        if len(matches) > 1:
+            return False
+    candidates = [
+        row
+        for row in current_rows
+        if row.name == chat.name and row.selected
+    ]
+    if len(candidates) != 1:
+        return False
+    current = candidates[0]
+    distance = abs(current.left - chat.left) + abs(current.top - chat.top)
+    return distance <= 24
 
 
 def select_telegram_chat(chat: TelegramChatItem) -> TelegramChatItem:
