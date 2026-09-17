@@ -215,18 +215,27 @@ class BackgroundAppPicker:
         recent_items: Sequence[PickerItem],
         live_items: Sequence[PickerItem],
     ) -> tuple[PickerItem, ...]:
-        live_scopes = {(item.hwnd, item.pid) for item in live_items}
+        """Prefer recent identity when the same exact scope is currently live."""
         recent = []
-        seen = set()
+        recent_scopes = set()
         for item in recent_items:
             key = (item.hwnd, item.pid)
-            if not item.actionable or key in live_scopes or key in seen:
+            if not item.actionable or key in recent_scopes:
                 continue
-            seen.add(key)
+            recent_scopes.add(key)
             recent.append(item)
             if len(recent) >= BackgroundAppPicker.MAX_RECENT:
                 break
-        return tuple(recent) + tuple(live_items[: max(0, BackgroundAppPicker.MAX_VISIBLE - len(recent))])
+
+        live = []
+        for item in live_items:
+            key = (item.hwnd, item.pid)
+            if key in recent_scopes:
+                continue
+            live.append(item)
+            if len(recent) + len(live) >= BackgroundAppPicker.MAX_VISIBLE:
+                break
+        return tuple(recent) + tuple(live)
 
     def show(self) -> None:
         self._show_job = None
