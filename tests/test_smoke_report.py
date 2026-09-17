@@ -21,11 +21,11 @@ class SmokeReportTests(unittest.TestCase):
         report = build_report(environment={"windows_release": "11"})
         summary = summarize_report(report)
 
-        self.assertEqual(summary["total"], 30)
-        self.assertEqual(summary["pending"], 30)
+        self.assertEqual(summary["total"], 33)
+        self.assertEqual(summary["pending"], 33)
         self.assertEqual(summary["pass"], 0)
         self.assertEqual(validate_report(report), ())
-        self.assertEqual(len(pending_case_ids(report)), 30)
+        self.assertEqual(len(pending_case_ids(report)), 33)
 
     def test_summary_counts_results_without_reading_notes(self):
         report = build_report()
@@ -36,14 +36,28 @@ class SmokeReportTests(unittest.TestCase):
 
         self.assertEqual(
             summarize_report(report),
-            {"pending": 27, "pass": 1, "fail": 1, "blocked": 1, "total": 30},
+            {"pending": 30, "pass": 1, "fail": 1, "blocked": 1, "total": 33},
         )
         self.assertEqual(validate_report(report), ())
 
-    def test_terminal_acceptance_case_is_present_in_the_matrix(self):
+    def test_terminal_acceptance_matrix_has_each_supported_variant_case(self):
         report = build_report()
         case_ids = {item["case_id"] for item in report["cases"]}
-        self.assertIn("terminal.acceptance", case_ids)
+        self.assertEqual(
+            {
+                "terminal.acceptance.wt",
+                "terminal.acceptance.preview",
+                "terminal.acceptance.conhost",
+                "terminal.acceptance.pwsh",
+            },
+            case_ids & {
+                "terminal.acceptance.wt",
+                "terminal.acceptance.preview",
+                "terminal.acceptance.conhost",
+                "terminal.acceptance.pwsh",
+            },
+        )
+        self.assertNotIn("terminal.acceptance", case_ids)
 
     def test_require_complete_semantics_are_representable(self):
         report = build_report()
