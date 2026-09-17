@@ -70,6 +70,7 @@ def default_cases() -> tuple[SmokeCase, ...]:
         SmokeCase("chat.restart", "chat", "Chat-app process replacement invalidates the active target", ("WhatsApp", "Discord", "Slack", "Microsoft Teams"), "high"),
         SmokeCase("terminal.discovery", "terminal", "Terminal structural target discovery when focus is elsewhere", ("Terminal", "Command Prompt", "PowerShell"), "high"),
         SmokeCase("terminal.submit", "terminal", "Terminal Enter submission reaches the pinned control", ("Terminal", "Command Prompt", "PowerShell"), "critical"),
+        SmokeCase("terminal.acceptance", "terminal", "Terminal input-clear verification proves the pinned control accepted and cleared the line without reading command content", ("Terminal", "Command Prompt", "PowerShell"), "critical"),
         SmokeCase("terminal.uncertain", "terminal", "Terminal outcome remains submitted-but-unverified when acceptance is unproven", ("Terminal", "Command Prompt", "PowerShell"), "critical"),
         SmokeCase("terminal.restart", "terminal", "Terminal process replacement blocks the stale target", ("Terminal", "Command Prompt", "PowerShell"), "high"),
         SmokeCase("privacy.trace", "privacy", "Diagnostics and traces contain no message or conversation content", ("all",), "critical"),
