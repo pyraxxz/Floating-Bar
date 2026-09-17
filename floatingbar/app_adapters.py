@@ -83,7 +83,7 @@ _ADAPTERS = (
         action="Type",
         target_mode="terminal-structured-focus",
         submit_mode="enter",
-        verification_mode="unverified",
+        verification_mode="terminal-input-clear",
         conversation_attention_mode="none",
     ),
     AppAdapterSpec(
@@ -93,7 +93,7 @@ _ADAPTERS = (
         action="Type",
         target_mode="terminal-structured-focus",
         submit_mode="enter",
-        verification_mode="unverified",
+        verification_mode="terminal-input-clear",
         conversation_attention_mode="none",
     ),
     AppAdapterSpec(
@@ -103,7 +103,7 @@ _ADAPTERS = (
         action="Type",
         target_mode="terminal-structured-focus",
         submit_mode="enter",
-        verification_mode="unverified",
+        verification_mode="terminal-input-clear",
         conversation_attention_mode="none",
     ),
 )
