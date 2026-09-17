@@ -63,16 +63,18 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Dedicated Terminal target rejects focused controls that are not structurally discovered as editable
 - [x] Dedicated chat composer target rejects controls outside the structural Edit/Document inventory
 - [x] Adapter evidence policy prevents unverified adapters from claiming `VERIFIED`
-- [x] Telegram verification contract is explicitly `compose-clear`
+- [x] Telegram verification contract is explicitly bound to the Telegram adapter
 - [x] Adapter-bound submission policy separates typing from submission semantics
 - [x] Production generic targets bind the explicit adapter policy before sending
 - [x] Generic adapter factory provides safe fallback Type capabilities for unknown executable names
 - [x] Generic adapter verification hooks preserve the fail-closed evidence contract
-- [x] WhatsApp `compose-clear` verification with content-free baseline/clear checks
-- [x] Discord `compose-clear` verification using the shared structural chat target
-- [x] Slack `compose-clear` verification using the shared structural chat target
-- [x] Teams `compose-clear` verification using the shared structural chat target
-- [x] Terminal/CMD/PowerShell bounded input-control acceptance verification using value-length growth/clear without reading command content
+- [x] WhatsApp has an explicit adapter-bound `compose-clear` verification contract
+- [x] Discord has an explicit adapter-bound `compose-clear` verification contract
+- [x] Slack has an explicit adapter-bound `compose-clear` verification contract
+- [x] Teams has an explicit adapter-bound `compose-clear` verification contract
+- [x] Terminal/CMD/PowerShell share an explicit terminal input-clear verification contract without reading command content
+- [x] Verification evidence authorization recognizes only declared concrete adapter contracts
+- [x] Verification registry rejects a concrete app from borrowing another app's verification contract
 - [ ] Add app-specific verification implementations for terminal and app-specific chat semantics where shared contracts are insufficient
 
 ## Phase 2 — Finish the current UX and reliability layer
@@ -216,6 +218,7 @@ Every adapter should eventually produce one of:
 - [x] Shared content-free `compose-clear` verification for Discord/Slack/Teams through the structural chat target
 - [x] Explicit fail-closed handling for terminal submission outcomes without claiming command verification
 - [x] Bounded terminal input-control acceptance verification without reading command content
+- [x] Concrete per-adapter verification contract binding for Telegram, WhatsApp, Discord, Slack, Teams, Terminal, CMD, and PowerShell
 - [ ] App-specific semantic verification for terminal and chat adapters where shared contracts are insufficient
 - [x] Bounded post-send checks
 - [x] Generic post-send target loss cannot become an automatic retry
