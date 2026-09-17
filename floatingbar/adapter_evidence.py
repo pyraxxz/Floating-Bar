@@ -7,6 +7,7 @@ string; the registry remains the authority for what the adapter can prove.
 """
 
 from . import trace
+from .app_verification import is_chat_compose_verification, is_terminal_input_verification
 from .evidence import EvidenceState, SubmissionEvidence, from_result
 
 
@@ -27,6 +28,11 @@ _VERIFICATION_ALLOWLIST = {
     "unverified": frozenset({EvidenceState.SUBMITTED}),
     "none": frozenset({EvidenceState.SUBMITTED}),
 }
+
+
+def _exact_verified_contract(spec) -> bool:
+    """Return whether the live adapter is bound to a verified target contract."""
+    return is_chat_compose_verification(spec) or is_terminal_input_verification(spec)
 
 
 def evidence_for_adapter(
@@ -53,6 +59,9 @@ def evidence_for_adapter(
     else:
         mode = getattr(spec, "verification_mode", "unverified") if spec is not None else "unverified"
         allowed = _VERIFICATION_ALLOWLIST.get(mode, frozenset({EvidenceState.SUBMITTED}))
+
+        if raw.state is EvidenceState.VERIFIED and not _exact_verified_contract(spec):
+            allowed = frozenset({EvidenceState.SUBMITTED})
 
         if raw.state in allowed:
             result = raw
