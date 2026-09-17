@@ -4,6 +4,8 @@ from dataclasses import dataclass
 import re
 from typing import Optional
 
+from .app_verification import registry_validation_errors as verification_registry_errors
+
 
 @dataclass(frozen=True)
 class AppAdapterSpec:
@@ -28,7 +30,7 @@ _ADAPTERS = (
         action="Chats",
         target_mode="telegram-compose",
         submit_mode="telegram-send",
-        verification_mode="compose-clear",
+        verification_mode="telegram-compose-clear",
         conversation_attention_mode="telegram-badge",
         chat_picker="telegram",
     ),
@@ -39,7 +41,7 @@ _ADAPTERS = (
         action="Chats",
         target_mode="chat-structured-focus",
         submit_mode="enter",
-        verification_mode="compose-clear",
+        verification_mode="whatsapp-compose-clear",
         conversation_attention_mode="none",
         chat_picker="conversations",
     ),
@@ -50,7 +52,7 @@ _ADAPTERS = (
         action="Chats",
         target_mode="chat-structured-focus",
         submit_mode="enter",
-        verification_mode="compose-clear",
+        verification_mode="discord-compose-clear",
         conversation_attention_mode="none",
         chat_picker="conversations",
     ),
@@ -61,7 +63,7 @@ _ADAPTERS = (
         action="Chats",
         target_mode="chat-structured-focus",
         submit_mode="enter",
-        verification_mode="compose-clear",
+        verification_mode="slack-compose-clear",
         conversation_attention_mode="none",
         chat_picker="conversations",
     ),
@@ -72,7 +74,7 @@ _ADAPTERS = (
         action="Chats",
         target_mode="chat-structured-focus",
         submit_mode="enter",
-        verification_mode="compose-clear",
+        verification_mode="teams-compose-clear",
         conversation_attention_mode="none",
         chat_picker="conversations",
     ),
@@ -117,7 +119,17 @@ _BY_PROCESS = {
 _GENERIC_SAFE_PROCESS_RE = re.compile(r"^[a-z0-9_.-]+\.exe$", re.IGNORECASE)
 _KNOWN_ACTIONS = frozenset({"Type", "Chats"})
 _KNOWN_SUBMIT_MODES = frozenset({"enter", "telegram-send"})
-_KNOWN_VERIFICATION_MODES = frozenset({"unverified", "compose-clear", "terminal-input-clear"})
+_KNOWN_VERIFICATION_MODES = frozenset(
+    {
+        "unverified",
+        "telegram-compose-clear",
+        "whatsapp-compose-clear",
+        "discord-compose-clear",
+        "slack-compose-clear",
+        "teams-compose-clear",
+        "terminal-input-clear",
+    }
+)
 
 
 def registry_validation_errors() -> tuple[str, ...]:
@@ -157,6 +169,7 @@ def registry_validation_errors() -> tuple[str, ...]:
                 )
             processes[normalized] = spec.key
 
+    errors.extend(verification_registry_errors(_ADAPTERS))
     return tuple(errors)
 
 
