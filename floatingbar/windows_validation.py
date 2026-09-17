@@ -9,13 +9,14 @@ input values, or clipboard contents.
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 import ctypes
 import platform
 import sys
 from typing import Iterable
 
-from .app_adapters import AppAdapterSpec, actionable_adapter_for_process
+from .app_adapters import AppAdapterSpec
 from .background_windows import enumerate_background_windows
 from .dpi import enable_per_monitor_awareness
 
@@ -113,42 +114,17 @@ def _dpi_awareness() -> str:
 
 def _adapter_specs() -> tuple[AppAdapterSpec, ...]:
     """Return known registry adapters once, preserving registry order."""
-    seen: set[str] = set()
-    specs = []
-    # Importing the registry indirectly keeps this helper aligned with the
-    # production process/action catalogue instead of duplicating aliases.
-    from .app_adapters import adapter_for_process
-
-    for process_name in _known_processes():
-        spec = adapter_for_process(process_name)
-        if spec is not None and spec.key not in seen:
-            specs.append(spec)
-            seen.add(spec.key)
-    return tuple(specs)
-
-
-def _known_processes() -> tuple[str, ...]:
-    """Return unique production executable aliases from the adapter registry."""
     from .app_adapters import _ADAPTERS
 
-    result = []
-    seen = set()
-    for spec in _ADAPTERS:
-        for process in spec.processes:
-            normalized = process.casefold()
-            if normalized not in seen:
-                seen.add(normalized)
-                result.append(normalized)
-    return tuple(result)
+    return tuple(_ADAPTERS)
 
 
 def _observe_adapters(processes: Iterable[str]) -> tuple[AdapterObservation, ...]:
-    observed = tuple(sorted({str(name).casefold() for name in processes if name}))
-    counts = {name: observed.count(name) for name in observed}
+    counts = Counter(str(name).casefold() for name in processes if name)
     result = []
     for spec in _adapter_specs():
         aliases = tuple(process.casefold() for process in spec.processes)
-        matching = tuple(name for name in observed if name in aliases)
+        matching = tuple(name for name in aliases if counts.get(name, 0) > 0)
         result.append(
             AdapterObservation(
                 key=spec.key,
