@@ -14,6 +14,7 @@ from .telegram_chat_picker import TelegramChatPicker
 from .context import capture
 from .adapter_evidence import evidence_for_adapter
 from .transaction import SendCompletion
+from .recent_targets import RecentTargetHistory
 from . import trace
 from . import onboarding
 from .overlay import OrbRelayWindow as _BaseOverlay
@@ -24,6 +25,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
 
     def __init__(self):
         super().__init__()
+        self._recent_targets = RecentTargetHistory()
         self._background_picker = BackgroundAppPicker(
             self,
             refresh=lambda: enumerate_background_windows(
@@ -31,6 +33,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
                 include_minimized=True,
             ),
             on_select=self._select_background_window,
+            recent=self._recent_picker_items,
         )
         self._background_picker.bind(self.orb)
         self._telegram_chat_picker = TelegramChatPicker(
@@ -120,6 +123,39 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             return "That app is open, but its background typing controls could not be inspected safely."
         return "That app could not expose a safe background typing control."
 
+    def _recent_picker_items(self) -> tuple[PickerItem, ...]:
+        """Return validated session-only application targets for the hover picker."""
+        items = []
+        for target in self._recent_targets.live_applications():
+            spec = actionable_adapter_for_process(target.process_name)
+            if spec is None or not spec.implemented or spec.key != target.adapter_key:
+                continue
+            items.append(
+                PickerItem(
+                    hwnd=target.scope.hwnd,
+                    pid=target.scope.pid,
+                    label=spec.label,
+                    actionable=spec.supports_background_type,
+                    foreground=False,
+                    process_name=target.process_name,
+                    adapter_key=spec.key,
+                    recent=True,
+                )
+            )
+        return tuple(items)
+
+    def _remember_bound_application(self, spec, hwnd: int, pid: int) -> None:
+        """Remember only a successfully probed application scope."""
+        if spec is None or not spec.implemented or not spec.supports_background_type:
+            return
+        self._recent_targets.record_application(
+            hwnd=hwnd,
+            pid=pid,
+            process_name=self._background_process_name,
+            label=spec.label,
+            adapter_key=spec.key,
+        )
+
     def _select_background_window(self, item: PickerItem) -> None:
         """Choose an actionable process/window without foregrounding it."""
         if not item.actionable or not item.hwnd or not item.pid:
@@ -164,6 +200,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         if not probe.available or probe.candidate_count <= 0 or reason != "ready":
             self._show_feedback(self._probe_feedback(probe))
             return
+        self._remember_bound_application(spec, hwnd, pid)
         if self._state != "bar" and not self._sending:
             self._show_bar()
 
@@ -202,6 +239,8 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
                 raise RuntimeError("selected conversation has no safe background typing control")
             if not probe.available or probe.candidate_count <= 0 or self._probe_reason(probe) != "ready":
                 raise RuntimeError(self._probe_feedback(probe))
+            if spec is not None:
+                self._recent_targets.record_conversation(conversation, adapter_key=spec.key)
             if self._state != "bar":
                 self._show_bar()
         except Exception as exc:
@@ -242,6 +281,15 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             self._work_hwnd = chat.hwnd
             self._attempt_context = capture(chat.hwnd)
             self.injector.set_window_context(self._attempt_context)
+            spec = actionable_adapter_for_process(self._background_process_name)
+            if spec is not None:
+                self._recent_targets.record_application(
+                    hwnd=chat.hwnd,
+                    pid=chat.pid,
+                    process_name=self._background_process_name,
+                    label=spec.label,
+                    adapter_key=spec.key,
+                )
             self._update_status()
             if self._state != "bar":
                 self._show_bar()
