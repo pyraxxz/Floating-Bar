@@ -16,6 +16,7 @@ from .adapter_evidence import evidence_for_adapter
 from .transaction import SendCompletion
 from .recent_targets import RecentTargetHistory
 from .pinned_targets import PinnedTargetStore
+from .quick_replies import QuickReply, QuickReplyManager, QuickReplyStore
 from . import trace
 from . import onboarding
 from .overlay import OrbRelayWindow as _BaseOverlay
@@ -28,6 +29,11 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         super().__init__()
         self._recent_targets = RecentTargetHistory()
         self._pinned_targets = PinnedTargetStore()
+        self._quick_reply_store = QuickReplyStore()
+        self._quick_reply_menu = tk.Menu(self.menu, tearoff=0)
+        self.menu.add_cascade(label="Quick replies", menu=self._quick_reply_menu)
+        self.menu.add_command(label="Manage quick replies", command=self._open_quick_reply_manager)
+        self._refresh_quick_reply_menu()
         self._background_picker = BackgroundAppPicker(
             self,
             refresh=lambda: enumerate_background_windows(
@@ -81,6 +87,43 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             onboarding.show(self)
         except Exception as exc:
             trace.trace(f"first-run guide could not be shown safely: {exc}")
+
+    def _refresh_quick_reply_menu(self) -> None:
+        menu = self._quick_reply_menu
+        menu.delete(0, "end")
+        replies = self._quick_reply_store.items()
+        if replies:
+            for reply in replies:
+                menu.add_command(
+                    label=reply.label,
+                    command=lambda item=reply: self._use_quick_reply(item),
+                )
+            menu.add_separator()
+        else:
+            menu.add_command(label="No saved replies", state="disabled")
+        menu.add_command(label="Manage quick replies", command=self._open_quick_reply_manager)
+
+    def _use_quick_reply(self, reply: QuickReply) -> None:
+        if self._sending:
+            return
+        if self._state != "bar":
+            self._expand()
+        if self._state != "bar":
+            return
+        self.entry.delete(0, "end")
+        self.entry.insert(0, reply.text)
+        self.entry.select_range(0, "end")
+        self._reset_idle()
+
+    def _open_quick_reply_manager(self) -> None:
+        if self._sending:
+            return
+        QuickReplyManager(
+            self,
+            self._quick_reply_store,
+            on_use=self._use_quick_reply,
+            on_change=self._refresh_quick_reply_menu,
+        )
 
     def _show_bar(self):
         super()._show_bar()
