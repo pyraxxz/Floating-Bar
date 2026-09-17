@@ -115,6 +115,49 @@ _BY_PROCESS = {
 }
 
 _GENERIC_SAFE_PROCESS_RE = re.compile(r"^[a-z0-9_.-]+\.exe$", re.IGNORECASE)
+_KNOWN_ACTIONS = frozenset({"Type", "Chats"})
+_KNOWN_SUBMIT_MODES = frozenset({"enter", "telegram-send"})
+_KNOWN_VERIFICATION_MODES = frozenset({"unverified", "compose-clear", "terminal-input-clear"})
+
+
+def registry_validation_errors() -> tuple[str, ...]:
+    """Return structural registry errors without touching the live desktop."""
+    errors: list[str] = []
+    keys: set[str] = set()
+    processes: dict[str, str] = {}
+
+    for spec in _ADAPTERS:
+        if spec.key in keys:
+            errors.append(f"duplicate adapter key: {spec.key}")
+        keys.add(spec.key)
+        if not spec.processes:
+            errors.append(f"adapter has no processes: {spec.key}")
+        if not spec.label.strip():
+            errors.append(f"adapter has no label: {spec.key}")
+        if spec.action not in _KNOWN_ACTIONS:
+            errors.append(f"unsupported action for {spec.key}: {spec.action}")
+        if spec.submit_mode not in _KNOWN_SUBMIT_MODES:
+            errors.append(f"unsupported submit_mode for {spec.key}: {spec.submit_mode}")
+        if spec.verification_mode not in _KNOWN_VERIFICATION_MODES:
+            errors.append(
+                f"unsupported verification_mode for {spec.key}: {spec.verification_mode}"
+            )
+        if spec.action == "Chats" and not spec.chat_picker:
+            errors.append(f"chat adapter missing chat_picker: {spec.key}")
+        if spec.action == "Type" and spec.chat_picker is not None:
+            errors.append(f"type adapter unexpectedly exposes chat_picker: {spec.key}")
+        for process in spec.processes:
+            normalized = process.casefold()
+            if not _GENERIC_SAFE_PROCESS_RE.fullmatch(normalized):
+                errors.append(f"malformed process alias for {spec.key}: {process}")
+            previous = processes.get(normalized)
+            if previous is not None and previous != spec.key:
+                errors.append(
+                    f"process alias collision: {normalized} maps to {previous} and {spec.key}"
+                )
+            processes[normalized] = spec.key
+
+    return tuple(errors)
 
 
 def adapter_for_process(process_name: str) -> Optional[AppAdapterSpec]:
@@ -173,4 +216,5 @@ __all__ = [
     "attention_capability",
     "generic_adapter_for_process",
     "is_actionable_process",
+    "registry_validation_errors",
 ]
