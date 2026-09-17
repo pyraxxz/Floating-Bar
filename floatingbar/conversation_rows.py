@@ -247,6 +247,12 @@ def refresh_conversation(item: ConversationItem) -> ConversationItem:
     return fresh
 
 
+# Preserve the historical private helper for existing diagnostics/tests while
+# exposing the clearer public name to new callers.
+def _refresh_row(item: ConversationItem) -> ConversationItem:
+    return refresh_conversation(item)
+
+
 def select_conversation(item: ConversationItem) -> None:
     """Select a conversation with a background click after immediate revalidation."""
     if not item.hwnd or not item.pid:
