@@ -102,7 +102,7 @@ class BackgroundPickerTests(unittest.TestCase):
             SimpleNamespace(hwnd=11, pid=21, process_name="teams.exe", label="teams.exe", foreground=False),
             SimpleNamespace(hwnd=12, pid=22, process_name="msteams.exe", label="msteams.exe", foreground=False),
         ])
-        self.assertEqual([item.label for item in result], ["Terminal", "Microsoft Teams", "Microsoft Teams"])
+        self.assertEqual([item.label for item in result], ["Terminal", "Microsoft Teams 1", "Microsoft Teams 2"])
         self.assertEqual([item.adapter_key for item in result], ["terminal", "teams", "teams"])
         self.assertTrue(all(item.actionable for item in result))
 
