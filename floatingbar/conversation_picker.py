@@ -38,12 +38,33 @@ def to_conversation_picker_rows(
     )
 
 
+def paginate_conversations(
+    conversations: Sequence[ConversationItem],
+    offset: int,
+    limit: int,
+) -> tuple[tuple[ConversationItem, ...], int, bool, bool]:
+    """Return one bounded page and deterministic previous/next availability."""
+    catalog = tuple(conversations or ())
+    page_limit = max(1, int(limit))
+    safe_offset = max(0, int(offset))
+    if catalog and safe_offset >= len(catalog):
+        safe_offset = ((len(catalog) - 1) // page_limit) * page_limit
+    page = catalog[safe_offset : safe_offset + page_limit]
+    return (
+        page,
+        safe_offset,
+        safe_offset > 0,
+        safe_offset + page_limit < len(catalog),
+    )
+
+
 class ConversationPicker:
     WIDTH = 280
     ROW_HEIGHT = 30
     HEADER_HEIGHT = 34
     FOOTER_HEIGHT = 36
-    LIMIT = 6
+    PAGE_LIMIT = 6
+    CATALOG_LIMIT = 24
 
     def __init__(
         self,
@@ -57,6 +78,8 @@ class ConversationPicker:
         self.on_select = on_select
         self.title = title
         self.window: Optional[tk.Toplevel] = None
+        self._catalog: tuple[ConversationItem, ...] = ()
+        self._offset = 0
 
     def set_title(self, title: str) -> None:
         """Set the content-free application label shown above conversation rows."""
@@ -64,11 +87,23 @@ class ConversationPicker:
         self.title = cleaned or "Conversations"
 
     def show(self) -> None:
-        self.hide()
+        """Refresh the ephemeral catalog and open it at the first page."""
         try:
-            conversations = tuple(self.refresh() or ())[: self.LIMIT]
+            catalog = tuple(self.refresh() or ())[: self.CATALOG_LIMIT]
         except Exception:
             return
+        self._catalog = catalog
+        self._offset = 0
+        self._show_page()
+
+    def _show_page(self) -> None:
+        self.hide()
+        conversations, offset, has_previous, has_next = paginate_conversations(
+            self._catalog,
+            self._offset,
+            self.PAGE_LIMIT,
+        )
+        self._offset = offset
         if not conversations:
             return
 
@@ -94,9 +129,15 @@ class ConversationPicker:
         )
         popup.geometry(f"{self.WIDTH}x{height}+{x}+{y}")
 
+        start = offset + 1
+        end = offset + len(conversations)
+        total = len(self._catalog)
+        header_text = self.title
+        if total > self.PAGE_LIMIT:
+            header_text = f"{self.title}  ·  {start}-{end} of {total}"
         header = tk.Label(
             popup,
-            text=self.title,
+            text=header_text,
             anchor="w",
             bg="#18181b",
             fg="#a1a1aa",
@@ -123,6 +164,25 @@ class ConversationPicker:
 
         footer = tk.Frame(popup, bg="#18181b", bd=0)
         footer.pack(fill="x", padx=4, pady=(0, 4))
+        footer.columnconfigure(0, weight=1)
+        footer.columnconfigure(1, weight=1)
+        footer.columnconfigure(2, weight=1)
+
+        previous = tk.Button(
+            footer,
+            text="Previous",
+            anchor="center",
+            relief="flat",
+            bd=0,
+            bg="#27272a",
+            fg="#d4d4d8",
+            activebackground="#3f3f46",
+            activeforeground="#ffffff",
+            state="normal" if has_previous else "disabled",
+            command=lambda: self._page(-1),
+        )
+        previous.grid(row=0, column=0, sticky="ew", padx=2, pady=2, ipady=2)
+
         refresh = tk.Button(
             footer,
             text="Refresh",
@@ -135,7 +195,27 @@ class ConversationPicker:
             activeforeground="#ffffff",
             command=self.show,
         )
-        refresh.pack(fill="x", padx=2, pady=2, ipady=2)
+        refresh.grid(row=0, column=1, sticky="ew", padx=2, pady=2, ipady=2)
+
+        next_page = tk.Button(
+            footer,
+            text="Next",
+            anchor="center",
+            relief="flat",
+            bd=0,
+            bg="#27272a",
+            fg="#d4d4d8",
+            activebackground="#3f3f46",
+            activeforeground="#ffffff",
+            state="normal" if has_next else "disabled",
+            command=lambda: self._page(1),
+        )
+        next_page.grid(row=0, column=2, sticky="ew", padx=2, pady=2, ipady=2)
+
+    def _page(self, direction: int) -> None:
+        step = self.PAGE_LIMIT * (1 if int(direction) > 0 else -1)
+        self._offset = max(0, self._offset + step)
+        self._show_page()
 
     def _selected(self, conversation: ConversationItem) -> None:
         self.hide()
@@ -151,4 +231,9 @@ class ConversationPicker:
                 pass
 
 
-__all__ = ["ConversationPicker", "ConversationPickerRow", "to_conversation_picker_rows"]
+__all__ = [
+    "ConversationPicker",
+    "ConversationPickerRow",
+    "paginate_conversations",
+    "to_conversation_picker_rows",
+]
