@@ -10,9 +10,20 @@ from . import trace
 from .evidence import EvidenceState, SubmissionEvidence, from_result
 
 
+_VERIFIED_MODES = frozenset(
+    {
+        "compose-clear",
+        "telegram-compose-clear",
+        "whatsapp-compose-clear",
+        "discord-compose-clear",
+        "slack-compose-clear",
+        "teams-compose-clear",
+        "terminal-input-clear",
+    }
+)
+
 _VERIFICATION_ALLOWLIST = {
-    "compose-clear": frozenset({EvidenceState.VERIFIED}),
-    "terminal-input-clear": frozenset({EvidenceState.VERIFIED}),
+    **{mode: frozenset({EvidenceState.VERIFIED}) for mode in _VERIFIED_MODES},
     "unverified": frozenset({EvidenceState.SUBMITTED}),
     "none": frozenset({EvidenceState.SUBMITTED}),
 }
