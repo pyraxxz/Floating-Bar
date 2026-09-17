@@ -14,6 +14,8 @@ The production boundary also includes exact HWND/PID target binding, read-only p
 
 The newer generic background-input layer now has dedicated structural composer/terminal targets, exact control pinning with identity revalidation, minimized-window support for background selection, and an adapter evidence policy that prevents unsupported generic paths from claiming verified sends.
 
+Submission evidence is now producer-owned end to end: Telegram and generic background targets retain typed `SubmissionEvidence`, while a string-compatible evidence carrier preserves the legacy worker/UI strategy API. Adapter policy consumes the typed result when present, so a human-readable strategy string can no longer override a trusted `SUBMITTED`, `UNAVAILABLE`, `FAILED`, or `BLOCKED` result.
+
 Terminal, CMD, and PowerShell adapters now also have a bounded `terminal-input-clear` verification hook. When the exact pinned input control exposes a readable UI Automation value, the path observes only value length: it requires post-injection growth and a return to zero after Enter. It never stores, logs, or compares command content, and it cannot claim command execution semantics.
 
 The release workflow now requires a completed `smoke-report.json` with a valid Windows environment snapshot before packaging a milestone release. The report must also have every smoke case resolved to PASS, FAIL, or BLOCKED; FAIL or unresolved cases stop the release gate.
@@ -25,6 +27,8 @@ Windows CI is the authoritative automated gate. A change is not considered compl
 The terminal verification batch initially exposed one stale test fixture: the verified-evidence test referenced `terminal.exe`, which is not a registered adapter alias. The fixture was corrected to `wt.exe` while the actual terminal registry remained unchanged. Windows CI run `#657` then completed successfully with the full regression suite and Windows executable build passing.
 
 The real-Windows smoke report remains separate from CI. CI proves deterministic logic and packaging on a Windows runner; the smoke report records acceptance against actual installed desktop applications, monitor/DPI layouts, restarts, repeated sends, and application-specific behavior.
+
+The current evidence-hardening batch adds regression coverage for typed evidence precedence and the string-compatible evidence carrier. Windows CI run `#675` is validating that batch on the Windows runner.
 
 ## Next engineering target
 
