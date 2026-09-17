@@ -1,7 +1,7 @@
 import unittest
 
 from floatingbar.conversation_attention import AttentionState, ConversationAttention
-from floatingbar.conversation_picker import to_conversation_picker_rows
+from floatingbar.conversation_picker import ConversationPicker, to_conversation_picker_rows
 from floatingbar.conversation_rows import ConversationItem
 
 
@@ -50,6 +50,14 @@ class ConversationPickerRowTests(unittest.TestCase):
         )
         row = to_conversation_picker_rows([item])[0]
         self.assertEqual(row.suffix, "  Needs attention")
+
+    def test_picker_title_is_safe_and_reopenable(self):
+        picker = ConversationPicker(object(), lambda: (), lambda _item: None)
+        self.assertEqual(picker.title, "Conversations")
+        picker.set_title("Microsoft Teams")
+        self.assertEqual(picker.title, "Microsoft Teams")
+        picker.set_title("  ")
+        self.assertEqual(picker.title, "Conversations")
 
 
 if __name__ == "__main__":
