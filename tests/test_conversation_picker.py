@@ -75,13 +75,24 @@ class ConversationPickerRowTests(unittest.TestCase):
         self.assertTrue(row.recent)
         self.assertEqual(row.suffix, "  Recent")
 
-    def test_picker_merges_recent_rows_before_live_rows_and_deduplicates(self):
-        recent = _item(1)
-        duplicate = _item(1)
-        live = _item(2)
-        catalog, recent_keys = ConversationPicker._merge_catalog((recent,), (duplicate, live))
-        self.assertEqual([item.name for item in catalog], ["Chat 1", "Chat 2"])
+    def test_pinned_row_gets_pinned_label(self):
+        item = _item(1)
+        key = conversation_picker_identity(item)
+        row = to_conversation_picker_rows([item], pinned_keys=[key])[0]
+        self.assertTrue(row.pinned)
+        self.assertEqual(row.suffix, "  Pinned")
+
+    def test_picker_merges_pinned_then_recent_then_live_and_deduplicates(self):
+        pinned = _item(1)
+        recent = _item(2)
+        duplicate_live = _item(1)
+        live = _item(3)
+        catalog, recent_keys, pinned_keys = ConversationPicker._merge_catalog(
+            (pinned,), (recent,), (duplicate_live, live)
+        )
+        self.assertEqual([item.name for item in catalog], ["Chat 1", "Chat 2", "Chat 3"])
         self.assertIn(conversation_picker_identity(recent), recent_keys)
+        self.assertIn(conversation_picker_identity(pinned), pinned_keys)
 
     def test_picker_title_is_safe_and_reopenable(self):
         picker = ConversationPicker(object(), lambda: (), lambda _item: None)

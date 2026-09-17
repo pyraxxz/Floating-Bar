@@ -32,6 +32,7 @@ class PickerItem:
     process_name: str = ""
     adapter_key: str = ""
     recent: bool = False
+    pinned: bool = False
 
 
 @dataclass
@@ -133,6 +134,7 @@ class BackgroundAppPicker:
     WIDTH = 210
     ROW_HEIGHT = 30
     SECTION_HEIGHT = 22
+    MAX_PINNED = 3
     MAX_RECENT = 2
     MAX_VISIBLE = 6
 
@@ -142,11 +144,15 @@ class BackgroundAppPicker:
         refresh: Callable[[], Sequence[BackgroundWindow]],
         on_select: Callable[[PickerItem], None],
         recent: Optional[Callable[[], Sequence[PickerItem]]] = None,
+        pinned: Optional[Callable[[Sequence[BackgroundWindow]], Sequence[PickerItem]]] = None,
+        pin_toggle: Optional[Callable[[PickerItem], None]] = None,
     ) -> None:
         self.owner = owner
         self.refresh = refresh
         self.on_select = on_select
         self.recent = recent or (lambda: ())
+        self.pinned = pinned or (lambda _windows: ())
+        self.pin_toggle = pin_toggle
         self.window: Optional[tk.Toplevel] = None
         self._show_job = None
         self._hide_job = None
@@ -212,45 +218,58 @@ class BackgroundAppPicker:
 
     @staticmethod
     def _merge_items(
+        pinned_items: Sequence[PickerItem],
         recent_items: Sequence[PickerItem],
         live_items: Sequence[PickerItem],
     ) -> tuple[PickerItem, ...]:
-        """Prefer recent identity when the same exact scope is currently live."""
-        recent = []
-        recent_scopes = set()
-        for item in recent_items:
-            key = (item.hwnd, item.pid)
-            if not item.actionable or key in recent_scopes:
-                continue
-            recent_scopes.add(key)
-            recent.append(item)
-            if len(recent) >= BackgroundAppPicker.MAX_RECENT:
+        """Prefer pinned identity, then recent identity, then live discovery."""
+        merged = []
+        seen = set()
+        for items, limit in (
+            (pinned_items, BackgroundAppPicker.MAX_PINNED),
+            (recent_items, BackgroundAppPicker.MAX_RECENT),
+        ):
+            added = 0
+            for item in items:
+                key = (item.hwnd, item.pid)
+                if not item.actionable or key in seen:
+                    continue
+                seen.add(key)
+                merged.append(item)
+                added += 1
+                if added >= limit or len(merged) >= BackgroundAppPicker.MAX_VISIBLE:
+                    break
+            if len(merged) >= BackgroundAppPicker.MAX_VISIBLE:
                 break
-
-        live = []
-        for item in live_items:
-            key = (item.hwnd, item.pid)
-            if key in recent_scopes:
-                continue
-            live.append(item)
-            if len(recent) + len(live) >= BackgroundAppPicker.MAX_VISIBLE:
-                break
-        return tuple(recent) + tuple(live)
+        if len(merged) < BackgroundAppPicker.MAX_VISIBLE:
+            for item in live_items:
+                key = (item.hwnd, item.pid)
+                if key in seen:
+                    continue
+                seen.add(key)
+                merged.append(item)
+                if len(merged) >= BackgroundAppPicker.MAX_VISIBLE:
+                    break
+        return tuple(merged)
 
     def show(self) -> None:
         self._show_job = None
         if not self._hover.owner:
             return
         try:
-            windows = self.refresh()
+            windows = tuple(self.refresh() or ())
         except Exception:
             windows = ()
         live_items = to_picker_items(windows)
         try:
+            pinned_items = tuple(self.pinned(windows) or ())
+        except Exception:
+            pinned_items = ()
+        try:
             recent_items = tuple(self.recent() or ())
         except Exception:
             recent_items = ()
-        items = self._merge_items(recent_items, live_items)
+        items = self._merge_items(pinned_items, recent_items, live_items)
         if not items:
             self.hide()
             return
@@ -269,10 +288,12 @@ class BackgroundAppPicker:
 
         x = self.owner.winfo_rootx() + self.owner.winfo_width() + 8
         y = self.owner.winfo_rooty()
-        recent_count = sum(1 for item in items if item.recent)
-        live_count = len(items) - recent_count
-        sections = int(recent_count > 0) + int(recent_count > 0 and live_count > 0)
-        height = len(items) * self.ROW_HEIGHT + sections * self.SECTION_HEIGHT + 8
+        section_names = []
+        for item in items:
+            section = "Pinned" if item.pinned else "Recent" if item.recent else "Open apps"
+            if section not in section_names:
+                section_names.append(section)
+        height = len(items) * self.ROW_HEIGHT + len(section_names) * self.SECTION_HEIGHT + 8
         popup.geometry(f"{self.WIDTH}x{height}+{x}+{y}")
         popup.bind("<Enter>", self._popup_enter, add="+")
         popup.bind("<Leave>", self._popup_leave, add="+")
@@ -281,7 +302,7 @@ class BackgroundAppPicker:
         frame.pack(fill="both", expand=True, padx=4, pady=4)
         current_section = None
         for item in items:
-            section = "Recent" if item.recent else "Open apps"
+            section = "Pinned" if item.pinned else "Recent" if item.recent else "Open apps"
             if section != current_section:
                 if current_section is not None:
                     tk.Frame(frame, bg="#27272a", height=1).pack(fill="x", pady=2)
@@ -350,8 +371,9 @@ class BackgroundAppPicker:
             pass
         x = row.winfo_rootx() + row.winfo_width() + 4
         y = row.winfo_rooty()
-        popup.geometry(f"110x38+{x}+{y}")
-        button = tk.Button(
+        height = 74 if self.pin_toggle is not None else 38
+        popup.geometry(f"110x{height}+{x}+{y}")
+        action_button = tk.Button(
             popup,
             text=action_for_item(item),
             anchor="center",
@@ -363,7 +385,29 @@ class BackgroundAppPicker:
             activeforeground="#ffffff",
             command=self._selected_action,
         )
-        button.pack(fill="both", expand=True, padx=4, pady=4)
+        action_button.pack(fill="x", padx=4, pady=(4, 2), ipady=4)
+        if self.pin_toggle is not None:
+            pin_button = tk.Button(
+                popup,
+                text="Unpin" if item.pinned else "Pin",
+                anchor="center",
+                relief="flat",
+                bd=0,
+                bg="#27272a",
+                fg="#d4d4d8",
+                activebackground="#3f3f46",
+                activeforeground="#ffffff",
+                command=self._toggle_pin,
+            )
+            pin_button.pack(fill="x", padx=4, pady=(2, 4), ipady=2)
+
+    def _toggle_pin(self) -> None:
+        item = self._action_item
+        callback = self.pin_toggle
+        self._hide_actions()
+        self.hide()
+        if item is not None and callback is not None:
+            callback(item)
 
     def _selected_action(self) -> None:
         item = self._action_item

@@ -15,6 +15,7 @@ class ConversationPickerRow:
     attention: AttentionState
     conversation: ConversationItem
     recent: bool = False
+    pinned: bool = False
 
     @property
     def suffix(self) -> str:
@@ -22,6 +23,8 @@ class ConversationPickerRow:
             return "  Needs attention"
         if self.selected:
             return "  Current"
+        if self.pinned:
+            return "  Pinned"
         if self.recent:
             return "  Recent"
         return ""
@@ -45,8 +48,10 @@ def conversation_picker_identity(item: ConversationItem) -> tuple[object, ...]:
 def to_conversation_picker_rows(
     conversations: Sequence[ConversationItem],
     recent_keys: Sequence[tuple[object, ...]] = (),
+    pinned_keys: Sequence[tuple[object, ...]] = (),
 ) -> tuple[ConversationPickerRow, ...]:
     recent = set(recent_keys)
+    pinned = set(pinned_keys)
     return tuple(
         ConversationPickerRow(
             name=item.name,
@@ -54,6 +59,7 @@ def to_conversation_picker_rows(
             attention=item.attention.state,
             conversation=item,
             recent=conversation_picker_identity(item) in recent,
+            pinned=conversation_picker_identity(item) in pinned,
         )
         for item in conversations
     )
@@ -87,6 +93,7 @@ class ConversationPicker:
     SECTION_HEIGHT = 22
     PAGE_LIMIT = 6
     CATALOG_LIMIT = 24
+    MAX_PINNED = 3
     MAX_RECENT = 2
 
     def __init__(
@@ -96,15 +103,20 @@ class ConversationPicker:
         on_select: Callable[[ConversationItem], None],
         title: str = "Conversations",
         recent: Optional[Callable[[], Sequence[ConversationItem]]] = None,
+        pinned: Optional[Callable[[], Sequence[ConversationItem]]] = None,
+        pin_toggle: Optional[Callable[[ConversationItem], None]] = None,
     ) -> None:
         self.owner = owner
         self.refresh = refresh
         self.on_select = on_select
         self.title = title
         self.recent = recent or (lambda: ())
+        self.pinned = pinned or (lambda: ())
+        self.pin_toggle = pin_toggle
         self.window: Optional[tk.Toplevel] = None
         self._catalog: tuple[ConversationItem, ...] = ()
         self._recent_keys: set[tuple[object, ...]] = set()
+        self._pinned_keys: set[tuple[object, ...]] = set()
         self._offset = 0
 
     def set_title(self, title: str) -> None:
@@ -114,22 +126,39 @@ class ConversationPicker:
 
     @staticmethod
     def _merge_catalog(
+        pinned: Sequence[ConversationItem],
         recent: Sequence[ConversationItem],
         live: Sequence[ConversationItem],
-    ) -> tuple[tuple[ConversationItem, ...], set[tuple[object, ...]]]:
+    ) -> tuple[
+        tuple[ConversationItem, ...],
+        set[tuple[object, ...]],
+        set[tuple[object, ...]],
+    ]:
+        pinned_rows = []
+        pinned_keys: set[tuple[object, ...]] = set()
+        for item in pinned:
+            key = conversation_picker_identity(item)
+            if key in pinned_keys:
+                continue
+            pinned_keys.add(key)
+            pinned_rows.append(item)
+            if len(pinned_rows) >= ConversationPicker.MAX_PINNED:
+                break
+
         recent_rows = []
         recent_keys: set[tuple[object, ...]] = set()
+        seen = set(pinned_keys)
         for item in recent:
             key = conversation_picker_identity(item)
-            if key in recent_keys:
+            if key in seen or key in recent_keys:
                 continue
             recent_keys.add(key)
             recent_rows.append(item)
+            seen.add(key)
             if len(recent_rows) >= ConversationPicker.MAX_RECENT:
                 break
 
-        merged = list(recent_rows)
-        seen = set(recent_keys)
+        merged = list(pinned_rows) + list(recent_rows)
         for item in live:
             key = conversation_picker_identity(item)
             if key in seen:
@@ -138,18 +167,20 @@ class ConversationPicker:
             merged.append(item)
             if len(merged) >= ConversationPicker.CATALOG_LIMIT:
                 break
-        return tuple(merged[: ConversationPicker.CATALOG_LIMIT]), recent_keys
+        return tuple(merged[: ConversationPicker.CATALOG_LIMIT]), recent_keys, pinned_keys
 
     def show(self) -> None:
         """Refresh the ephemeral catalog and open it at the first page."""
         try:
             live = tuple(self.refresh() or ())
+            pinned = tuple(self.pinned() or ())
             recent = tuple(self.recent() or ())
-            catalog, recent_keys = self._merge_catalog(recent, live)
+            catalog, recent_keys, pinned_keys = self._merge_catalog(pinned, recent, live)
         except Exception:
             return
         self._catalog = catalog
         self._recent_keys = recent_keys
+        self._pinned_keys = pinned_keys
         self._offset = 0
         self._show_page()
 
@@ -178,12 +209,18 @@ class ConversationPicker:
 
         x = self.owner.winfo_rootx() + self.owner.winfo_width() + 8
         y = self.owner.winfo_rooty()
+        visible_pinned = sum(
+            1 for item in conversations
+            if conversation_picker_identity(item) in self._pinned_keys
+        )
         visible_recent = sum(
             1 for item in conversations
             if conversation_picker_identity(item) in self._recent_keys
         )
-        visible_live = len(conversations) - visible_recent
-        sections = int(visible_recent > 0) + int(visible_recent > 0 and visible_live > 0)
+        visible_live = len(conversations) - visible_pinned - visible_recent
+        sections = sum(
+            1 for value in (visible_pinned, visible_recent, visible_live) if value > 0
+        )
         height = (
             self.HEADER_HEIGHT
             + len(conversations) * self.ROW_HEIGHT
@@ -212,8 +249,12 @@ class ConversationPicker:
         frame = tk.Frame(popup, bg="#18181b", bd=0)
         frame.pack(fill="both", expand=True, padx=4, pady=(0, 2))
         current_section = None
-        for row in to_conversation_picker_rows(conversations, self._recent_keys):
-            section = "Recent" if row.recent else "Open conversations"
+        for row in to_conversation_picker_rows(
+            conversations,
+            self._recent_keys,
+            self._pinned_keys,
+        ):
+            section = "Pinned" if row.pinned else "Recent" if row.recent else "Open conversations"
             if section != current_section:
                 if current_section is not None:
                     tk.Frame(frame, bg="#27272a", height=1).pack(fill="x", pady=2)
@@ -226,8 +267,11 @@ class ConversationPicker:
                     font=("Segoe UI", 8, "bold"),
                 ).pack(fill="x", padx=4, pady=(1, 2))
                 current_section = section
+            row_frame = tk.Frame(frame, bg="#18181b", bd=0)
+            row_frame.pack(fill="x")
+            row_frame.columnconfigure(0, weight=1)
             button = tk.Button(
-                frame,
+                row_frame,
                 text=row.name + row.suffix,
                 anchor="w",
                 relief="flat",
@@ -238,7 +282,22 @@ class ConversationPicker:
                 activeforeground="#ffffff",
                 command=lambda item=row.conversation: self._selected(item),
             )
-            button.pack(fill="x", ipady=4)
+            button.grid(row=0, column=0, sticky="ew", ipady=4)
+            if self.pin_toggle is not None:
+                pin_button = tk.Button(
+                    row_frame,
+                    text="★" if row.pinned else "☆",
+                    anchor="center",
+                    relief="flat",
+                    bd=0,
+                    width=2,
+                    bg="#18181b",
+                    fg="#d4d4d8",
+                    activebackground="#27272a",
+                    activeforeground="#ffffff",
+                    command=lambda item=row.conversation: self._toggle_pin(item),
+                )
+                pin_button.grid(row=0, column=1, padx=(2, 0), ipady=2)
 
         footer = tk.Frame(popup, bg="#18181b", bd=0)
         footer.pack(fill="x", padx=4, pady=(0, 4))
@@ -294,6 +353,13 @@ class ConversationPicker:
         step = self.PAGE_LIMIT * (1 if int(direction) > 0 else -1)
         self._offset = max(0, self._offset + step)
         self._show_page()
+
+    def _toggle_pin(self, conversation: ConversationItem) -> None:
+        callback = self.pin_toggle
+        self.hide()
+        if callback is not None:
+            callback(conversation)
+        self.show()
 
     def _selected(self, conversation: ConversationItem) -> None:
         self.hide()

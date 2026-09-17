@@ -122,16 +122,15 @@ class BackgroundPickerTests(unittest.TestCase):
         self.assertEqual(result[0].adapter_key, "generic:myeditor")
         self.assertEqual(action_for_item(result[0]), "Type")
 
-    def test_recent_items_are_shown_before_live_items_without_duplicate_scope(self):
-        recent = PickerItem(10, 20, "Telegram", True, False, "telegram.exe", "telegram", True)
-        duplicate_live = PickerItem(10, 20, "Telegram", True, False, "telegram.exe", "telegram")
+    def test_recent_items_are_shown_after_pinned_items_and_duplicates_are_removed(self):
+        pinned = PickerItem(10, 20, "Telegram", True, False, "telegram.exe", "telegram", False, True)
+        recent = PickerItem(10, 20, "Telegram", True, False, "telegram.exe", "telegram", True, False)
         live = PickerItem(11, 21, "Slack", True, False, "slack.exe", "slack")
-
-        merged = BackgroundAppPicker._merge_items((recent,), (duplicate_live, live))
-
+        merged = BackgroundAppPicker._merge_items((pinned,), (recent,), (live,))
         self.assertEqual([item.label for item in merged], ["Telegram", "Slack"])
-        self.assertTrue(merged[0].recent)
-        self.assertFalse(merged[1].recent)
+        self.assertTrue(merged[0].pinned)
+        self.assertFalse(merged[0].recent)
+        self.assertFalse(merged[1].pinned)
 
 
 if __name__ == "__main__":

@@ -5,8 +5,8 @@ import tkinter as tk
 from .context_overlay import OrbRelayWindow as _ContextOrbRelayWindow
 from .app_adapters import actionable_adapter_for_process
 from .app_targets import target_for_adapter
-from .background_picker import BackgroundAppPicker, PickerItem
-from .background_windows import enumerate_background_windows
+from .background_picker import BackgroundAppPicker, PickerItem, to_picker_items
+from .background_windows import enumerate_background_windows, BackgroundWindow
 from .conversation_picker import ConversationPicker
 from .conversation_rows import ConversationItem, enumerate_conversations, select_conversation
 from .telegram_chats import enumerate_telegram_chats, select_telegram_chat, TelegramChatItem
@@ -15,6 +15,7 @@ from .context import capture
 from .adapter_evidence import evidence_for_adapter
 from .transaction import SendCompletion
 from .recent_targets import RecentTargetHistory
+from .pinned_targets import PinnedTargetStore
 from . import trace
 from . import onboarding
 from .overlay import OrbRelayWindow as _BaseOverlay
@@ -26,6 +27,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
     def __init__(self):
         super().__init__()
         self._recent_targets = RecentTargetHistory()
+        self._pinned_targets = PinnedTargetStore()
         self._background_picker = BackgroundAppPicker(
             self,
             refresh=lambda: enumerate_background_windows(
@@ -34,6 +36,8 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             ),
             on_select=self._select_background_window,
             recent=self._recent_picker_items,
+            pinned=self._pinned_picker_items,
+            pin_toggle=self._toggle_pinned_application,
         )
         self._background_picker.bind(self.orb)
         self._telegram_chat_picker = TelegramChatPicker(
@@ -49,6 +53,8 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             ),
             on_select=self._select_conversation,
             recent=self._recent_conversation_items,
+            pinned=self._pinned_conversation_items,
+            pin_toggle=self._toggle_pinned_conversation,
         )
         self._background_typer = target_for_adapter(None)
         self._generic_attempt_id = 0
@@ -145,6 +151,38 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             )
         return tuple(items)
 
+    def _pinned_picker_items(
+        self,
+        windows: tuple[BackgroundWindow, ...] | list[BackgroundWindow],
+    ) -> tuple[PickerItem, ...]:
+        """Resolve application pins only when exactly one live scope is available."""
+        items = []
+        for pin in self._pinned_targets.items(kind="application"):
+            matches = [
+                item
+                for item in windows
+                if item.process_name.casefold() == pin.process_name
+            ]
+            if len(matches) != 1:
+                continue
+            item = to_picker_items(matches)[0]
+            spec = actionable_adapter_for_process(item.process_name)
+            if spec is None or spec.key != pin.adapter_key or not spec.implemented:
+                continue
+            items.append(
+                PickerItem(
+                    hwnd=item.hwnd,
+                    pid=item.pid,
+                    label=spec.label,
+                    actionable=spec.supports_background_type,
+                    foreground=item.foreground,
+                    process_name=item.process_name,
+                    adapter_key=spec.key,
+                    pinned=True,
+                )
+            )
+        return tuple(items)
+
     def _recent_conversation_items(self) -> tuple[ConversationItem, ...]:
         """Return only fresh conversation rows for the currently selected app."""
         process_name = str(getattr(self, "_background_process_name", "") or "").casefold()
@@ -162,6 +200,48 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
                 continue
             rows.append(conversation)
         return tuple(rows)
+
+    def _pinned_conversation_items(self) -> tuple[ConversationItem, ...]:
+        """Resolve conversation pins only when a unique live row matches exactly."""
+        process_name = str(getattr(self, "_background_process_name", "") or "").casefold()
+        adapter_key = str(getattr(self, "_background_adapter_key", "") or "")
+        if not process_name or not adapter_key:
+            return ()
+        try:
+            live = tuple(enumerate_conversations(
+                self._work_hwnd,
+                limit=ConversationPicker.CATALOG_LIMIT,
+            ) or ())
+        except Exception:
+            return ()
+        rows = []
+        for pin in self._pinned_targets.items(kind="conversation"):
+            if pin.process_name != process_name or pin.adapter_key != adapter_key:
+                continue
+            matches = [item for item in live if item.name == pin.label]
+            if len(matches) == 1:
+                rows.append(matches[0])
+        return tuple(rows)
+
+    def _toggle_pinned_application(self, item: PickerItem) -> None:
+        spec = actionable_adapter_for_process(item.process_name)
+        if spec is None or spec.key != item.adapter_key:
+            return
+        self._pinned_targets.toggle_application(
+            adapter_key=spec.key,
+            process_name=item.process_name,
+            label=spec.label,
+        )
+
+    def _toggle_pinned_conversation(self, conversation: ConversationItem) -> None:
+        spec = actionable_adapter_for_process(self._background_process_name)
+        if spec is None:
+            return
+        self._pinned_targets.toggle_conversation(
+            adapter_key=spec.key,
+            process_name=self._background_process_name,
+            label=conversation.name,
+        )
 
     def _remember_bound_application(self, spec, hwnd: int, pid: int) -> None:
         """Remember only a successfully probed application scope."""
