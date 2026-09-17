@@ -16,6 +16,8 @@ class VerificationContract:
     mode: str
     family: str
     adapter_keys: frozenset[str]
+    target_mode: str
+    submit_mode: str
     allows_verified: bool = True
 
 
@@ -27,31 +29,43 @@ _CONTRACTS = (
         mode="telegram-compose-clear",
         family="chat-compose-clear",
         adapter_keys=frozenset({"telegram"}),
+        target_mode="telegram-compose",
+        submit_mode="telegram-send",
     ),
     VerificationContract(
         mode="whatsapp-compose-clear",
         family="chat-compose-clear",
         adapter_keys=frozenset({"whatsapp"}),
+        target_mode="chat-structured-focus",
+        submit_mode="enter",
     ),
     VerificationContract(
         mode="discord-compose-clear",
         family="chat-compose-clear",
         adapter_keys=frozenset({"discord"}),
+        target_mode="chat-structured-focus",
+        submit_mode="enter",
     ),
     VerificationContract(
         mode="slack-compose-clear",
         family="chat-compose-clear",
         adapter_keys=frozenset({"slack"}),
+        target_mode="chat-structured-focus",
+        submit_mode="enter",
     ),
     VerificationContract(
         mode="teams-compose-clear",
         family="chat-compose-clear",
         adapter_keys=frozenset({"teams"}),
+        target_mode="chat-structured-focus",
+        submit_mode="enter",
     ),
     VerificationContract(
         mode="terminal-input-clear",
         family="terminal-input-clear",
         adapter_keys=frozenset({"terminal", "cmd", "powershell"}),
+        target_mode="terminal-structured-focus",
+        submit_mode="enter",
     ),
 )
 
@@ -74,9 +88,6 @@ def verification_contract(spec) -> Optional[VerificationContract]:
     if contract is None:
         family = _LEGACY_FAMILY_MODES.get(mode)
         if family:
-            # Legacy mode remains usable only for known app keys that belong
-            # to the same family. This preserves compatibility without letting
-            # an arbitrary adapter claim a concrete app contract.
             for candidate in _CONTRACTS:
                 if candidate.family == family and key in candidate.adapter_keys:
                     return candidate
@@ -85,7 +96,7 @@ def verification_contract(spec) -> Optional[VerificationContract]:
 
 
 def registry_validation_errors(adapter_specs) -> tuple[str, ...]:
-    """Validate that every verified adapter is bound to one concrete contract."""
+    """Validate verified adapters against their exact routing contract."""
     errors: list[str] = []
     for spec in adapter_specs:
         mode = str(getattr(spec, "verification_mode", "unverified") or "unverified")
@@ -100,19 +111,40 @@ def registry_validation_errors(adapter_specs) -> tuple[str, ...]:
             continue
         if key not in contract.adapter_keys:
             errors.append(f"verification contract mismatch: {key}/{mode}")
+            continue
+        actual_target_mode = str(getattr(spec, "target_mode", "") or "")
+        actual_submit_mode = str(getattr(spec, "submit_mode", "") or "")
+        if actual_target_mode != contract.target_mode:
+            errors.append(
+                f"verification target contract mismatch: {key}/{actual_target_mode}"
+            )
+        if actual_submit_mode != contract.submit_mode:
+            errors.append(
+                f"verification submit contract mismatch: {key}/{actual_submit_mode}"
+            )
     return tuple(errors)
 
 
 def is_chat_compose_verification(spec) -> bool:
     """Return True only for a concrete chat compose verification contract."""
     contract = verification_contract(spec)
-    return bool(contract and contract.family == "chat-compose-clear")
+    if contract is None or contract.family != "chat-compose-clear":
+        return False
+    return (
+        str(getattr(spec, "target_mode", "") or "") == contract.target_mode
+        and str(getattr(spec, "submit_mode", "") or "") == contract.submit_mode
+    )
 
 
 def is_terminal_input_verification(spec) -> bool:
     """Return True only for the explicit terminal input-clear contract."""
     contract = verification_contract(spec)
-    return bool(contract and contract.family == "terminal-input-clear")
+    if contract is None or contract.family != "terminal-input-clear":
+        return False
+    return (
+        str(getattr(spec, "target_mode", "") or "") == contract.target_mode
+        and str(getattr(spec, "submit_mode", "") or "") == contract.submit_mode
+    )
 
 
 __all__ = [
