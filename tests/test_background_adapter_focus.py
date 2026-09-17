@@ -55,6 +55,27 @@ class BackgroundAdapterFocusTests(unittest.TestCase):
         post_text.assert_called_once_with(401, "background reply")
         post_enter.assert_called_once_with(401, target=401)
 
+    def test_chat_prefers_composer_shaped_control_over_focused_search_field(self):
+        target = ChatComposerTarget(100, 200)
+        focused_search = _Candidate(402, width=120, height=20)
+        composer = _Candidate(403, width=600, height=40)
+        patches = (
+            patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True),
+            patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True),
+            patch("floatingbar.generic_target.winapi.is_minimized", return_value=False),
+            patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200),
+            patch("floatingbar.generic_target.winapi.get_focused_hwnd", return_value=402),
+        )
+        with patches[0], patches[1], patches[2], patches[3], patches[4], \
+             patch.object(target, "input_candidates", return_value=(focused_search, composer)), \
+             patch("floatingbar.generic_target.winapi.post_text") as post_text, \
+             patch("floatingbar.generic_target.winapi.post_enter") as post_enter:
+            result = target.send("background reply")
+
+        self.assertEqual(result, "posted-enter (unverified)")
+        post_text.assert_called_once_with(403, "background reply")
+        post_enter.assert_called_once_with(403, target=403)
+
     def test_terminal_does_not_require_target_to_be_focused(self):
         target = TerminalTypingTarget(100, 200)
         console = _Candidate(402, width=700)
