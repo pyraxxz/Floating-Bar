@@ -96,6 +96,41 @@ class RecentTargetHistory:
         )
         return self._remember(target)
 
+    @staticmethod
+    def _selection_identity_matches(left, right) -> bool:
+        """Return whether two conversation rows describe the same structural target."""
+        if int(getattr(left, "hwnd", 0) or 0) != int(getattr(right, "hwnd", 0) or 0):
+            return False
+        if int(getattr(left, "pid", 0) or 0) != int(getattr(right, "pid", 0) or 0):
+            return False
+        if str(getattr(left, "name", "")) != str(getattr(right, "name", "")):
+            return False
+        left_runtime = getattr(left, "runtime_id", None)
+        right_runtime = getattr(right, "runtime_id", None)
+        if left_runtime is not None or right_runtime is not None:
+            return left_runtime == right_runtime
+        left_control = getattr(left, "control_identity", None)
+        right_control = getattr(right, "control_identity", None)
+        if left_control is not None or right_control is not None:
+            return left_control == right_control
+        return True
+
+    @staticmethod
+    def _fresh_selected_row(conversation):
+        """Use the exact confirmed row cached by the selection layer when it matches the caller."""
+        try:
+            from .conversation_rows import selected_conversation_for_scope
+
+            confirmed = selected_conversation_for_scope(
+                int(conversation.hwnd),
+                int(conversation.pid),
+            )
+        except Exception:
+            return conversation
+        if confirmed is None or not RecentTargetHistory._selection_identity_matches(conversation, confirmed):
+            return conversation
+        return confirmed
+
     def record_conversation(
         self,
         conversation,
@@ -103,7 +138,8 @@ class RecentTargetHistory:
         adapter_key: str,
         process_name: Optional[str] = None,
     ) -> RecentTarget:
-        """Remember a successfully guarded generic conversation target."""
+        """Remember a successfully guarded conversation target using the confirmed row when available."""
+        conversation = self._fresh_selected_row(conversation)
         normalized_process = str(process_name or self._process_name_for_pid(conversation.pid)).casefold()
         target = RecentTarget(
             kind="conversation",
