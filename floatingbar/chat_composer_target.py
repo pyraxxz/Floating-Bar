@@ -83,11 +83,14 @@ class ChatComposerTarget(BackgroundTypingTarget):
         except Exception:
             focused_hwnd = 0
 
+        # Once a composer-shaped candidate exists, non-shaped edits such as a
+        # search/navigation field must not win merely because they have focus.
+        # ``_composer_candidates`` already applies this preference.
         focused = next(
             (candidate for candidate in candidates if candidate.hwnd == focused_hwnd),
             None,
         )
-        if focused is not None and self._is_composer_shaped(focused):
+        if focused is not None:
             return focused.hwnd
 
         preferred = best_input_candidate(candidates)
