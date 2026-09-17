@@ -6,9 +6,15 @@ editable controls exist, a discovered candidate is preferred over an unrelated
 focused field.
 """
 
+import time
+
 from .generic_target import BackgroundTypingTarget
 from .control_candidates import best_input_candidate
 from . import winapi
+
+
+_SETTLE_ATTEMPTS = 3
+_SETTLE_INTERVAL_S = 0.05
 
 
 class TerminalTypingTarget(BackgroundTypingTarget):
@@ -58,6 +64,25 @@ class TerminalTypingTarget(BackgroundTypingTarget):
                 "terminal pinned control is not a discovered editable target"
             )
         return pinned
+
+    def finish_submission_verification(self, target_hwnd: int, state, strategy: str) -> str:
+        """Require short-lived target stability without claiming command acceptance.
+
+        Terminal content is intentionally never read. The strongest safe result
+        remains submitted-but-unverified; the settling window only catches a
+        delayed window/control replacement that an immediate post-send check
+        could miss.
+        """
+        for attempt in range(_SETTLE_ATTEMPTS):
+            try:
+                check = self._post_send_check(target_hwnd)
+            except Exception:
+                return "posted-enter (verification-unavailable)"
+            if not check.healthy:
+                return "posted-enter (verification-unavailable)"
+            if attempt < _SETTLE_ATTEMPTS - 1:
+                time.sleep(_SETTLE_INTERVAL_S)
+        return f"{strategy or 'posted-enter'} (unverified)"
 
 
 __all__ = ["TerminalTypingTarget"]
