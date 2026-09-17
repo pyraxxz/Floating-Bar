@@ -16,7 +16,7 @@ from .control_candidates import (
     best_input_candidate,
     enumerate_input_candidates,
 )
-from .evidence import SubmissionEvidence, from_result
+from .evidence import EvidenceStrategy, SubmissionEvidence, from_result
 from .transaction import TargetScope
 
 
@@ -153,7 +153,11 @@ class BackgroundTypingTarget:
 
     def _record_submission_evidence(self, strategy: str | None, error: str | None = None) -> str | None:
         self._last_submission_evidence = from_result(strategy, error)
-        return strategy
+        if isinstance(strategy, EvidenceStrategy):
+            return strategy
+        if self._last_submission_evidence is None or strategy is None:
+            return strategy
+        return EvidenceStrategy(strategy, self._last_submission_evidence)
 
     def probe(self) -> TargetProbe:
         """Capture structural target state without reading control content."""
