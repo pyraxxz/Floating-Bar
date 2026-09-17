@@ -39,8 +39,10 @@ def to_conversation_picker_rows(
 
 
 class ConversationPicker:
-    WIDTH = 260
+    WIDTH = 280
     ROW_HEIGHT = 30
+    HEADER_HEIGHT = 34
+    FOOTER_HEIGHT = 36
     LIMIT = 6
 
     def __init__(
@@ -48,11 +50,18 @@ class ConversationPicker:
         owner: tk.Misc,
         refresh: Callable[[], Sequence[ConversationItem]],
         on_select: Callable[[ConversationItem], None],
+        title: str = "Conversations",
     ) -> None:
         self.owner = owner
         self.refresh = refresh
         self.on_select = on_select
+        self.title = title
         self.window: Optional[tk.Toplevel] = None
+
+    def set_title(self, title: str) -> None:
+        """Set the content-free application label shown above conversation rows."""
+        cleaned = str(title or "Conversations").strip()
+        self.title = cleaned or "Conversations"
 
     def show(self) -> None:
         self.hide()
@@ -62,6 +71,7 @@ class ConversationPicker:
             return
         if not conversations:
             return
+
         popup = tk.Toplevel(self.owner)
         self.window = popup
         popup.overrideredirect(True)
@@ -73,11 +83,29 @@ class ConversationPicker:
             popup.wm_attributes("-toolwindow", True)
         except Exception:
             pass
+
         x = self.owner.winfo_rootx() + self.owner.winfo_width() + 8
         y = self.owner.winfo_rooty()
-        popup.geometry(f"{self.WIDTH}x{len(conversations) * self.ROW_HEIGHT + 8}+{x}+{y}")
+        height = (
+            self.HEADER_HEIGHT
+            + len(conversations) * self.ROW_HEIGHT
+            + self.FOOTER_HEIGHT
+            + 8
+        )
+        popup.geometry(f"{self.WIDTH}x{height}+{x}+{y}")
+
+        header = tk.Label(
+            popup,
+            text=self.title,
+            anchor="w",
+            bg="#18181b",
+            fg="#a1a1aa",
+            font=("Segoe UI", 8, "bold"),
+        )
+        header.pack(fill="x", padx=8, pady=(6, 0))
+
         frame = tk.Frame(popup, bg="#18181b", bd=0)
-        frame.pack(fill="both", expand=True, padx=4, pady=4)
+        frame.pack(fill="both", expand=True, padx=4, pady=(0, 2))
         for row in to_conversation_picker_rows(conversations):
             button = tk.Button(
                 frame,
@@ -92,6 +120,22 @@ class ConversationPicker:
                 command=lambda item=row.conversation: self._selected(item),
             )
             button.pack(fill="x", ipady=4)
+
+        footer = tk.Frame(popup, bg="#18181b", bd=0)
+        footer.pack(fill="x", padx=4, pady=(0, 4))
+        refresh = tk.Button(
+            footer,
+            text="Refresh",
+            anchor="center",
+            relief="flat",
+            bd=0,
+            bg="#27272a",
+            fg="#d4d4d8",
+            activebackground="#3f3f46",
+            activeforeground="#ffffff",
+            command=self.show,
+        )
+        refresh.pack(fill="x", padx=2, pady=2, ipady=2)
 
     def _selected(self, conversation: ConversationItem) -> None:
         self.hide()
