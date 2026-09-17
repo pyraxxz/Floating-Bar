@@ -36,7 +36,7 @@ class BoundTelegramTarget:
         """Release the transaction binding and its session-only chat confirmation."""
         bound = self._bound_scope
         chat = self._chat_identity
-        if bound is not None and bound.valid:
+        if bound is not None:
             clear_confirmed_telegram_chat_for_scope(bound.hwnd, bound.pid)
         elif chat is not None:
             clear_confirmed_telegram_chat_for_scope(chat.hwnd, chat.pid)
