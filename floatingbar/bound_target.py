@@ -13,6 +13,7 @@ from . import winapi
 from .telegram_chats import (
     TelegramChatItem,
     chat_identity_matches,
+    clear_confirmed_telegram_chat_for_scope,
     confirmed_telegram_chat_for_scope,
 )
 from .target import TelegramNotFound, TelegramTarget
@@ -32,14 +33,20 @@ class BoundTelegramTarget:
         return self._bound_scope
 
     def release(self) -> None:
-        """Release the transaction binding after a send attempt completes."""
+        """Release the transaction binding and its session-only chat confirmation."""
+        bound = self._bound_scope
+        chat = self._chat_identity
+        if bound is not None and bound.valid:
+            clear_confirmed_telegram_chat_for_scope(bound.hwnd, bound.pid)
+        elif chat is not None:
+            clear_confirmed_telegram_chat_for_scope(chat.hwnd, chat.pid)
         self._bound_scope = None
         self._chat_identity = None
 
     def bind_chat_identity(self, chat: Optional[TelegramChatItem]) -> None:
         """Remember the exact confirmed chat row for send-time checks.
 
-        The picker may hand us the row object it displayed before the click.
+        The picker may hand us the row it displayed before the click.
         Prefer the row recorded by ``select_telegram_chat`` after Telegram
         confirmed the background selection, while retaining the caller's row
         when no confirmed row is available.
