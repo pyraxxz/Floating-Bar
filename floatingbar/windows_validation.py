@@ -14,7 +14,7 @@ from dataclasses import dataclass
 import ctypes
 import platform
 import sys
-from typing import Iterable
+from typing import Iterable, Mapping
 
 from .app_adapters import AppAdapterSpec
 from .background_windows import enumerate_background_windows
@@ -31,6 +31,7 @@ class AdapterObservation:
     known_processes: tuple[str, ...]
     open_window_count: int
     observed_processes: tuple[str, ...]
+    observed_versions: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -67,6 +68,7 @@ class WindowsValidationSnapshot:
                     "known_processes": list(item.known_processes),
                     "open_window_count": item.open_window_count,
                     "observed_processes": list(item.observed_processes),
+                    "observed_versions": list(item.observed_versions),
                 }
                 for item in self.adapters
             ],
@@ -119,12 +121,47 @@ def _adapter_specs() -> tuple[AppAdapterSpec, ...]:
     return tuple(_ADAPTERS)
 
 
-def _observe_adapters(processes: Iterable[str]) -> tuple[AdapterObservation, ...]:
+def _process_file_version(path: str) -> str:
+    """Return an executable's file-product version without reading UI content."""
+    if sys.platform != "win32" or not path:
+        return ""
+    try:
+        import win32api
+
+        info = win32api.GetFileVersionInfo(path, "\\")
+        ms = int(info.get("FileVersionMS", 0))
+        ls = int(info.get("FileVersionLS", 0))
+        parts = (
+            (ms >> 16) & 0xFFFF,
+            ms & 0xFFFF,
+            (ls >> 16) & 0xFFFF,
+            ls & 0xFFFF,
+        )
+        return ".".join(str(part) for part in parts)
+    except Exception:
+        return ""
+
+
+def _observe_adapters(
+    processes: Iterable[str],
+    versions: Mapping[str, Iterable[str]] | None = None,
+) -> tuple[AdapterObservation, ...]:
     counts = Counter(str(name).casefold() for name in processes if name)
+    normalized_versions = {
+        str(name).casefold(): tuple(
+            sorted({str(version).strip() for version in values if str(version).strip()})
+        )
+        for name, values in (versions or {}).items()
+    }
     result = []
     for spec in _adapter_specs():
         aliases = tuple(process.casefold() for process in spec.processes)
         matching = tuple(name for name in aliases if counts.get(name, 0) > 0)
+        observed_versions = tuple(
+            version
+            for name in matching
+            for version in normalized_versions.get(name, ())
+        )
         result.append(
             AdapterObservation(
                 key=spec.key,
@@ -132,6 +169,7 @@ def _observe_adapters(processes: Iterable[str]) -> tuple[AdapterObservation, ...
                 known_processes=aliases,
                 open_window_count=sum(counts.get(name, 0) for name in aliases),
                 observed_processes=matching,
+                observed_versions=tuple(dict.fromkeys(observed_versions)),
             )
         )
     return tuple(result)
@@ -143,9 +181,21 @@ def capture_snapshot() -> WindowsValidationSnapshot:
         raise RuntimeError("Windows validation is only supported on Windows")
 
     release, version, service_pack = platform.win32_ver()
+    versions: dict[str, set[str]] = {}
     try:
         windows = enumerate_background_windows(include_minimized=True)
         process_names = tuple(item.process_name for item in windows)
+        for item in windows:
+            image_path = ""
+            try:
+                from . import winapi
+
+                image_path = winapi.get_process_image_name(item.pid)
+            except Exception:
+                pass
+            file_version = _process_file_version(image_path or "")
+            if file_version:
+                versions.setdefault(item.process_name.casefold(), set()).add(file_version)
         observed_window_count = len(windows)
     except Exception:
         process_names = ()
@@ -162,7 +212,7 @@ def capture_snapshot() -> WindowsValidationSnapshot:
         monitor_count=_monitor_count(),
         dpi_awareness=_dpi_awareness(),
         observed_window_count=observed_window_count,
-        adapters=_observe_adapters(process_names),
+        adapters=_observe_adapters(process_names, versions),
     )
 
 
@@ -184,9 +234,10 @@ def format_report(snapshot: WindowsValidationSnapshot) -> str:
     ]
     for adapter in snapshot.adapters:
         observed = ",".join(adapter.observed_processes) or "none"
+        versions = ",".join(adapter.observed_versions) or "unknown"
         lines.append(
             f"    - {adapter.label}: open_window_count={adapter.open_window_count} "
-            f"observed_processes={observed}"
+            f"observed_processes={observed} versions={versions}"
         )
     return "\n".join(lines)
 
