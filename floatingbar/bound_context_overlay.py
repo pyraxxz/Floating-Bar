@@ -48,6 +48,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
                 limit=ConversationPicker.CATALOG_LIMIT,
             ),
             on_select=self._select_conversation,
+            recent=self._recent_conversation_items,
         )
         self._background_typer = target_for_adapter(None)
         self._generic_attempt_id = 0
@@ -143,6 +144,24 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
                 )
             )
         return tuple(items)
+
+    def _recent_conversation_items(self) -> tuple[ConversationItem, ...]:
+        """Return only fresh conversation rows for the currently selected app."""
+        process_name = str(getattr(self, "_background_process_name", "") or "").casefold()
+        adapter_key = str(getattr(self, "_background_adapter_key", "") or "")
+        hwnd = int(getattr(self, "_work_hwnd", 0) or 0)
+        if not process_name or not adapter_key or not hwnd:
+            return ()
+        rows = []
+        for target, conversation in self._recent_targets.live_conversations():
+            if target.adapter_key != adapter_key:
+                continue
+            if target.process_name != process_name:
+                continue
+            if target.scope.hwnd != hwnd or target.scope.pid != conversation.pid:
+                continue
+            rows.append(conversation)
+        return tuple(rows)
 
     def _remember_bound_application(self, spec, hwnd: int, pid: int) -> None:
         """Remember only a successfully probed application scope."""
@@ -240,7 +259,11 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             if not probe.available or probe.candidate_count <= 0 or self._probe_reason(probe) != "ready":
                 raise RuntimeError(self._probe_feedback(probe))
             if spec is not None:
-                self._recent_targets.record_conversation(conversation, adapter_key=spec.key)
+                self._recent_targets.record_conversation(
+                    conversation,
+                    adapter_key=spec.key,
+                    process_name=self._background_process_name,
+                )
             if self._state != "bar":
                 self._show_bar()
         except Exception as exc:

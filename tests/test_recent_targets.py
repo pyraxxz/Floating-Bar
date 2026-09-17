@@ -81,7 +81,7 @@ def test_live_applications_discards_only_stale_app_entries(monkeypatch):
     assert stale not in history.items()
 
 
-def test_recent_conversation_is_structurally_recorded():
+def test_recent_conversation_uses_explicit_process_identity_when_supplied(monkeypatch):
     history = RecentTargetHistory()
     conversation = SimpleNamespace(
         hwnd=55,
@@ -94,12 +94,74 @@ def test_recent_conversation_is_structurally_recorded():
         right=250,
         bottom=52,
     )
-    target = history.record_conversation(conversation, adapter_key="slack")
+    monkeypatch.setattr(
+        history,
+        "_process_name_for_pid",
+        lambda pid: (_ for _ in ()).throw(AssertionError("unexpected pid lookup")),
+    )
+    target = history.record_conversation(
+        conversation,
+        adapter_key="slack",
+        process_name="Slack.exe",
+    )
 
     assert target.kind == "conversation"
     assert target.label == "Project Chat"
+    assert target.process_name == "slack.exe"
     assert target.scope == TargetScope(55, 555)
     assert target.runtime_id == (1, 2, 3)
     assert target.control_identity == ("ListItem", "conversation")
     assert target.left == 10
     assert target.bottom == 52
+
+
+def test_live_conversation_revalidation_removes_replaced_row(monkeypatch):
+    history = RecentTargetHistory()
+    conversation = SimpleNamespace(
+        hwnd=55,
+        pid=555,
+        name="Project Chat",
+        runtime_id=(1, 2, 3),
+        control_identity=("ListItem", "conversation"),
+        left=10,
+        top=20,
+        right=250,
+        bottom=52,
+    )
+    target = history.record_conversation(
+        conversation,
+        adapter_key="slack",
+        process_name="slack.exe",
+    )
+
+    class User32:
+        @staticmethod
+        def IsWindow(hwnd):
+            return hwnd == 55
+
+    monkeypatch.setattr("floatingbar.recent_targets.winapi.user32", User32())
+    monkeypatch.setattr("floatingbar.recent_targets.winapi.get_window_pid", lambda hwnd: 555)
+    monkeypatch.setattr("floatingbar.recent_targets.winapi.get_process_image_name", lambda pid: r"C:\\slack.exe")
+    monkeypatch.setattr(
+        "floatingbar.recent_targets.actionable_adapter_for_process",
+        lambda process: SimpleNamespace(implemented=True, key="slack"),
+    )
+    monkeypatch.setattr(
+        "floatingbar.conversation_rows.enumerate_conversations",
+        lambda hwnd, limit=32: (
+            SimpleNamespace(
+                hwnd=55,
+                pid=555,
+                name="Other Chat",
+                runtime_id=(9, 9),
+                control_identity=("ListItem", "conversation"),
+                left=10,
+                top=20,
+                right=250,
+                bottom=52,
+            ),
+        ),
+    )
+
+    assert history.live_conversations() == ()
+    assert target not in history.items()

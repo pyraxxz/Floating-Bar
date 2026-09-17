@@ -7,10 +7,9 @@ Stale entries are revalidated before they are exposed again.
 """
 
 from dataclasses import dataclass
-from typing import Optional, Sequence
+from typing import Optional
 
 from .app_adapters import actionable_adapter_for_process
-from .background_windows import BackgroundWindow
 from .transaction import TargetScope
 from . import winapi
 
@@ -97,12 +96,19 @@ class RecentTargetHistory:
         )
         return self._remember(target)
 
-    def record_conversation(self, conversation, *, adapter_key: str) -> RecentTarget:
+    def record_conversation(
+        self,
+        conversation,
+        *,
+        adapter_key: str,
+        process_name: Optional[str] = None,
+    ) -> RecentTarget:
         """Remember a successfully guarded generic conversation target."""
+        normalized_process = str(process_name or self._process_name_for_pid(conversation.pid)).casefold()
         target = RecentTarget(
             kind="conversation",
             adapter_key=str(adapter_key),
-            process_name=self._process_name_for_pid(conversation.pid),
+            process_name=normalized_process,
             label=str(getattr(conversation, "name", "Conversation") or "Conversation"),
             scope=TargetScope(int(conversation.hwnd), int(conversation.pid)),
             runtime_id=getattr(conversation, "runtime_id", None),

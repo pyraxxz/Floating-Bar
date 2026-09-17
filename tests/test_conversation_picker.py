@@ -3,6 +3,7 @@ import unittest
 from floatingbar.conversation_attention import AttentionState, ConversationAttention
 from floatingbar.conversation_picker import (
     ConversationPicker,
+    conversation_picker_identity,
     paginate_conversations,
     to_conversation_picker_rows,
 )
@@ -66,6 +67,21 @@ class ConversationPickerRowTests(unittest.TestCase):
         )
         row = to_conversation_picker_rows([item])[0]
         self.assertEqual(row.suffix, "  Needs attention")
+
+    def test_recent_row_gets_recent_label_without_overriding_attention(self):
+        item = _item(1)
+        key = conversation_picker_identity(item)
+        row = to_conversation_picker_rows([item], [key])[0]
+        self.assertTrue(row.recent)
+        self.assertEqual(row.suffix, "  Recent")
+
+    def test_picker_merges_recent_rows_before_live_rows_and_deduplicates(self):
+        recent = _item(1)
+        duplicate = _item(1)
+        live = _item(2)
+        catalog, recent_keys = ConversationPicker._merge_catalog((recent,), (duplicate, live))
+        self.assertEqual([item.name for item in catalog], ["Chat 1", "Chat 2"])
+        self.assertIn(conversation_picker_identity(recent), recent_keys)
 
     def test_picker_title_is_safe_and_reopenable(self):
         picker = ConversationPicker(object(), lambda: (), lambda _item: None)
