@@ -6,10 +6,14 @@ from floatingbar.app_adapters import (
     attention_capability,
     generic_adapter_for_process,
     is_actionable_process,
+    registry_validation_errors,
 )
 
 
 class AppAdapterRegistryTests(unittest.TestCase):
+    def test_registry_has_no_structural_errors(self):
+        self.assertEqual(registry_validation_errors(), ())
+
     def test_process_aliases_resolve_to_same_adapter(self):
         self.assertEqual(adapter_for_process("WT.EXE").key, "terminal")
         self.assertEqual(adapter_for_process("windowsterminal.exe").key, "terminal")
