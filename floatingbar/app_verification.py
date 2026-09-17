@@ -87,7 +87,6 @@ def verification_contract(spec) -> Optional[VerificationContract]:
 def registry_validation_errors(adapter_specs) -> tuple[str, ...]:
     """Validate that every verified adapter is bound to one concrete contract."""
     errors: list[str] = []
-    seen_modes: set[str] = set()
     for spec in adapter_specs:
         mode = str(getattr(spec, "verification_mode", "unverified") or "unverified")
         key = str(getattr(spec, "key", "") or "")
@@ -101,9 +100,6 @@ def registry_validation_errors(adapter_specs) -> tuple[str, ...]:
             continue
         if key not in contract.adapter_keys:
             errors.append(f"verification contract mismatch: {key}/{mode}")
-        if mode in seen_modes:
-            errors.append(f"duplicate verification mode: {mode}")
-        seen_modes.add(mode)
     return tuple(errors)
 
 
