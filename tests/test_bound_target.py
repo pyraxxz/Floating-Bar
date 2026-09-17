@@ -157,6 +157,13 @@ class BoundTargetTests(unittest.TestCase):
         target.release()
         self.assertTrue(target.chat_identity_matches())
 
+    def test_release_clears_confirmed_chat_cache_for_bound_scope(self):
+        target = BoundTelegramTarget(self._inner())
+        target._bound_scope = TargetScope(100, 7)
+        with patch("floatingbar.bound_target.clear_confirmed_telegram_chat_for_scope") as clear:
+            target.release()
+        clear.assert_called_once_with(100, 7)
+
     def test_release_allows_a_fresh_target_selection(self):
         inner = self._inner()
         target = BoundTelegramTarget(inner)
