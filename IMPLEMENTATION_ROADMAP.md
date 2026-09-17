@@ -72,7 +72,8 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Discord `compose-clear` verification using the shared structural chat target
 - [x] Slack `compose-clear` verification using the shared structural chat target
 - [x] Teams `compose-clear` verification using the shared structural chat target
-- [ ] Add app-specific verification implementations for terminal and app-specific chat semantics where shared compose-clear evidence is insufficient
+- [x] Terminal/CMD/PowerShell bounded input-control acceptance verification using value-length growth/clear without reading command content
+- [ ] Add app-specific verification implementations for terminal and app-specific chat semantics where shared contracts are insufficient
 
 ## Phase 2 — Finish the current UX and reliability layer
 
@@ -115,8 +116,10 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Explicit submission mode contract
 - [x] Explicit console-control process coverage across Windows Terminal, Terminal Preview, conhost, and PowerShell Core aliases
 - [x] Fail-closed post-send liveness handling and no automatic retry for unverified outcomes
-- [ ] Verification that proves command acceptance without reading terminal content
+- [x] Bounded input-control acceptance verification through value-length growth followed by clear, without command-content reads
+- [ ] Real Windows validation across Windows Terminal/CMD/PowerShell versions and console-host variants
 - [ ] App/version-specific retry behavior after a genuinely failed terminal send
+- [ ] Semantic command-execution verification that does not depend on terminal content
 
 ### WhatsApp
 
@@ -212,7 +215,8 @@ Every adapter should eventually produce one of:
 - [x] WhatsApp content-free `compose-clear` verification with pre-injection baseline
 - [x] Shared content-free `compose-clear` verification for Discord/Slack/Teams through the structural chat target
 - [x] Explicit fail-closed handling for terminal submission outcomes without claiming command verification
-- [ ] App-specific verification hooks for terminal and chat adapters where shared compose-clear evidence is insufficient
+- [x] Bounded terminal input-control acceptance verification without reading command content
+- [ ] App-specific semantic verification for terminal and chat adapters where shared contracts are insufficient
 - [x] Bounded post-send checks
 - [x] Generic post-send target loss cannot become an automatic retry
 - [x] Generic submit exceptions after text injection cannot become an automatic retry
