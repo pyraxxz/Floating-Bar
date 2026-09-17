@@ -43,6 +43,9 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Telegram sends revalidate the selected chat before preflight when the user stays in the same window
 - [x] Unknown background executables can enter the same generic Type pipeline; structural input discovery remains the final readiness gate
 - [x] Global Ctrl+Alt+Space summon hotkey with silent conflict fallback and clean shutdown
+- [x] Content-free Windows environment validation snapshot
+- [x] Declarative real-Windows smoke matrix covering supported app families and reliability cases
+- [x] Smoke report validation, result summaries, and reproducible desktop-test report generation
 
 ### Completed grouped milestone — Adapter Architecture
 
@@ -78,6 +81,8 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Keep minimized background applications eligible for selection while retaining structural target safety checks
 - [x] Allow unknown background apps to expose a generic Type action before structural target probing
 - [x] Add global keyboard summon without changing foreground-target safety
+- [x] First-run mini-tutorial and clearer no-target/background-target feedback
+- [x] Conversation-picker refresh and pagination for larger chat lists
 
 ## Phase 3 — Real application adapters
 
@@ -92,7 +97,7 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] UIA unread-badge attention detector with fail-closed contract
 - [x] Unread chats surfaced ahead of current/ordinary chats in the short picker
 - [ ] Validate against traces from multiple Telegram Desktop builds
-- [ ] Build real desktop smoke matrix
+- [ ] Build real desktop smoke validation
 
 ### Terminal
 
@@ -210,22 +215,28 @@ Every adapter should eventually produce one of:
 
 ## Phase 7 — Real Windows validation
 
-- [ ] Windows 10 and Windows 11 smoke tests
+- [x] Content-free Windows environment snapshot tooling
+- [x] Declarative smoke matrix covering environment, fidelity, picker, Telegram, chat, terminal, and privacy cases
+- [x] Machine-readable smoke report generation and validation
+- [ ] Windows 10 real desktop smoke tests
+- [ ] Windows 11 real desktop smoke tests
 - [ ] Mixed-DPI/multi-monitor tests
 - [ ] Minimized/background window tests
 - [ ] Multiple-window tests per supported app
 - [ ] App restart/process replacement tests
 - [ ] Unicode/emoji/long-text tests
 - [ ] Repeated-send tests
-- [ ] App-version trace collection
+- [ ] App-version trace collection from real builds
 
 ## Phase 8 — Product release
 
-- [ ] Final supported-application matrix
+- [ ] Final supported-application matrix after real desktop validation
 - [ ] Installation/startup behavior
 - [ ] Packaging and clean upgrade path
-- [ ] User documentation
-- [ ] Troubleshooting guide
+- [x] Core user documentation and troubleshooting guidance
+- [ ] Signed executable and installer packaging
+- [ ] Release update notification
+- [ ] Lightweight settings UI
 - [ ] Meaningful milestone release after real desktop validation
 
 ## Adoption/product track
@@ -233,11 +244,7 @@ Every adapter should eventually produce one of:
 These are productization items that should proceed alongside the reliability work rather than replacing it:
 
 - [x] Global keyboard summon (`Ctrl+Alt+Space`) implemented
-- [ ] First-run mini-tutorial and clearer “no target” feedback
-- [ ] Signed executable and installer packaging
-- [ ] Startup option and clean uninstall path
-- [ ] Release update notification
-- [ ] Lightweight settings UI
+- [x] First-run mini-tutorial and clearer no-target/background-target feedback
 - [ ] Saved snippets / quick replies
 - [ ] Multiple pinned conversation/application targets
 
