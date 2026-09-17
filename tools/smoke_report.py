@@ -80,6 +80,7 @@ def _init(path: Path) -> int:
             total=summary["total"], pending=summary["pending"]
         )
     )
+    print(f"  matrix_fingerprint={report['matrix_fingerprint']}")
     return 0
 
 
@@ -129,6 +130,7 @@ def _validate(path: Path, require_complete: bool) -> int:
         f"fail={summary['fail']} blocked={summary['blocked']} "
         f"pending={summary['pending']}"
     )
+    print(f"  matrix_fingerprint={report['matrix_fingerprint']}")
     if require_complete:
         environment_errors = _release_environment_errors(report)
         if environment_errors:
