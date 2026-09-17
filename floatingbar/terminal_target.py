@@ -14,6 +14,7 @@ is never retained, logged, or compared. A missing ValuePattern remains a safe
 
 import time
 
+from .app_verification import is_terminal_input_verification
 from .generic_target import BackgroundTypingTarget
 from .control_candidates import best_input_candidate
 from . import winapi
@@ -113,8 +114,12 @@ class TerminalTypingTarget(BackgroundTypingTarget):
                 time.sleep(_VERIFY_INTERVAL_S)
         return False if readable else None
 
+    def _supports_terminal_verification(self) -> bool:
+        """Require the exact adapter contract before claiming terminal evidence."""
+        return is_terminal_input_verification(self._adapter_spec)
+
     def prepare_submission_verification(self):
-        if getattr(self._adapter_spec, "verification_mode", "") != "terminal-input-clear":
+        if not self._supports_terminal_verification():
             return None
         scope = self._scope
         if scope is None or not scope.valid:
@@ -127,7 +132,7 @@ class TerminalTypingTarget(BackgroundTypingTarget):
         return baseline if baseline >= 0 else None
 
     def begin_submission_verification(self, target_hwnd: int, state):
-        if getattr(self._adapter_spec, "verification_mode", "") != "terminal-input-clear":
+        if not self._supports_terminal_verification():
             return state
         if state is None:
             return None
@@ -141,7 +146,7 @@ class TerminalTypingTarget(BackgroundTypingTarget):
         return state
 
     def finish_submission_verification(self, target_hwnd: int, state, strategy: str) -> str:
-        if getattr(self._adapter_spec, "verification_mode", "") != "terminal-input-clear":
+        if not self._supports_terminal_verification():
             return strategy
         if state is None:
             return "posted-enter (verification-unavailable)"
