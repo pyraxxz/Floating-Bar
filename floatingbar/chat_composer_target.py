@@ -11,6 +11,7 @@ import time
 from .app_verification import is_chat_compose_verification
 from .generic_target import BackgroundTypingTarget
 from .control_candidates import best_input_candidate
+from .conversation_rows import refresh_conversation, selected_conversation_for_scope
 from .evidence import EvidenceState, EvidenceStrategy, SubmissionEvidence
 from . import winapi
 
@@ -22,6 +23,19 @@ _VERIFY_INTERVAL_S = 0.1
 class ChatComposerTarget(BackgroundTypingTarget):
     """Fail-closed background composer target shared by chat applications."""
 
+    def __init__(self, hwnd: int = 0, pid: int = 0):
+        super().__init__(hwnd, pid)
+        self._conversation_guard = None
+
+    def bind(self, hwnd: int, pid: int, spec=None):
+        scope = super().bind(hwnd, pid, spec=spec)
+        self._conversation_guard = selected_conversation_for_scope(hwnd, pid)
+        return scope
+
+    def release(self) -> None:
+        self._conversation_guard = None
+        super().release()
+
     @staticmethod
     def _is_composer(candidate) -> bool:
         return candidate.control_type in {"Edit", "Document"}
@@ -29,6 +43,24 @@ class ChatComposerTarget(BackgroundTypingTarget):
     @staticmethod
     def _is_composer_shaped(candidate) -> bool:
         return bool(getattr(candidate, "is_likely_composer_shape", False))
+
+    def _conversation_is_still_selected(self) -> bool:
+        """Require the same structurally identified row to remain selected."""
+        item = self._conversation_guard
+        if item is None:
+            return True
+        try:
+            if item.hwnd != self.scope().hwnd or item.pid != self.scope().pid:
+                return False
+            fresh = refresh_conversation(item)
+            return bool(fresh.selected)
+        except Exception:
+            return False
+
+    def available(self) -> bool:
+        if not super().available():
+            return False
+        return self._conversation_is_still_selected()
 
     def _composer_candidates(self):
         candidates = tuple(
