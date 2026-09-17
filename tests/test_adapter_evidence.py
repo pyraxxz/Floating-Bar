@@ -1,4 +1,5 @@
 import unittest
+from types import SimpleNamespace
 
 from floatingbar.adapter_evidence import evidence_for_adapter
 from floatingbar.app_adapters import adapter_for_process
@@ -37,6 +38,20 @@ class AdapterEvidenceTests(unittest.TestCase):
         evidence = evidence_for_adapter(None, strategy="posted-enter (VERIFIED)")
         self.assertEqual(evidence.state, EvidenceState.SUBMITTED)
         self.assertFalse(evidence.confirmed)
+
+    def test_unknown_verification_mode_cannot_upgrade_to_verified(self):
+        spec = SimpleNamespace(key="future-adapter", verification_mode="not-yet-supported")
+        evidence = evidence_for_adapter(spec, strategy="posted-click (VERIFIED)")
+        self.assertEqual(evidence.state, EvidenceState.SUBMITTED)
+        self.assertFalse(evidence.confirmed)
+        self.assertFalse(evidence.retryable)
+
+    def test_unknown_verification_mode_still_preserves_real_failure(self):
+        spec = SimpleNamespace(key="future-adapter", verification_mode="not-yet-supported")
+        evidence = evidence_for_adapter(spec, strategy="posted-click", error="send failed")
+        self.assertEqual(evidence.state, EvidenceState.FAILED)
+        self.assertTrue(evidence.retryable)
+        self.assertEqual(evidence.detail, "send failed")
 
 
 if __name__ == "__main__":
