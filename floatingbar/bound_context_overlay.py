@@ -40,7 +40,10 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         )
         self._conversation_picker = ConversationPicker(
             self,
-            refresh=lambda: enumerate_conversations(self._work_hwnd),
+            refresh=lambda: enumerate_conversations(
+                self._work_hwnd,
+                limit=ConversationPicker.CATALOG_LIMIT,
+            ),
             on_select=self._select_conversation,
         )
         self._background_typer = target_for_adapter(None)
@@ -258,83 +261,52 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
                 self._queue_completion(
                     getattr(request, "attempt_id", 0),
                     None,
-                    "The selected Telegram chat changed before sending, so the draft was stopped safely.",
+                    SendCompletion(
+                        getattr(request, "attempt_id", 0),
+                        "failed",
+                        "Telegram chat context changed before send",
+                    ),
                 )
                 return
             return super()._send_worker_request(request)
-        if not getattr(request, "valid", False):
-            return super()._send_worker_request(request)
-
-        self._generic_attempt_id = request.attempt_id
-        try:
-            scope = self._background_typer.scope()
-            if not self._background_typer.scope_matches(scope.hwnd, scope.pid) or scope.hwnd != request.restore_hwnd:
-                raise RuntimeError("selected background target changed before send")
-            self._background_typer.pin_best_input()
-            strategy = self._background_typer.send(request.text)
-            evidence = evidence_for_adapter(spec, strategy=strategy)
-            self._result_q.put(
+        typer = self._background_typer
+        scope = typer.scope()
+        request_scope = getattr(request, "scope", None)
+        if request_scope is None or scope != request_scope:
+            self._queue_completion(
+                getattr(request, "attempt_id", 0),
+                None,
                 SendCompletion(
-                    attempt_id=request.attempt_id,
-                    strategy=strategy,
-                    error=evidence.detail,
-                    evidence_state=evidence.state,
+                    getattr(request, "attempt_id", 0),
+                    "failed",
+                    "background application context changed before send",
+                ),
+            )
+            return
+        try:
+            result = typer.send(request.text)
+            evidence = evidence_for_adapter(spec, result)
+            self._queue_completion(
+                getattr(request, "attempt_id", 0),
+                None,
+                SendCompletion(
+                    getattr(request, "attempt_id", 0),
+                    "sent" if evidence.accepted else "failed",
+                    evidence.message,
                     evidence=evidence,
-                )
+                ),
             )
         except Exception as exc:
-            self._background_typer.clear_pinned_input()
-            trace.trace(f"background typing failed safely: {exc}")
-            self._result_q.put(
-                SendCompletion.from_result(
-                    attempt_id=request.attempt_id,
-                    error=str(exc),
-                )
+            trace.trace(f"background adapter send failed safely: {exc}")
+            self._queue_completion(
+                getattr(request, "attempt_id", 0),
+                None,
+                SendCompletion(
+                    getattr(request, "attempt_id", 0),
+                    "failed",
+                    str(exc) if str(exc) else "background application send failed",
+                ),
             )
-
-    def _retry_failed_draft(self) -> None:
-        if self._sending or not self._retry_draft:
-            return
-        scope = self._generic_retry_scope
-        if scope is None:
-            return super()._retry_failed_draft()
-        spec = actionable_adapter_for_process(self._generic_retry_process_name)
-        if spec is None or not spec.implemented or not spec.supports_background_type:
-            self._show_feedback("The original background app is no longer supported safely.")
-            return
-        self._background_typer = target_for_adapter(spec)
-        self._background_typer.bind(scope.hwnd, scope.pid)
-        self._bind_adapter_metadata(spec)
-        self._background_process_name = self._generic_retry_process_name
-        self._background_adapter_key = self._generic_retry_adapter_key
-        self._work_hwnd = scope.hwnd
-        self._hide_feedback()
-        self._show_bar()
-        self._set_retry_menu_enabled(True)
-
-    def _send_finished(self, completion):
-        """Use base UI handling for generic attempts, without Telegram release."""
-        if completion.attempt_id != getattr(self, "_generic_attempt_id", 0):
-            return super()._send_finished(completion)
-        retry_scope = None
-        retry_process_name = self._background_process_name
-        retry_adapter_key = self._background_adapter_key
-        try:
-            retry_scope = self._background_typer.scope()
-            _BaseOverlay._send_finished(self, completion)
-            if getattr(self, "_retry_draft", None):
-                self._generic_retry_scope = retry_scope
-                self._generic_retry_process_name = retry_process_name
-                self._generic_retry_adapter_key = retry_adapter_key
-            else:
-                self._generic_retry_scope = None
-                self._generic_retry_process_name = ""
-                self._generic_retry_adapter_key = ""
-        finally:
-            self._generic_attempt_id = 0
-            self._background_typer.release()
-            self._background_process_name = ""
-            self._background_adapter_key = ""
 
 
 __all__ = ["OrbRelayWindow"]
