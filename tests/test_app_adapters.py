@@ -31,7 +31,7 @@ class AppAdapterRegistryTests(unittest.TestCase):
         self.assertEqual(telegram.chat_picker, "telegram")
         self.assertEqual(telegram.target_mode, "telegram-compose")
         self.assertEqual(telegram.submit_mode, "telegram-send")
-        self.assertEqual(telegram.verification_mode, "compose-clear")
+        self.assertEqual(telegram.verification_mode, "telegram-compose-clear")
         self.assertEqual(telegram.conversation_attention_mode, "telegram-badge")
         self.assertEqual(attention_capability(telegram), "telegram-badge")
 
@@ -43,12 +43,12 @@ class AppAdapterRegistryTests(unittest.TestCase):
         self.assertEqual(terminal.conversation_attention_mode, "none")
         self.assertEqual(attention_capability(terminal), "none")
 
-    def test_supported_chat_apps_expose_conversation_picker_and_verification(self):
+    def test_supported_chat_apps_expose_distinct_verification_contracts(self):
         expected_verification = {
-            "whatsapp.exe": "compose-clear",
-            "discord.exe": "compose-clear",
-            "slack.exe": "compose-clear",
-            "teams.exe": "compose-clear",
+            "whatsapp.exe": "whatsapp-compose-clear",
+            "discord.exe": "discord-compose-clear",
+            "slack.exe": "slack-compose-clear",
+            "teams.exe": "teams-compose-clear",
         }
         for process_name, expected_mode in expected_verification.items():
             spec = adapter_for_process(process_name)
