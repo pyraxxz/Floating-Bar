@@ -116,7 +116,7 @@ class TelegramChatPickerTests(unittest.TestCase):
         selected = TelegramChatItem(100, 200, "Alice", 110, 210, 310, 270, True, (1, 1), ("ListItem", "alice", "row", "uia"))
         with patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
-             patch("floatingbar.telegram_chats.enumerate_telegram_chats", side_effect=[refreshed, selected]) as enumerate_rows, \
+             patch("floatingbar.telegram_chats.enumerate_telegram_chats", side_effect=[(refreshed,), (selected,)]) as enumerate_rows, \
              patch("floatingbar.telegram_chats._screen_to_client", return_value=(120, 140)) as to_client, \
              patch("floatingbar.telegram_chats.winapi.post_click") as post_click:
             result = select_telegram_chat(chat)
@@ -135,7 +135,7 @@ class TelegramChatPickerTests(unittest.TestCase):
         selected = TelegramChatItem(100, 200, "Alice", 110, 210, 310, 270, True, (1, 1), ("ListItem", "alice", "row", "uia"))
         with patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
-             patch("floatingbar.telegram_chats.enumerate_telegram_chats", side_effect=[waiting, waiting, selected]), \
+             patch("floatingbar.telegram_chats.enumerate_telegram_chats", side_effect=[(waiting,), (waiting,), (selected,)]) as enumerate_rows, \
              patch("floatingbar.telegram_chats._screen_to_client", return_value=(120, 140)), \
              patch("floatingbar.telegram_chats.time.sleep") as sleep, \
              patch("floatingbar.telegram_chats.winapi.post_click") as post_click:
@@ -143,13 +143,14 @@ class TelegramChatPickerTests(unittest.TestCase):
         self.assertEqual(result, selected)
         post_click.assert_called_once_with(100, 265, 235)
         self.assertEqual(sleep.call_count, 1)
+        self.assertEqual(enumerate_rows.call_count, 3)
 
     def test_select_chat_rejects_click_that_never_becomes_selected(self):
         chat = TelegramChatItem(100, 200, "Alice", 100, 200, 300, 260, False, (1, 1), ("ListItem", "alice", "row", "uia"))
         waiting = TelegramChatItem(100, 200, "Alice", 110, 210, 310, 270, False, (1, 1), ("ListItem", "alice", "row", "uia"))
         with patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
-             patch("floatingbar.telegram_chats.enumerate_telegram_chats", side_effect=[waiting] * 6), \
+             patch("floatingbar.telegram_chats.enumerate_telegram_chats", side_effect=[(waiting,)] * 6), \
              patch("floatingbar.telegram_chats._screen_to_client", return_value=(120, 140)), \
              patch("floatingbar.telegram_chats.time.sleep") as sleep, \
              patch("floatingbar.telegram_chats.winapi.post_click") as post_click:
@@ -157,6 +158,7 @@ class TelegramChatPickerTests(unittest.TestCase):
                 select_telegram_chat(chat)
         post_click.assert_called_once_with(100, 265, 235)
         self.assertEqual(sleep.call_count, 4)
+        self.assertEqual(enumerate_telegram_chats.__name__, "enumerate_telegram_chats")
 
     def test_select_chat_rejects_runtime_identity_change(self):
         chat = TelegramChatItem(100, 200, "Alice", 100, 200, 300, 260, False, (1, 2))
