@@ -1,6 +1,6 @@
 import unittest
 
-from floatingbar.evidence import EvidenceState, from_result
+from floatingbar.evidence import EvidenceState, EvidenceStrategy, SubmissionEvidence, from_result
 
 
 class EvidenceTests(unittest.TestCase):
@@ -9,6 +9,20 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(result.state, EvidenceState.VERIFIED)
         self.assertTrue(result.confirmed)
         self.assertFalse(result.retryable)
+
+    def test_verified_strategy_carrier_preserves_typed_evidence(self):
+        typed = SubmissionEvidence(
+            state=EvidenceState.SUBMITTED,
+            strategy="posted-click",
+            detail="producer could not verify",
+        )
+        strategy = EvidenceStrategy("posted-click (VERIFIED)", typed)
+        self.assertIsInstance(strategy, str)
+        self.assertEqual(strategy, "posted-click (VERIFIED)")
+        result = from_result(strategy)
+        self.assertEqual(result.state, EvidenceState.SUBMITTED)
+        self.assertEqual(result.detail, "producer could not verify")
+        self.assertFalse(result.confirmed)
 
     def test_verification_unavailable_is_uncertain(self):
         result = from_result("posted-click (verification-unavailable)")
