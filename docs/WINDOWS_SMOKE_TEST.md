@@ -33,13 +33,15 @@ After performing the tests, edit only the result metadata you need and validate 
 python tools/smoke_report.py --validate smoke-report.json
 ```
 
-Use `--require-complete` for the release gate; it fails until every case is resolved to PASS, FAIL, or BLOCKED:
+Use `--require-complete` for the release gate; it fails until every case is resolved to PASS, FAIL, or BLOCKED and the report contains a complete Windows environment snapshot:
 
 ```powershell
 python tools/smoke_report.py --validate smoke-report.json --require-complete
 ```
 
-The validator checks the schema, duplicate/missing case IDs, result values, and completion state. Keep notes content-free; use short failure reasons such as `compose-not-found`, `target-replaced`, `uipi-blocked`, or `coordinate-offset` rather than copying private UI content.
+For a milestone release, commit the completed `smoke-report.json` into the exact release source before creating the version tag. The release workflow requires that file and runs the same `--require-complete` gate before packaging or publishing the Windows executable. This keeps the downloadable build tied to a recorded real-Windows acceptance result instead of treating unit-test success as desktop validation.
+
+The validator checks the schema, duplicate/missing case IDs, result values, completion state, and the required Windows environment fields. Keep notes content-free; use short failure reasons such as `compose-not-found`, `target-replaced`, `uipi-blocked`, or `coordinate-offset` rather than copying private UI content.
 
 ## 1. Clean launch and idle behavior
 
@@ -179,7 +181,7 @@ Expected: failed text is recoverable, retry is explicit, no automatic duplicate 
 4. Type and submit a harmless command.
 5. Repeat with focus in a different terminal control where the UI exposes more than one candidate.
 
-Expected: the structurally discovered console input is selected and exact HWND/PID binding is preserved. Current terminal outcomes remain conservative when command acceptance cannot be proven without reading terminal content.
+Expected: the structurally discovered console input is selected and exact HWND/PID binding is preserved. The new terminal `terminal-input-clear` contract can verify the exact pinned input control only when its value is observed to grow after injection and clear after Enter; it does not read or log the command text. When that evidence is unavailable or the field does not clear, the result remains conservative and is never treated as a retryable failure.
 
 ## 15. Generic unknown application
 
@@ -244,5 +246,7 @@ Expected: identifiers, geometry, states, evidence scores, and booleans may be pr
 ## 21. Release-candidate gate
 
 Before a milestone release, the applicable cases in the smoke report must all be PASS or explicitly BLOCKED with a documented reason. Any FAIL remains release-blocking until addressed.
+
+The release source must include the completed `smoke-report.json`; the release workflow validates it with `python tools/smoke_report.py --validate smoke-report.json --require-complete` before installing release dependencies or building the executable. The report's environment snapshot must identify Windows and include the core runtime fields.
 
 The repository's automated Windows CI must also be green: source compilation, the full unittest suite, and the PyInstaller executable build must all pass before tagging a release.
