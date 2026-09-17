@@ -157,8 +157,9 @@ def validate_report(report: Mapping[str, object]) -> tuple[str, ...]:
     if not isinstance(raw_cases, list):
         return tuple(errors) + ("cases must be a list",)
 
-    expected = set(case_ids())
+    expected_cases = {case.case_id: case for case in default_cases()}
     seen = set()
+    immutable_fields = ("area", "title", "apps", "priority", "destructive")
     for item in raw_cases:
         if not isinstance(item, Mapping):
             errors.append("case entry must be an object")
@@ -170,13 +171,23 @@ def validate_report(report: Mapping[str, object]) -> tuple[str, ...]:
         if case_id in seen:
             errors.append(f"duplicate case_id: {case_id}")
         seen.add(case_id)
-        if case_id not in expected:
+        expected_case = expected_cases.get(case_id)
+        if expected_case is None:
             errors.append(f"unknown case_id: {case_id}")
+            continue
+        for field in immutable_fields:
+            expected_value = getattr(expected_case, field)
+            actual_value = item.get(field)
+            if field == "apps":
+                actual_value = tuple(actual_value) if isinstance(actual_value, (list, tuple)) else actual_value
+                expected_value = tuple(expected_value)
+            if actual_value != expected_value:
+                errors.append(f"case definition mismatch for {case_id}: {field}")
         result = str(item.get("result", RESULT_PENDING))
         if result not in RESULTS:
             errors.append(f"invalid result for {case_id}: {result}")
 
-    missing = sorted(expected - seen)
+    missing = sorted(set(expected_cases) - seen)
     errors.extend(f"missing case_id: {case_id}" for case_id in missing)
     return tuple(errors)
 
