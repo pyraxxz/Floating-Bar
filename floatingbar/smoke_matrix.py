@@ -136,9 +136,15 @@ def build_report(
 
 def validate_report(report: Mapping[str, object]) -> tuple[str, ...]:
     """Return stable validation errors for a manually edited smoke report."""
-    errors = []
-    if int(report.get("schema_version", -1)) != SCHEMA_VERSION:
-        errors.append("unsupported schema_version")
+    errors: list[str] = []
+    raw_schema = report.get("schema_version", -1)
+    try:
+        schema_version = int(raw_schema)
+    except (TypeError, ValueError):
+        errors.append("invalid schema_version")
+    else:
+        if schema_version != SCHEMA_VERSION:
+            errors.append("unsupported schema_version")
 
     expected_fingerprint = matrix_fingerprint()
     actual_fingerprint = str(report.get("matrix_fingerprint", "")).strip()
