@@ -8,11 +8,17 @@ from floatingbar.evidence import EvidenceState
 
 class AdapterEvidenceTests(unittest.TestCase):
     def test_unverified_adapter_cannot_upgrade_to_verified(self):
-        spec = adapter_for_process("terminal.exe")
+        spec = adapter_for_process("my-editor.exe")
         evidence = evidence_for_adapter(spec, strategy="posted-enter (VERIFIED)")
         self.assertEqual(evidence.state, EvidenceState.SUBMITTED)
         self.assertFalse(evidence.confirmed)
         self.assertTrue(evidence.uncertain)
+
+    def test_terminal_input_clear_contract_allows_verified_evidence(self):
+        spec = adapter_for_process("terminal.exe")
+        evidence = evidence_for_adapter(spec, strategy="posted-enter (VERIFIED)")
+        self.assertEqual(evidence.state, EvidenceState.VERIFIED)
+        self.assertTrue(evidence.confirmed)
 
     def test_telegram_compose_clear_allows_verified_evidence(self):
         spec = adapter_for_process("telegram.exe")
