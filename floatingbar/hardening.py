@@ -12,6 +12,7 @@ import config
 from . import clipboard_guard
 from . import trace
 from . import winapi
+from .evidence import SubmissionEvidence, from_result
 from .injector import InjectionFailed, TelegramInjector, _combo
 from .transaction import candidate_parts
 
@@ -33,6 +34,26 @@ def _is_explicit_send_name(name: str) -> bool:
 
 class HardenedTelegramInjector(TelegramInjector):
     """Production reliability layer over the established cascade."""
+
+    def __init__(self, target):
+        super().__init__(target)
+        self._last_submission_evidence: SubmissionEvidence | None = None
+
+    @property
+    def last_submission_evidence(self) -> SubmissionEvidence | None:
+        """Return typed evidence produced by the most recent Telegram send."""
+        return self._last_submission_evidence
+
+    def send(self, *args, **kwargs):
+        """Preserve the legacy strategy return while retaining typed evidence."""
+        self._last_submission_evidence = None
+        try:
+            strategy = super().send(*args, **kwargs)
+        except Exception as exc:
+            self._last_submission_evidence = from_result(None, str(exc))
+            raise
+        self._last_submission_evidence = from_result(strategy)
+        return strategy
 
     def _assert_target_scope(self, hwnd: int, stage: str) -> None:
         """Refuse to continue if Telegram's top-level target changed mid-send."""
