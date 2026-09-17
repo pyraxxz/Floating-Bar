@@ -31,6 +31,7 @@ class PickerItem:
     foreground: bool
     process_name: str = ""
     adapter_key: str = ""
+    recent: bool = False
 
 
 @dataclass
@@ -131,16 +132,21 @@ class BackgroundAppPicker:
     ACTION_GRACE_MS = 220
     WIDTH = 210
     ROW_HEIGHT = 30
+    SECTION_HEIGHT = 22
+    MAX_RECENT = 2
+    MAX_VISIBLE = 6
 
     def __init__(
         self,
         owner: tk.Misc,
         refresh: Callable[[], Sequence[BackgroundWindow]],
         on_select: Callable[[PickerItem], None],
+        recent: Optional[Callable[[], Sequence[PickerItem]]] = None,
     ) -> None:
         self.owner = owner
         self.refresh = refresh
         self.on_select = on_select
+        self.recent = recent or (lambda: ())
         self.window: Optional[tk.Toplevel] = None
         self._show_job = None
         self._hide_job = None
@@ -204,6 +210,24 @@ class BackgroundAppPicker:
                 pass
             self._hide_job = None
 
+    @staticmethod
+    def _merge_items(
+        recent_items: Sequence[PickerItem],
+        live_items: Sequence[PickerItem],
+    ) -> tuple[PickerItem, ...]:
+        live_scopes = {(item.hwnd, item.pid) for item in live_items}
+        recent = []
+        seen = set()
+        for item in recent_items:
+            key = (item.hwnd, item.pid)
+            if not item.actionable or key in live_scopes or key in seen:
+                continue
+            seen.add(key)
+            recent.append(item)
+            if len(recent) >= BackgroundAppPicker.MAX_RECENT:
+                break
+        return tuple(recent) + tuple(live_items[: max(0, BackgroundAppPicker.MAX_VISIBLE - len(recent))])
+
     def show(self) -> None:
         self._show_job = None
         if not self._hover.owner:
@@ -212,7 +236,12 @@ class BackgroundAppPicker:
             windows = self.refresh()
         except Exception:
             windows = ()
-        items = to_picker_items(windows)
+        live_items = to_picker_items(windows)
+        try:
+            recent_items = tuple(self.recent() or ())
+        except Exception:
+            recent_items = ()
+        items = self._merge_items(recent_items, live_items)
         if not items:
             self.hide()
             return
@@ -231,15 +260,31 @@ class BackgroundAppPicker:
 
         x = self.owner.winfo_rootx() + self.owner.winfo_width() + 8
         y = self.owner.winfo_rooty()
-        visible_items = items[:6]
-        height = len(visible_items) * self.ROW_HEIGHT + 8
+        recent_count = sum(1 for item in items if item.recent)
+        live_count = len(items) - recent_count
+        sections = int(recent_count > 0) + int(recent_count > 0 and live_count > 0)
+        height = len(items) * self.ROW_HEIGHT + sections * self.SECTION_HEIGHT + 8
         popup.geometry(f"{self.WIDTH}x{height}+{x}+{y}")
         popup.bind("<Enter>", self._popup_enter, add="+")
         popup.bind("<Leave>", self._popup_leave, add="+")
 
         frame = tk.Frame(popup, bg="#18181b", bd=0)
         frame.pack(fill="both", expand=True, padx=4, pady=4)
-        for item in visible_items:
+        current_section = None
+        for item in items:
+            section = "Recent" if item.recent else "Open apps"
+            if section != current_section:
+                if current_section is not None:
+                    tk.Frame(frame, bg="#27272a", height=1).pack(fill="x", pady=2)
+                tk.Label(
+                    frame,
+                    text=section,
+                    anchor="w",
+                    bg="#18181b",
+                    fg="#71717a",
+                    font=("Segoe UI", 8, "bold"),
+                ).pack(fill="x", padx=4, pady=(1, 2))
+                current_section = section
             state = "normal" if item.actionable else "disabled"
             suffix = "  " + action_for_item(item)
             button = tk.Button(
@@ -346,4 +391,10 @@ class BackgroundAppPicker:
                 pass
 
 
-__all__ = ["BackgroundAppPicker", "HoverState", "PickerItem", "action_for_item", "to_picker_items"]
+__all__ = [
+    "BackgroundAppPicker",
+    "HoverState",
+    "PickerItem",
+    "action_for_item",
+    "to_picker_items",
+]
