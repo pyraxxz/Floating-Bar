@@ -23,7 +23,7 @@ The current implementation includes:
 * persistent user-authored **Quick replies** that insert a draft but never auto-send it;
 * a global `Ctrl+Alt+Space` summon hotkey;
 * a first-run mini-tutorial and content-free background-target feedback;
-* machine-readable Windows smoke-test tooling and a 29-case declarative desktop smoke matrix.
+* machine-readable Windows smoke-test tooling and a 33-case declarative desktop smoke matrix.
 
 Pins and quick replies are intentionally separate from background-app discovery: no HWND/PID/runtime identifiers are persisted for pins, and quick-reply text is stored only because the user explicitly saved it.
 
@@ -92,8 +92,6 @@ Unknown `.exe` applications receive a conservative generic **Type** action. The 
 
 When a pin is ambiguous — for example, more than one live window matches the same executable identity — it is suppressed instead of guessing.
 
----
-
 ## Quick replies
 
 Quick replies are explicitly user-authored local snippets. From the orb's right-click menu, choose **Quick replies** to insert a saved reply into the active input bar, or choose **Manage quick replies** to create, edit, use, or delete entries.
@@ -121,7 +119,7 @@ Telegram remains the most deeply hardened adapter. Sending is designed to avoid 
 11. When the compose is verifiably holding the text, submit through a scored Send-button/Enter cascade with strict voice/mic rejection. Candidate evidence combines explicit `Send` naming, automation IDs, InvokePattern availability, compose-row alignment, position relative to the compose, and reasonable button geometry.
 12. Submission verification is bounded and asynchronous: a send click is allowed time to clear the compose before it is classified as a failure, reducing false failures and avoiding unnecessary duplicate fallback sends.
 13. When the landing cannot be verified, only an explicitly named `Send` button can be clicked. Ambiguous controls are rejected; posted Enter combinations are the fallback.
-14. The injector result is converted to typed submission evidence before UI presentation. The UI does not infer confirmation by parsing strategy-name substrings.
+14. The injector result is converted into typed submission evidence before UI presentation. The UI does not infer confirmation by parsing strategy-name substrings.
 15. Text is converted into UTF-16LE code units before posting `WM_CHAR`, preserving surrogate pairs for emoji and other astral Unicode characters.
 16. Each UI send attempt carries a monotonic attempt ID. A result from an older worker is ignored if a newer attempt is already active.
 17. Message text is not trimmed before injection. Intentional leading or trailing whitespace is preserved; only whitespace-only submissions are skipped.
