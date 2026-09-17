@@ -2,6 +2,7 @@ import unittest
 from types import SimpleNamespace
 
 from floatingbar.background_picker import (
+    BackgroundAppPicker,
     HoverState,
     PickerItem,
     action_for_item,
@@ -120,6 +121,17 @@ class BackgroundPickerTests(unittest.TestCase):
         self.assertTrue(result[0].actionable)
         self.assertEqual(result[0].adapter_key, "generic:myeditor")
         self.assertEqual(action_for_item(result[0]), "Type")
+
+    def test_recent_items_are_shown_before_live_items_without_duplicate_scope(self):
+        recent = PickerItem(10, 20, "Telegram", True, False, "telegram.exe", "telegram", True)
+        duplicate_live = PickerItem(10, 20, "Telegram", True, False, "telegram.exe", "telegram")
+        live = PickerItem(11, 21, "Slack", True, False, "slack.exe", "slack")
+
+        merged = BackgroundAppPicker._merge_items((recent,), (duplicate_live, live))
+
+        self.assertEqual([item.label for item in merged], ["Telegram", "Slack"])
+        self.assertTrue(merged[0].recent)
+        self.assertFalse(merged[1].recent)
 
 
 if __name__ == "__main__":
