@@ -106,6 +106,46 @@ class RecentTargetHistoryTests(unittest.TestCase):
         self.assertEqual(target.left, 10)
         self.assertEqual(target.bottom, 52)
 
+    def test_recent_conversation_prefers_matching_confirmed_row_geometry(self):
+        history = RecentTargetHistory()
+        requested = SimpleNamespace(
+            hwnd=55,
+            pid=555,
+            name="Project Chat",
+            runtime_id=(1, 2, 3),
+            control_identity=("ListItem", "conversation"),
+            left=10,
+            top=20,
+            right=250,
+            bottom=52,
+        )
+        confirmed = SimpleNamespace(
+            hwnd=55,
+            pid=555,
+            name="Project Chat",
+            runtime_id=(1, 2, 3),
+            control_identity=("ListItem", "conversation"),
+            left=14,
+            top=24,
+            right=254,
+            bottom=56,
+            selected=True,
+        )
+        with patch(
+            "floatingbar.conversation_rows.selected_conversation_for_scope",
+            return_value=confirmed,
+        ):
+            target = history.record_conversation(
+                requested,
+                adapter_key="slack",
+                process_name="slack.exe",
+            )
+        self.assertEqual(target.left, 14)
+        self.assertEqual(target.top, 24)
+        self.assertEqual(target.right, 254)
+        self.assertEqual(target.bottom, 56)
+        self.assertEqual(target.runtime_id, (1, 2, 3))
+
     def test_live_conversation_revalidation_removes_replaced_row(self):
         history = RecentTargetHistory()
         conversation = SimpleNamespace(
