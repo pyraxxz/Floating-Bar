@@ -58,6 +58,21 @@ def _init(path: Path) -> int:
     return 0
 
 
+def _release_environment_errors(report: dict) -> tuple[str, ...]:
+    """Return release-gate errors for the required real-Windows snapshot."""
+    environment = report.get("environment")
+    if not isinstance(environment, dict):
+        return ("environment snapshot is missing",)
+    platform_name = str(environment.get("platform", "")).strip().casefold()
+    if platform_name != "windows":
+        return ("environment snapshot is not a Windows validation snapshot",)
+    required_fields = ("windows_release", "windows_version", "architecture", "python_version")
+    missing = tuple(field for field in required_fields if not str(environment.get(field, "")).strip())
+    if missing:
+        return tuple(f"environment snapshot missing field: {field}" for field in missing)
+    return ()
+
+
 def _validate(path: Path, require_complete: bool) -> int:
     report = _load(path)
     errors = validate_report(report)
@@ -74,6 +89,13 @@ def _validate(path: Path, require_complete: bool) -> int:
         f"fail={summary['fail']} blocked={summary['blocked']} "
         f"pending={summary['pending']}"
     )
+    if require_complete:
+        environment_errors = _release_environment_errors(report)
+        if environment_errors:
+            print("Release gate: BLOCKED — required Windows environment snapshot is incomplete:")
+            for error in environment_errors:
+                print(f"  - {error}")
+            return 5
     if require_complete and summary["pending"]:
         print("Release gate: BLOCKED — unresolved smoke cases remain:")
         for case_id in pending_case_ids(report):
@@ -95,7 +117,7 @@ def main() -> int:
     parser.add_argument(
         "--require-complete",
         action="store_true",
-        help="treat pending cases or failures as a release-gate failure",
+        help="treat pending cases, failures, or an incomplete Windows snapshot as a release-gate failure",
     )
     args = parser.parse_args()
 
