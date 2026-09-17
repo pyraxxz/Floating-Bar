@@ -12,6 +12,8 @@ import hashlib
 import json
 from typing import Iterable, Mapping
 
+from .app_adapters import registry_validation_errors
+
 
 SCHEMA_VERSION = 2
 
@@ -137,6 +139,9 @@ def build_report(
 def validate_report(report: Mapping[str, object]) -> tuple[str, ...]:
     """Return stable validation errors for a manually edited smoke report."""
     errors: list[str] = []
+    registry_errors = registry_validation_errors()
+    errors.extend(f"adapter registry: {error}" for error in registry_errors)
+
     raw_schema = report.get("schema_version", -1)
     try:
         schema_version = int(raw_schema)
