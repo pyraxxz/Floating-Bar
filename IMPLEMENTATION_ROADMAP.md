@@ -46,6 +46,9 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Content-free Windows environment validation snapshot
 - [x] Declarative real-Windows smoke matrix covering supported app families and reliability cases
 - [x] Smoke report validation, result summaries, and reproducible desktop-test report generation
+- [x] Session-only recent application targets with exact HWND/PID revalidation
+- [x] Session-only recent conversation targets with runtime/structural row revalidation
+- [x] Persistent pinned application/conversation targets with content-free stored identity and live-scope validation
 
 ### Completed grouped milestone — Adapter Architecture
 
@@ -246,7 +249,7 @@ These are productization items that should proceed alongside the reliability wor
 - [x] Global keyboard summon (`Ctrl+Alt+Space`) implemented
 - [x] First-run mini-tutorial and clearer no-target/background-target feedback
 - [ ] Saved snippets / quick replies
-- [ ] Multiple pinned conversation/application targets
+- [x] Multiple pinned conversation/application targets
 
 ## Working rule
 
