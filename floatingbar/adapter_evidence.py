@@ -48,11 +48,12 @@ def evidence_for_adapter(
         else:
             # Unknown or unsupported verification modes fail closed to
             # submitted-but-unverified rather than allowing an accidental
-            # VERIFIED result.
+            # VERIFIED result. Preserve trusted producer metadata so the
+            # adapter cannot silently erase why the producer downgraded it.
             result = SubmissionEvidence(
                 state=EvidenceState.SUBMITTED,
                 strategy=raw.strategy or strategy,
-                detail="adapter verification contract does not prove submission",
+                detail=raw.detail or "adapter verification contract does not prove submission",
                 retryable=False,
             )
 
