@@ -15,6 +15,7 @@ from .context import capture
 from .adapter_evidence import evidence_for_adapter
 from .transaction import SendCompletion
 from . import trace
+from . import onboarding
 from .overlay import OrbRelayWindow as _BaseOverlay
 
 
@@ -59,6 +60,14 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             font=("Segoe UI", 8, "bold"),
             anchor="w",
         )
+        self._onboarding_job = self.after(250, self._show_onboarding_once)
+
+    def _show_onboarding_once(self) -> None:
+        self._onboarding_job = None
+        try:
+            onboarding.show(self)
+        except Exception as exc:
+            trace.trace(f"first-run guide could not be shown safely: {exc}")
 
     def _show_bar(self):
         super()._show_bar()
