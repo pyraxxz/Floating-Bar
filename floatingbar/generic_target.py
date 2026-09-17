@@ -55,6 +55,9 @@ class BackgroundTypingTarget:
 
     def __init__(self, hwnd: int = 0, pid: int = 0):
         self._scope = TargetScope(hwnd, pid) if hwnd and pid else None
+        # A constructor-created target predates an explicit bind operation. Keep
+        # the legacy state until bind() can perform an immediate HWND/PID check.
+        self._bind_verified = True
         self._pinned_hwnd = 0
         self._pinned_identity = None
         self._adapter_spec = None
@@ -65,10 +68,24 @@ class BackgroundTypingTarget:
         scope = TargetScope(hwnd, pid)
         self._scope = scope
         self._adapter_spec = spec
+        self._bind_verified = self._verify_bound_scope(scope)
         self.clear_pinned_input()
         self._last_post_send_check = None
         self._last_submission_evidence = None
         return scope
+
+    @staticmethod
+    def _verify_bound_scope(scope: TargetScope) -> bool:
+        """Check exact HWND/PID liveness without requiring the window to be visible."""
+        if not scope.valid:
+            return False
+        try:
+            if not winapi.user32.IsWindow(scope.hwnd):
+                return False
+            return winapi.get_window_pid(scope.hwnd) == scope.pid
+        except Exception as exc:
+            trace.trace(f"background bind liveness check failed safely: {exc}")
+            return False
 
     def bind_adapter(self, spec) -> None:
         self._adapter_spec = spec
@@ -76,6 +93,7 @@ class BackgroundTypingTarget:
     def release(self) -> None:
         self._scope = None
         self._adapter_spec = None
+        self._bind_verified = False
         self._last_post_send_check = None
         self._last_submission_evidence = None
         self.clear_pinned_input()
@@ -87,7 +105,13 @@ class BackgroundTypingTarget:
 
     def scope_matches(self, hwnd: int, pid: int) -> bool:
         scope = self._scope
-        return bool(scope and scope.hwnd == hwnd and scope.pid == pid and self.available())
+        return bool(
+            self._bind_verified
+            and scope
+            and scope.hwnd == hwnd
+            and scope.pid == pid
+            and self.available()
+        )
 
     def available(self) -> bool:
         scope = self._scope
