@@ -143,6 +143,36 @@ class ConversationRowTests(unittest.TestCase):
 
         post_click.assert_called_once_with(123, 220, 134)
 
+    def test_selection_waits_for_selected_state_after_background_click(self):
+        item = ConversationItem(123, 200, "Alice", 20, 100, 420, 160, False, (1, 10), ("ListItem", "alice", "row", "uia"))
+        waiting = ConversationItem(123, 200, "Alice", 24, 104, 424, 164, False, (1, 10), ("ListItem", "alice", "row", "uia"))
+        selected = ConversationItem(123, 200, "Alice", 24, 104, 424, 164, True, (1, 10), ("ListItem", "alice", "row", "uia"))
+        with patch("floatingbar.conversation_rows.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.conversation_rows.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.conversation_rows.refresh_conversation", side_effect=[waiting, waiting, selected]), \
+             patch("floatingbar.conversation_rows._screen_to_client", return_value=(220, 134)), \
+             patch("floatingbar.conversation_rows.time.sleep") as sleep, \
+             patch("floatingbar.conversation_rows.winapi.post_click") as post_click:
+            select_conversation(item)
+
+        post_click.assert_called_once_with(123, 220, 134)
+        self.assertEqual(sleep.call_count, 1)
+
+    def test_selection_rejects_click_that_never_becomes_selected(self):
+        item = ConversationItem(123, 200, "Alice", 20, 100, 420, 160, False, (1, 10), ("ListItem", "alice", "row", "uia"))
+        waiting = ConversationItem(123, 200, "Alice", 24, 104, 424, 164, False, (1, 10), ("ListItem", "alice", "row", "uia"))
+        with patch("floatingbar.conversation_rows.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.conversation_rows.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.conversation_rows.refresh_conversation", side_effect=[waiting] * 6), \
+             patch("floatingbar.conversation_rows._screen_to_client", return_value=(220, 134)), \
+             patch("floatingbar.conversation_rows.time.sleep") as sleep, \
+             patch("floatingbar.conversation_rows.winapi.post_click") as post_click:
+            with self.assertRaisesRegex(RuntimeError, "was not selected"):
+                select_conversation(item)
+
+        post_click.assert_called_once_with(123, 220, 134)
+        self.assertEqual(sleep.call_count, 4)
+
     def test_runtime_identity_takes_precedence_over_duplicate_names(self):
         item = ConversationItem(123, 200, "Alice", 20, 100, 420, 160, False, (9, 9), ("ListItem", "alice", "row", "uia"))
         fresh = ConversationItem(123, 200, "Alice", 22, 102, 422, 162, False, (9, 9), ("ListItem", "alice", "row", "uia"))

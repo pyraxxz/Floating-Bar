@@ -9,6 +9,7 @@ before clicking.
 from dataclasses import dataclass
 import ctypes
 import ctypes.wintypes as wintypes
+import time
 from typing import Optional
 
 from . import winapi
@@ -43,6 +44,8 @@ class ConversationItem:
 
 _SELECTED_CONVERSATIONS: dict[tuple[int, int], ConversationItem] = {}
 _SELECTED_CONVERSATION_LIMIT = 16
+_SELECTION_CONFIRM_ATTEMPTS = 5
+_SELECTION_CONFIRM_INTERVAL_S = 0.05
 
 
 def selected_conversation_for_scope(hwnd: int, pid: int) -> ConversationItem | None:
@@ -253,6 +256,18 @@ def _refresh_row(item: ConversationItem) -> ConversationItem:
     return refresh_conversation(item)
 
 
+def _confirm_selected(item: ConversationItem) -> ConversationItem:
+    """Wait briefly for the background click to be reflected as selected."""
+    last = item
+    for attempt in range(_SELECTION_CONFIRM_ATTEMPTS):
+        last = refresh_conversation(item)
+        if last.selected:
+            return last
+        if attempt < _SELECTION_CONFIRM_ATTEMPTS - 1:
+            time.sleep(_SELECTION_CONFIRM_INTERVAL_S)
+    raise RuntimeError("conversation row was not selected after background click")
+
+
 def select_conversation(item: ConversationItem) -> None:
     """Select a conversation with a background click after immediate revalidation."""
     if not item.hwnd or not item.pid:
@@ -262,7 +277,8 @@ def select_conversation(item: ConversationItem) -> None:
     fresh = refresh_conversation(item)
     client_x, client_y = _screen_to_client(item.hwnd, *fresh.center)
     winapi.post_click(item.hwnd, client_x, client_y)
-    _remember_selected_conversation(fresh)
+    confirmed = _confirm_selected(fresh)
+    _remember_selected_conversation(confirmed)
 
 
 __all__ = [
