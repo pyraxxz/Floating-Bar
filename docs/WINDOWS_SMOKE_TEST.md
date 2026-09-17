@@ -25,7 +25,7 @@ Create a fresh, content-free report on the Windows test machine:
 python tools/smoke_report.py --init smoke-report.json
 ```
 
-That command captures the machine/environment snapshot already used by the validation tooling and creates one result entry for every smoke case. It does not read message bodies or store window titles.
+That command captures the machine/environment snapshot already used by the validation tooling, records the Git commit being tested as `environment.source_commit`, and creates one result entry for every smoke case. It does not read message bodies or store window titles.
 
 After performing the tests, edit only the result metadata you need and validate the report:
 
@@ -33,13 +33,13 @@ After performing the tests, edit only the result metadata you need and validate 
 python tools/smoke_report.py --validate smoke-report.json
 ```
 
-Use `--require-complete` for the release gate; it fails until every case is resolved to PASS, FAIL, or BLOCKED and the report contains a complete Windows environment snapshot:
+Use `--require-complete` for the release gate; it fails until every case is resolved to PASS, FAIL, or BLOCKED and the report contains a complete Windows environment snapshot including the tested source commit:
 
 ```powershell
 python tools/smoke_report.py --validate smoke-report.json --require-complete
 ```
 
-For a milestone release, commit the completed `smoke-report.json` into the exact release source before creating the version tag. The release workflow requires that file and runs the same `--require-complete` gate before packaging or publishing the Windows executable. This keeps the downloadable build tied to a recorded real-Windows acceptance result instead of treating unit-test success as desktop validation.
+For a milestone release, commit the completed `smoke-report.json` into the exact release source before creating the version tag. The release workflow requires that file, verifies its required Windows environment fields, and checks that the recorded `source_commit` is an ancestor of the tagged source before installing release dependencies or building the Windows executable. This keeps the downloadable build tied to a recorded real-Windows acceptance result instead of treating unit-test success as desktop validation.
 
 The validator checks the schema, duplicate/missing case IDs, result values, completion state, and the required Windows environment fields. Keep notes content-free; use short failure reasons such as `compose-not-found`, `target-replaced`, `uipi-blocked`, or `coordinate-offset` rather than copying private UI content.
 
@@ -247,6 +247,6 @@ Expected: identifiers, geometry, states, evidence scores, and booleans may be pr
 
 Before a milestone release, the applicable cases in the smoke report must all be PASS or explicitly BLOCKED with a documented reason. Any FAIL remains release-blocking until addressed.
 
-The release source must include the completed `smoke-report.json`; the release workflow validates it with `python tools/smoke_report.py --validate smoke-report.json --require-complete` before installing release dependencies or building the executable. The report's environment snapshot must identify Windows and include the core runtime fields.
+The release source must include the completed `smoke-report.json`; the release workflow validates it with `python tools/smoke_report.py --validate smoke-report.json --require-complete` before installing release dependencies or building the executable. The report's environment snapshot must identify Windows, include the core runtime fields, and record the Git commit used for the test. The release workflow also verifies that this recorded commit is an ancestor of the tagged release source.
 
 The repository's automated Windows CI must also be green: source compilation, the full unittest suite, and the PyInstaller executable build must all pass before tagging a release.
