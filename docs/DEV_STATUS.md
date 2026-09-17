@@ -14,9 +14,11 @@ The production boundary also includes exact HWND/PID target binding, read-only p
 
 The newer generic background-input layer now has dedicated structural composer/terminal targets, exact control pinning with identity revalidation, minimized-window support for background selection, and an adapter evidence policy that prevents unsupported generic paths from claiming verified sends.
 
-Submission evidence is now producer-owned end to end: Telegram and generic background targets retain typed `SubmissionEvidence`, while a string-compatible evidence carrier preserves the legacy worker/UI strategy API. Adapter policy consumes the typed result when present, so a human-readable strategy string can no longer override a trusted `SUBMITTED`, `UNAVAILABLE`, `FAILED`, or `BLOCKED` result.
+Submission evidence is producer-owned end to end: Telegram and generic background targets retain typed `SubmissionEvidence`, while a string-compatible evidence carrier preserves the legacy worker/UI strategy API. Adapter policy consumes the typed result when present, so a human-readable strategy string can no longer override a trusted `SUBMITTED`, `UNAVAILABLE`, `FAILED`, or `BLOCKED` result.
 
-Terminal, CMD, and PowerShell adapters now also have a bounded `terminal-input-clear` verification hook. When the exact pinned input control exposes a readable UI Automation value, the path observes only value length: it requires post-injection growth and a return to zero after Enter. It never stores, logs, or compares command content, and it cannot claim command execution semantics.
+Terminal, CMD, and PowerShell adapters have a bounded `terminal-input-clear` verification hook. When the exact pinned input control exposes a readable UI Automation value, the path observes only value length: it requires post-injection growth and a return to zero after Enter. It never stores, logs, or compares command content, and it cannot claim command execution semantics.
+
+The chat adapters now have explicit verification contracts bound to their concrete adapter keys (`telegram`, `whatsapp`, `discord`, `slack`, and `teams`). The underlying checks remain content-free, but a Discord path cannot borrow the WhatsApp contract and an unsupported/generic executable cannot inherit a verified chat contract. This makes future app-specific semantic refinements additive instead of widening another adapter's evidence policy.
 
 The release workflow now requires a completed `smoke-report.json` with a valid Windows environment snapshot before packaging a milestone release. The report must also have every smoke case resolved to PASS, FAIL, or BLOCKED; FAIL or unresolved cases stop the release gate.
 
@@ -24,15 +26,15 @@ The release workflow now requires a completed `smoke-report.json` with a valid W
 
 Windows CI is the authoritative automated gate. A change is not considered complete merely because it compiles; the regression suite and Windows executable build must pass together.
 
-The terminal verification batch initially exposed one stale test fixture: the verified-evidence test referenced `terminal.exe`, which is not a registered adapter alias. The fixture was corrected to `wt.exe` while the actual terminal registry remained unchanged. Windows CI run `#657` then completed successfully with the full regression suite and Windows executable build passing.
-
 The real-Windows smoke report remains separate from CI. CI proves deterministic logic and packaging on a Windows runner; the smoke report records acceptance against actual installed desktop applications, monitor/DPI layouts, restarts, repeated sends, and application-specific behavior.
 
-The current evidence-hardening batch adds regression coverage for typed evidence precedence and the string-compatible evidence carrier. Windows CI run `#675` is validating that batch on the Windows runner.
+Smoke-report validation is additionally protected by a schema version, a SHA-256 fingerprint of the canonical case matrix, and immutable case-definition checks. This prevents a report from becoming “complete” by silently changing the definition of the test it claims to have executed.
+
+The Windows environment snapshot also records executable file versions for observed supported adapters without recording window titles or other UI content. This supplies a content-free application/version trace for the eventual real-desktop acceptance report.
 
 ## Next engineering target
 
-Run the real desktop acceptance matrix for the terminal input-clear contract across Windows Terminal, Terminal Preview, conhost/CMD, and PowerShell Core variants. In parallel, continue app-specific semantic verification where shared compose-clear or input-clear evidence is insufficient, without weakening the fail-closed/content-free boundary. Then close the remaining multi-monitor, minimized/background, restart, Unicode, repeated-send, and application-version trace cases required for the `v0.2.0` gate.
+Complete real desktop acceptance for the terminal input-clear contract across Windows Terminal, Terminal Preview, conhost/CMD, and PowerShell Core variants. In parallel, add genuinely app-specific semantic verification only where structural length/clear evidence is insufficient, without weakening the fail-closed/content-free boundary. Then close the remaining multi-monitor, minimized/background, restart, Unicode, repeated-send, and application-version trace cases required for the `v0.2.0` gate.
 
 ## Release gate
 
@@ -54,4 +56,5 @@ Before `v0.2.0`:
 14. emoji and intentional whitespace survive intact;
 15. opt-in recovery stops safely when the original target is replaced;
 16. diagnostic JSON remains content-free and useful for support snapshots;
-17. terminal input-control verification is validated on the supported Windows console variants without reading terminal content.
+17. terminal input-control verification is validated on the supported Windows console variants without reading terminal content;
+18. each supported chat adapter is validated on at least one real desktop build with its exact adapter-bound verification contract.
