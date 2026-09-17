@@ -20,11 +20,19 @@ class AdapterEvidenceTests(unittest.TestCase):
         self.assertEqual(evidence.state, EvidenceState.VERIFIED)
         self.assertTrue(evidence.confirmed)
 
-    def test_telegram_compose_clear_allows_verified_evidence(self):
-        spec = adapter_for_process("telegram.exe")
-        evidence = evidence_for_adapter(spec, strategy="posted-click (VERIFIED)")
-        self.assertEqual(evidence.state, EvidenceState.VERIFIED)
-        self.assertTrue(evidence.confirmed)
+    def test_each_chat_contract_allows_verified_evidence(self):
+        for process_name in (
+            "telegram.exe",
+            "whatsapp.exe",
+            "discord.exe",
+            "slack.exe",
+            "teams.exe",
+        ):
+            with self.subTest(process_name=process_name):
+                spec = adapter_for_process(process_name)
+                evidence = evidence_for_adapter(spec, strategy="posted-enter (VERIFIED)")
+                self.assertEqual(evidence.state, EvidenceState.VERIFIED)
+                self.assertTrue(evidence.confirmed)
 
     def test_typed_evidence_wins_over_conflicting_strategy_text(self):
         spec = adapter_for_process("telegram.exe")
