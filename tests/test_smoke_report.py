@@ -1,4 +1,6 @@
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -51,6 +53,78 @@ class SmokeReportTests(unittest.TestCase):
         ]
         self.assertEqual(summarize_report(report)["pending"], 0)
         self.assertEqual(validate_report(report), ())
+
+    def test_release_gate_accepts_complete_windows_report(self):
+        report = build_report(
+            environment={
+                "platform": "Windows",
+                "windows_release": "11",
+                "windows_version": "10.0.26100",
+                "architecture": "AMD64",
+                "python_version": "3.12.10",
+            }
+        )
+        report["cases"] = [
+            {**item, "result": RESULT_PASS}
+            for item in report["cases"]
+        ]
+
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "smoke.json"
+            path.write_text(json.dumps(report), encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(root / "tools" / "smoke_report.py"),
+                    "--validate",
+                    str(path),
+                    "--require-complete",
+                ],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Release gate: PASS", result.stdout)
+
+    def test_release_gate_rejects_non_windows_environment(self):
+        report = build_report(
+            environment={
+                "platform": "Linux",
+                "windows_release": "",
+                "windows_version": "",
+                "architecture": "x86_64",
+                "python_version": "3.12.10",
+            }
+        )
+        report["cases"] = [
+            {**item, "result": RESULT_PASS}
+            for item in report["cases"]
+        ]
+
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "smoke.json"
+            path.write_text(json.dumps(report), encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(root / "tools" / "smoke_report.py"),
+                    "--validate",
+                    str(path),
+                    "--require-complete",
+                ],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 5)
+        self.assertIn("environment snapshot is not a Windows validation snapshot", result.stdout)
 
     def test_duplicate_and_unknown_case_ids_are_rejected(self):
         report = build_report()
