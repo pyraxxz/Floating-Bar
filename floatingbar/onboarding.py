@@ -36,9 +36,9 @@ def mark_seen() -> None:
         pass
 
 
-def show(parent: tk.Misc) -> Optional[tk.Toplevel]:
-    """Show the first-run guide and return its window, or ``None`` if skipped."""
-    if has_seen():
+def show(parent: tk.Misc, *, force: bool = False) -> Optional[tk.Toplevel]:
+    """Show the guide and return its window, or ``None`` when already seen."""
+    if has_seen() and not force:
         return None
 
     window = tk.Toplevel(parent)
@@ -51,47 +51,27 @@ def show(parent: tk.Misc) -> Optional[tk.Toplevel]:
     frame = tk.Frame(window, bg="#18181b", padx=18, pady=16)
     frame.pack(fill="both", expand=True)
 
-    tk.Label(
-        frame,
-        text="Floating Bar",
-        bg="#18181b",
-        fg="#ffffff",
-        font=("Segoe UI", 14, "bold"),
-    ).pack(anchor="w")
+    tk.Label(frame, text="Floating Bar", bg="#18181b", fg="#ffffff", font=("Segoe UI", 14, "bold")).pack(anchor="w")
     tk.Label(
         frame,
         text="Send into background apps without switching away from your work.",
-        bg="#18181b",
-        fg="#d4d4d8",
-        font=("Segoe UI", 9),
-        wraplength=340,
-        justify="left",
+        bg="#18181b", fg="#d4d4d8", font=("Segoe UI", 9), wraplength=340, justify="left",
     ).pack(anchor="w", pady=(4, 12))
 
-    steps = (
+    for step in (
         "1. Hover the orb to see safe background apps.",
         "2. Choose an app, then choose Type or Chats.",
         "3. Enter your text and press Enter to submit.",
-    )
-    for step in steps:
+    ):
         tk.Label(
-            frame,
-            text=step,
-            bg="#18181b",
-            fg="#f4f4f5",
-            font=("Segoe UI", 9),
-            wraplength=340,
-            justify="left",
+            frame, text=step, bg="#18181b", fg="#f4f4f5", font=("Segoe UI", 9),
+            wraplength=340, justify="left",
         ).pack(anchor="w", pady=2)
 
     tk.Label(
         frame,
         text="The bar does not read message contents from background apps.",
-        bg="#18181b",
-        fg="#a1a1aa",
-        font=("Segoe UI", 8),
-        wraplength=340,
-        justify="left",
+        bg="#18181b", fg="#a1a1aa", font=("Segoe UI", 8), wraplength=340, justify="left",
     ).pack(anchor="w", pady=(10, 14))
 
     def close() -> None:
@@ -103,17 +83,8 @@ def show(parent: tk.Misc) -> Optional[tk.Toplevel]:
 
     window.protocol("WM_DELETE_WINDOW", close)
     tk.Button(
-        frame,
-        text="Got it",
-        command=close,
-        relief="flat",
-        bd=0,
-        padx=14,
-        pady=6,
-        bg="#27272a",
-        fg="#ffffff",
-        activebackground="#3f3f46",
-        activeforeground="#ffffff",
+        frame, text="Got it", command=close, relief="flat", bd=0, padx=14, pady=6,
+        bg="#27272a", fg="#ffffff", activebackground="#3f3f46", activeforeground="#ffffff",
     ).pack(anchor="e")
 
     window.grab_set()
