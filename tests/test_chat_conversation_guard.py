@@ -26,33 +26,38 @@ class ChatConversationGuardTests(unittest.TestCase):
             control_identity=("ListItem", "", "ConversationRow"),
         )
 
+    def _scope_patches(self):
+        return (
+            patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True),
+            patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True),
+            patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200),
+        )
+
     def test_scope_without_selected_conversation_guard_remains_compatible(self):
         target = self._target()
-        with patch.object(target, "input_candidates", return_value=()):
-            with patch.object(target, "available", wraps=target.available) as available:
-                self.assertTrue(available())
+        runtime = self._scope_patches()
+        with runtime[0], runtime[1], runtime[2]:
+            self.assertTrue(target.available())
 
     def test_bound_conversation_requires_same_row_to_remain_selected(self):
         target = self._target()
-        conversation = self._conversation(selected=False)
-        target._conversation_guard = conversation
-        with patch("floatingbar.chat_composer_target.refresh_conversation", return_value=self._conversation(selected=False)):
+        target._conversation_guard = self._conversation(selected=True)
+        runtime = self._scope_patches()
+        with runtime[0], runtime[1], runtime[2], \
+             patch("floatingbar.chat_composer_target.refresh_conversation", return_value=self._conversation(selected=False)):
             self.assertFalse(target.available())
 
     def test_bound_conversation_allows_send_when_same_row_remains_selected(self):
         target = self._target()
-        conversation = self._conversation(selected=True)
-        target._conversation_guard = conversation
-        with patch("floatingbar.chat_composer_target.refresh_conversation", return_value=self._conversation(selected=True)):
-            with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
-                 patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
-                 patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200):
-                self.assertTrue(target.available())
+        target._conversation_guard = self._conversation(selected=True)
+        runtime = self._scope_patches()
+        with runtime[0], runtime[1], runtime[2], \
+             patch("floatingbar.chat_composer_target.refresh_conversation", return_value=self._conversation(selected=True)):
+            self.assertTrue(target.available())
 
     def test_conversation_switch_blocks_before_text_injection(self):
         target = self._target()
-        conversation = self._conversation(selected=True)
-        target._conversation_guard = conversation
+        target._conversation_guard = self._conversation(selected=True)
         candidate = SimpleNamespace(
             hwnd=301,
             pid=200,
@@ -60,11 +65,10 @@ class ChatConversationGuardTests(unittest.TestCase):
             class_name="Edit",
             is_likely_composer_shape=True,
         )
-        with patch("floatingbar.chat_composer_target.refresh_conversation", return_value=self._conversation(selected=False)), \
+        runtime = self._scope_patches()
+        with runtime[0], runtime[1], runtime[2], \
+             patch("floatingbar.chat_composer_target.refresh_conversation", return_value=self._conversation(selected=False)), \
              patch.object(target, "input_candidates", return_value=(candidate,)), \
-             patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
-             patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
-             patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200), \
              patch("floatingbar.generic_target.winapi.post_text") as post_text:
             with self.assertRaisesRegex(RuntimeError, "discovered editable composer"):
                 target.send("hello")
