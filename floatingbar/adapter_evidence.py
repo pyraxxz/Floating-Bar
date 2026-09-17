@@ -18,16 +18,32 @@ _VERIFICATION_ALLOWLIST = {
 }
 
 
-def evidence_for_adapter(spec, strategy: str | None = None, error: str | None = None) -> SubmissionEvidence:
-    """Return evidence bounded by the adapter's declared verification contract."""
-    raw = from_result(strategy, error)
-    if error or raw.state is EvidenceState.BLOCKED:
+def evidence_for_adapter(
+    spec,
+    strategy: str | None = None,
+    error: str | None = None,
+    submission_evidence: SubmissionEvidence | None = None,
+) -> SubmissionEvidence:
+    """Return evidence bounded by the adapter's declared verification contract.
+
+    ``submission_evidence`` is the preferred production path. Legacy strategy
+    parsing remains available for compatibility, but callers that have a
+    structured producer result do not need to recover evidence from text.
+    """
+    if error:
+        raw = from_result(strategy, error)
+    elif isinstance(submission_evidence, SubmissionEvidence):
+        raw = submission_evidence
+    else:
+        raw = from_result(strategy, error)
+
+    if raw.state is EvidenceState.BLOCKED or raw.state is EvidenceState.FAILED:
         result = raw
     else:
         mode = getattr(spec, "verification_mode", "unverified") if spec is not None else "unverified"
         allowed = _VERIFICATION_ALLOWLIST.get(mode, frozenset({EvidenceState.SUBMITTED}))
 
-        if raw.state in allowed or raw.state is EvidenceState.FAILED:
+        if raw.state in allowed:
             result = raw
         else:
             # Unknown or unsupported verification modes fail closed to
@@ -35,7 +51,7 @@ def evidence_for_adapter(spec, strategy: str | None = None, error: str | None = 
             # VERIFIED result.
             result = SubmissionEvidence(
                 state=EvidenceState.SUBMITTED,
-                strategy=strategy,
+                strategy=raw.strategy or strategy,
                 detail="adapter verification contract does not prove submission",
                 retryable=False,
             )
