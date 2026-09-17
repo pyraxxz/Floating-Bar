@@ -136,7 +136,7 @@ class ConversationRowTests(unittest.TestCase):
         fresh = ConversationItem(123, 200, "Alice", 24, 104, 424, 164, True, (1, 10), ("ListItem", "alice", "row", "uia"))
         with patch("floatingbar.conversation_rows.winapi.get_window_pid", return_value=200), \
              patch("floatingbar.conversation_rows.winapi.user32.IsWindow", return_value=True), \
-             patch("floatingbar.conversation_rows._refresh_row", return_value=fresh), \
+             patch("floatingbar.conversation_rows.refresh_conversation", return_value=fresh), \
              patch("floatingbar.conversation_rows._screen_to_client", return_value=(220, 134)), \
              patch("floatingbar.conversation_rows.winapi.post_click") as post_click:
             select_conversation(item)
