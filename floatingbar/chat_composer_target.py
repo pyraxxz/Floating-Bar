@@ -8,6 +8,7 @@ win merely because it owns focus.
 
 import time
 
+from .app_verification import is_chat_compose_verification
 from .generic_target import BackgroundTypingTarget
 from .control_candidates import best_input_candidate
 from . import winapi
@@ -118,8 +119,12 @@ class ChatComposerTarget(BackgroundTypingTarget):
                 time.sleep(_VERIFY_INTERVAL_S)
         return False if readable else None
 
+    def _supports_compose_verification(self) -> bool:
+        """Require the adapter's exact app contract, not merely a shared mode."""
+        return is_chat_compose_verification(self._adapter_spec)
+
     def prepare_submission_verification(self):
-        if getattr(self._adapter_spec, "verification_mode", "") != "compose-clear":
+        if not self._supports_compose_verification():
             return None
         scope = self._scope
         if scope is None or not scope.valid:
@@ -132,7 +137,7 @@ class ChatComposerTarget(BackgroundTypingTarget):
         return baseline if baseline >= 0 else None
 
     def begin_submission_verification(self, target_hwnd: int, state):
-        if getattr(self._adapter_spec, "verification_mode", "") != "compose-clear":
+        if not self._supports_compose_verification():
             return state
         if state is None:
             return None
@@ -146,7 +151,7 @@ class ChatComposerTarget(BackgroundTypingTarget):
         return state
 
     def finish_submission_verification(self, target_hwnd: int, state, strategy: str) -> str:
-        if getattr(self._adapter_spec, "verification_mode", "") != "compose-clear":
+        if not self._supports_compose_verification():
             return strategy
         if state is None:
             return "posted-enter (verification-unavailable)"
@@ -157,6 +162,8 @@ class ChatComposerTarget(BackgroundTypingTarget):
         result = self._wait_for_length(target_hwnd, lambda length: length == 0)
         if result is True:
             prefix = strategy.split(" ", 1)[0] if strategy else "posted-enter"
+            # The exact adapter contract has already been revalidated by
+            # is_chat_compose_verification(); this only records evidence.
             return f"{prefix} (VERIFIED)"
         if result is None:
             return "posted-enter (verification-unavailable)"
