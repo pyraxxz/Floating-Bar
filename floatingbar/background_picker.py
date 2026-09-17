@@ -64,24 +64,50 @@ class HoverState:
         self.actions = False
 
 
+def _base_label(item: BackgroundWindow) -> tuple[str, bool]:
+    """Return a title-free app label and whether it has an actionable adapter."""
+    spec = actionable_adapter_for_process(item.process_name)
+    actionable = bool(spec and spec.implemented and spec.supports_background_type)
+    label = spec.label if spec else _LABELS.get(
+        item.process_name,
+        item.label.removesuffix(".exe").title(),
+    )
+    return label, actionable
+
+
 def to_picker_items(windows: Sequence[BackgroundWindow]) -> tuple[PickerItem, ...]:
-    """Convert catalog entries into title-free picker rows."""
-    items = []
+    """Convert catalog entries into title-free picker rows.
+
+    When multiple top-level windows resolve to the same app label, append a
+    deterministic ordinal. This keeps separate windows selectable without
+    exposing window titles or other user content.
+    """
+    prepared = []
+    counts = {}
     for item in windows:
+        label, actionable = _base_label(item)
+        counts[label] = counts.get(label, 0) + 1
+        prepared.append((item, label, actionable))
+
+    seen = {}
+    items = []
+    for item, label, actionable in prepared:
+        seen[label] = seen.get(label, 0) + 1
+        display_label = (
+            f"{label} {seen[label]}"
+            if counts[label] > 1
+            else label
+        )
         spec = actionable_adapter_for_process(item.process_name)
-        actionable = bool(spec and spec.implemented and spec.supports_background_type)
         items.append(
             PickerItem(
                 hwnd=item.hwnd,
                 pid=item.pid,
-                label=spec.label if spec else _LABELS.get(
-                    item.process_name,
-                    item.label.removesuffix(".exe").title(),
-                ),
+                label=display_label,
                 actionable=actionable,
                 foreground=item.foreground,
                 process_name=item.process_name,
-                adapter_key=spec.key if actionable else "",
+                adapter_key=spec.key if actionable and spec else "",
             )
         )
     return tuple(items)
