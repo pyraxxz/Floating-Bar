@@ -15,6 +15,28 @@ class BackgroundTypingTargetTests(unittest.TestCase):
         self.target.bind(101, 201)
         self.assertEqual(self.target.scope(), TargetScope(101, 201))
 
+    def test_bind_marks_current_window_process_as_verified(self):
+        with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True):
+            self.target.bind(100, 200)
+            self.assertTrue(self.target.scope_matches(100, 200))
+
+    def test_bind_marks_recycled_or_replaced_scope_unverified(self):
+        with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.generic_target.winapi.get_window_pid", return_value=999):
+            self.target.bind(100, 200)
+
+        self.assertEqual(self.target.scope(), TargetScope(100, 200))
+        self.assertFalse(self.target.scope_matches(100, 200))
+
+    def test_bind_marks_closed_window_unverified(self):
+        with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=False):
+            self.target.bind(100, 200)
+
+        self.assertEqual(self.target.scope(), TargetScope(100, 200))
+        self.assertFalse(self.target.scope_matches(100, 200))
+
     def test_unavailable_when_top_level_window_pid_changes(self):
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
