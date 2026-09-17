@@ -49,6 +49,7 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Session-only recent application targets with exact HWND/PID revalidation
 - [x] Session-only recent conversation targets with runtime/structural row revalidation
 - [x] Persistent pinned application/conversation targets with content-free stored identity and live-scope validation
+- [x] Persistent user-authored quick replies with bounded CRUD storage and draft-only insertion
 
 ### Completed grouped milestone — Adapter Architecture
 
@@ -86,6 +87,8 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Add global keyboard summon without changing foreground-target safety
 - [x] First-run mini-tutorial and clearer no-target/background-target feedback
 - [x] Conversation-picker refresh and pagination for larger chat lists
+- [x] Session recent targets and persistent pinning for common applications/conversations
+- [x] Saved quick replies that insert drafts without automatically sending
 
 ## Phase 3 — Real application adapters
 
@@ -248,7 +251,7 @@ These are productization items that should proceed alongside the reliability wor
 
 - [x] Global keyboard summon (`Ctrl+Alt+Space`) implemented
 - [x] First-run mini-tutorial and clearer no-target/background-target feedback
-- [ ] Saved snippets / quick replies
+- [x] Saved snippets / quick replies
 - [x] Multiple pinned conversation/application targets
 
 ## Working rule
