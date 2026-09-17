@@ -112,11 +112,32 @@ jobs:
       - name: Validate completed real-Windows smoke report
         if: steps.release.outputs.publish == 'true'
         shell: pwsh
+        env:
+          EXPECTED_SHA: ${{ steps.release.outputs.sha }}
         run: |
           if (-not (Test-Path -LiteralPath "smoke-report.json")) {
             throw "Release source does not contain smoke-report.json. Run 'python tools/smoke_report.py --init smoke-report.json' on the Windows validation machine, complete the applicable cases, validate with --require-complete, and commit the report before tagging."
           }
           python tools/smoke_report.py --validate smoke-report.json --require-complete
+
+          try {
+            $report = Get-Content -LiteralPath "smoke-report.json" -Raw | ConvertFrom-Json
+            $sourceCommit = [string]$report.environment.source_commit
+          } catch {
+            throw "Could not read environment.source_commit from smoke-report.json."
+          }
+          if ($sourceCommit -notmatch '^[0-9a-fA-F]{40}$') {
+            throw "smoke-report.json contains no valid environment.source_commit."
+          }
+          git cat-file -e "$sourceCommit^{commit}"
+          if ($LASTEXITCODE -ne 0) {
+            throw "The smoke report source commit $sourceCommit is not present in the release workspace."
+          }
+          git merge-base --is-ancestor $sourceCommit $env:EXPECTED_SHA
+          if ($LASTEXITCODE -ne 0) {
+            throw "The smoke report was generated from $sourceCommit, which is not an ancestor of the tagged release source $env:EXPECTED_SHA."
+          }
+          Write-Host "Smoke report source $sourceCommit is an ancestor of release source $env:EXPECTED_SHA"
 
       - name: Set up Python
         if: steps.release.outputs.publish == 'true'
