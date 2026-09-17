@@ -30,6 +30,13 @@ class BackgroundTypingTargetTests(unittest.TestCase):
         self.assertEqual(self.target.scope(), TargetScope(100, 200))
         self.assertFalse(self.target.scope_matches(100, 200))
 
+    def test_bind_liveness_failure_can_recover_after_window_appears(self):
+        with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.generic_target.winapi.get_window_pid", side_effect=[999, 200, 200]), \
+             patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True):
+            self.target.bind(100, 200)
+            self.assertTrue(self.target.scope_matches(100, 200))
+
     def test_bind_marks_closed_window_unverified(self):
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=False):
             self.target.bind(100, 200)
@@ -45,7 +52,7 @@ class BackgroundTypingTargetTests(unittest.TestCase):
 
     def test_unavailable_when_top_level_window_is_hidden(self):
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
-             patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=False), \
+             patch("floatingbar.generic_target.winapi.IsWindowVisible", return_value=False), \
              patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200):
             self.assertFalse(self.target.available())
 
@@ -215,6 +222,7 @@ class BackgroundTypingTargetTests(unittest.TestCase):
         resized = InputCandidate(301, 200, "RichEdit", "Edit", 0, 0, 700, 44, False, True, True)
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
+             patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200), \
              patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200), \
              patch.object(self.target, "input_candidates", side_effect=[(original,), (resized,)]), \
              patch("floatingbar.generic_target.winapi.post_text") as post_text, \
