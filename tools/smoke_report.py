@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -44,9 +45,33 @@ def _write(path: Path, report: dict) -> None:
         handle.write("\n")
 
 
+def _source_commit() -> str:
+    """Return the exact Git commit used to create the smoke report."""
+    try:
+        completed = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+            cwd=Path(__file__).resolve().parents[1],
+        )
+    except Exception:
+        return ""
+    value = completed.stdout.strip()
+    if len(value) != 40:
+        return ""
+    try:
+        int(value, 16)
+    except ValueError:
+        return ""
+    return value
+
+
 def _init(path: Path) -> int:
     snapshot = capture_snapshot()
-    report = build_report(environment=snapshot.to_dict())
+    environment = snapshot.to_dict()
+    environment["source_commit"] = _source_commit()
+    report = build_report(environment=environment)
     _write(path, report)
     summary = summarize_report(report)
     print(f"Created smoke report: {path}")
@@ -66,10 +91,25 @@ def _release_environment_errors(report: dict) -> tuple[str, ...]:
     platform_name = str(environment.get("platform", "")).strip().casefold()
     if platform_name != "windows":
         return ("environment snapshot is not a Windows validation snapshot",)
-    required_fields = ("windows_release", "windows_version", "architecture", "python_version")
-    missing = tuple(field for field in required_fields if not str(environment.get(field, "")).strip())
+    required_fields = (
+        "windows_release",
+        "windows_version",
+        "architecture",
+        "python_version",
+        "source_commit",
+    )
+    missing = tuple(
+        field for field in required_fields if not str(environment.get(field, "")).strip()
+    )
     if missing:
         return tuple(f"environment snapshot missing field: {field}" for field in missing)
+    source_commit = str(environment.get("source_commit", "")).strip()
+    if len(source_commit) != 40:
+        return ("environment source_commit is not a full Git commit SHA",)
+    try:
+        int(source_commit, 16)
+    except ValueError:
+        return ("environment source_commit is not a valid Git commit SHA",)
     return ()
 
 
