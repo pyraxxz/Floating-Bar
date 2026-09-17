@@ -41,6 +41,24 @@ class ConversationItem:
         return self.attention.actionable
 
 
+_SELECTED_CONVERSATIONS: dict[tuple[int, int], ConversationItem] = {}
+_SELECTED_CONVERSATION_LIMIT = 16
+
+
+def selected_conversation_for_scope(hwnd: int, pid: int) -> ConversationItem | None:
+    """Return the most recently selected conversation for one exact app scope."""
+    return _SELECTED_CONVERSATIONS.get((int(hwnd), int(pid)))
+
+
+def _remember_selected_conversation(item: ConversationItem) -> None:
+    """Keep a small in-memory selection hint for send-time revalidation."""
+    key = (int(item.hwnd), int(item.pid))
+    _SELECTED_CONVERSATIONS[key] = item
+    while len(_SELECTED_CONVERSATIONS) > _SELECTED_CONVERSATION_LIMIT:
+        oldest = next(iter(_SELECTED_CONVERSATIONS))
+        _SELECTED_CONVERSATIONS.pop(oldest, None)
+
+
 def _runtime_id(item) -> tuple[int, ...] | None:
     """Return UIA runtime identity without reading control content."""
     try:
@@ -181,7 +199,8 @@ def _screen_to_client(hwnd: int, x: int, y: int) -> tuple[int, int]:
     return int(point.x), int(point.y)
 
 
-def _refresh_row(item: ConversationItem) -> ConversationItem:
+def refresh_conversation(item: ConversationItem) -> ConversationItem:
+    """Revalidate one conversation row without selecting it or reading content."""
     if winapi.get_window_pid(item.hwnd) != item.pid:
         raise RuntimeError("conversation window process changed")
     current = enumerate_conversations(item.hwnd, limit=32)
@@ -234,9 +253,16 @@ def select_conversation(item: ConversationItem) -> None:
         raise RuntimeError("conversation target is invalid")
     if not winapi.user32.IsWindow(item.hwnd):
         raise RuntimeError("conversation window no longer exists")
-    fresh = _refresh_row(item)
+    fresh = refresh_conversation(item)
     client_x, client_y = _screen_to_client(item.hwnd, *fresh.center)
     winapi.post_click(item.hwnd, client_x, client_y)
+    _remember_selected_conversation(fresh)
 
 
-__all__ = ["ConversationItem", "enumerate_conversations", "select_conversation"]
+__all__ = [
+    "ConversationItem",
+    "enumerate_conversations",
+    "refresh_conversation",
+    "selected_conversation_for_scope",
+    "select_conversation",
+]
