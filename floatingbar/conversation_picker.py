@@ -14,6 +14,7 @@ class ConversationPickerRow:
     selected: bool
     attention: AttentionState
     conversation: ConversationItem
+    recent: bool = False
 
     @property
     def suffix(self) -> str:
@@ -21,18 +22,38 @@ class ConversationPickerRow:
             return "  Needs attention"
         if self.selected:
             return "  Current"
+        if self.recent:
+            return "  Recent"
         return ""
+
+
+def conversation_picker_identity(item: ConversationItem) -> tuple[object, ...]:
+    """Return structural row identity without reading message content."""
+    return (
+        item.hwnd,
+        item.pid,
+        item.runtime_id,
+        item.control_identity,
+        item.name,
+        item.left,
+        item.top,
+        item.right,
+        item.bottom,
+    )
 
 
 def to_conversation_picker_rows(
     conversations: Sequence[ConversationItem],
+    recent_keys: Sequence[tuple[object, ...]] = (),
 ) -> tuple[ConversationPickerRow, ...]:
+    recent = set(recent_keys)
     return tuple(
         ConversationPickerRow(
             name=item.name,
             selected=item.selected,
             attention=item.attention.state,
             conversation=item,
+            recent=conversation_picker_identity(item) in recent,
         )
         for item in conversations
     )
@@ -63,8 +84,10 @@ class ConversationPicker:
     ROW_HEIGHT = 30
     HEADER_HEIGHT = 34
     FOOTER_HEIGHT = 36
+    SECTION_HEIGHT = 22
     PAGE_LIMIT = 6
     CATALOG_LIMIT = 24
+    MAX_RECENT = 2
 
     def __init__(
         self,
@@ -72,13 +95,16 @@ class ConversationPicker:
         refresh: Callable[[], Sequence[ConversationItem]],
         on_select: Callable[[ConversationItem], None],
         title: str = "Conversations",
+        recent: Optional[Callable[[], Sequence[ConversationItem]]] = None,
     ) -> None:
         self.owner = owner
         self.refresh = refresh
         self.on_select = on_select
         self.title = title
+        self.recent = recent or (lambda: ())
         self.window: Optional[tk.Toplevel] = None
         self._catalog: tuple[ConversationItem, ...] = ()
+        self._recent_keys: set[tuple[object, ...]] = set()
         self._offset = 0
 
     def set_title(self, title: str) -> None:
@@ -86,13 +112,44 @@ class ConversationPicker:
         cleaned = str(title or "Conversations").strip()
         self.title = cleaned or "Conversations"
 
+    @staticmethod
+    def _merge_catalog(
+        recent: Sequence[ConversationItem],
+        live: Sequence[ConversationItem],
+    ) -> tuple[tuple[ConversationItem, ...], set[tuple[object, ...]]]:
+        recent_rows = []
+        recent_keys: set[tuple[object, ...]] = set()
+        for item in recent:
+            key = conversation_picker_identity(item)
+            if key in recent_keys:
+                continue
+            recent_keys.add(key)
+            recent_rows.append(item)
+            if len(recent_rows) >= ConversationPicker.MAX_RECENT:
+                break
+
+        merged = list(recent_rows)
+        seen = set(recent_keys)
+        for item in live:
+            key = conversation_picker_identity(item)
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(item)
+            if len(merged) >= ConversationPicker.CATALOG_LIMIT:
+                break
+        return tuple(merged[: ConversationPicker.CATALOG_LIMIT]), recent_keys
+
     def show(self) -> None:
         """Refresh the ephemeral catalog and open it at the first page."""
         try:
-            catalog = tuple(self.refresh() or ())[: self.CATALOG_LIMIT]
+            live = tuple(self.refresh() or ())
+            recent = tuple(self.recent() or ())
+            catalog, recent_keys = self._merge_catalog(recent, live)
         except Exception:
             return
         self._catalog = catalog
+        self._recent_keys = recent_keys
         self._offset = 0
         self._show_page()
 
@@ -121,9 +178,16 @@ class ConversationPicker:
 
         x = self.owner.winfo_rootx() + self.owner.winfo_width() + 8
         y = self.owner.winfo_rooty()
+        visible_recent = sum(
+            1 for item in conversations
+            if conversation_picker_identity(item) in self._recent_keys
+        )
+        visible_live = len(conversations) - visible_recent
+        sections = int(visible_recent > 0) + int(visible_recent > 0 and visible_live > 0)
         height = (
             self.HEADER_HEIGHT
             + len(conversations) * self.ROW_HEIGHT
+            + sections * self.SECTION_HEIGHT
             + self.FOOTER_HEIGHT
             + 8
         )
@@ -147,7 +211,21 @@ class ConversationPicker:
 
         frame = tk.Frame(popup, bg="#18181b", bd=0)
         frame.pack(fill="both", expand=True, padx=4, pady=(0, 2))
-        for row in to_conversation_picker_rows(conversations):
+        current_section = None
+        for row in to_conversation_picker_rows(conversations, self._recent_keys):
+            section = "Recent" if row.recent else "Open conversations"
+            if section != current_section:
+                if current_section is not None:
+                    tk.Frame(frame, bg="#27272a", height=1).pack(fill="x", pady=2)
+                tk.Label(
+                    frame,
+                    text=section,
+                    anchor="w",
+                    bg="#18181b",
+                    fg="#71717a",
+                    font=("Segoe UI", 8, "bold"),
+                ).pack(fill="x", padx=4, pady=(1, 2))
+                current_section = section
             button = tk.Button(
                 frame,
                 text=row.name + row.suffix,
@@ -234,6 +312,7 @@ class ConversationPicker:
 __all__ = [
     "ConversationPicker",
     "ConversationPickerRow",
+    "conversation_picker_identity",
     "paginate_conversations",
     "to_conversation_picker_rows",
 ]
