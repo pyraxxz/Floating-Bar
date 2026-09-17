@@ -268,8 +268,8 @@ def _confirm_selected(item: ConversationItem) -> ConversationItem:
     raise RuntimeError("conversation row was not selected after background click")
 
 
-def select_conversation(item: ConversationItem) -> None:
-    """Select a conversation with a background click after immediate revalidation."""
+def select_conversation(item: ConversationItem) -> ConversationItem:
+    """Select a conversation and return the freshly confirmed row identity."""
     if not item.hwnd or not item.pid:
         raise RuntimeError("conversation target is invalid")
     if not winapi.user32.IsWindow(item.hwnd):
@@ -279,6 +279,7 @@ def select_conversation(item: ConversationItem) -> None:
     winapi.post_click(item.hwnd, client_x, client_y)
     confirmed = _confirm_selected(fresh)
     _remember_selected_conversation(confirmed)
+    return confirmed
 
 
 __all__ = [
