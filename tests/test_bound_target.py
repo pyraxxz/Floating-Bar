@@ -132,6 +132,17 @@ class BoundTargetTests(unittest.TestCase):
             self.assertTrue(target.chat_identity_matches())
         matches.assert_called_once_with(chat)
 
+    def test_bind_prefers_confirmed_chat_row_for_same_scope(self):
+        target = BoundTelegramTarget(self._inner())
+        stale = TelegramChatItem(100, 7, "Alice", 0, 0, 100, 40, True, (1, 2))
+        confirmed = TelegramChatItem(100, 7, "Alice", 10, 20, 110, 60, True, (1, 2))
+        with patch(
+            "floatingbar.bound_target.confirmed_telegram_chat_for_scope",
+            return_value=confirmed,
+        ):
+            target.bind_chat_identity(stale)
+        self.assertIs(target._chat_identity, confirmed)
+
     def test_chat_identity_does_not_match_after_manual_switch(self):
         target = BoundTelegramTarget(self._inner())
         chat = TelegramChatItem(100, 7, "Alice", 0, 0, 100, 40, True, (1, 2))
