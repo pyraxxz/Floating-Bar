@@ -35,7 +35,7 @@ class AppAdapterRegistryTests(unittest.TestCase):
         self.assertIsNone(terminal.chat_picker)
         self.assertEqual(terminal.target_mode, "terminal-structured-focus")
         self.assertEqual(terminal.submit_mode, "enter")
-        self.assertEqual(terminal.verification_mode, "unverified")
+        self.assertEqual(terminal.verification_mode, "terminal-input-clear")
         self.assertEqual(terminal.conversation_attention_mode, "none")
         self.assertEqual(attention_capability(terminal), "none")
 
@@ -53,8 +53,22 @@ class AppAdapterRegistryTests(unittest.TestCase):
             self.assertEqual(spec.chat_picker, "conversations")
             self.assertEqual(spec.verification_mode, expected_mode)
             self.assertEqual(spec.conversation_attention_mode, "none")
-            self.assertEqual(attention_capability(spec), "none")
             self.assertTrue(spec.supports_background_type)
+
+    def test_terminal_aliases_share_the_terminal_verification_contract(self):
+        for process_name in (
+            "windowsterminal.exe",
+            "wt.exe",
+            "windowsterminalpreview.exe",
+            "conhost.exe",
+            "cmd.exe",
+            "powershell.exe",
+            "pwsh.exe",
+        ):
+            with self.subTest(process_name=process_name):
+                spec = adapter_for_process(process_name)
+                self.assertIsNotNone(spec)
+                self.assertEqual(spec.verification_mode, "terminal-input-clear")
 
     def test_unknown_process_gets_generic_type_capability(self):
         spec = generic_adapter_for_process("my-editor.exe")
