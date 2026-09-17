@@ -139,6 +139,33 @@ def validate_report(report: Mapping[str, object]) -> tuple[str, ...]:
     return tuple(errors)
 
 
+def summarize_report(report: Mapping[str, object]) -> dict[str, int]:
+    """Return stable counts for a smoke report without inspecting its notes."""
+    counts = {result.lower(): 0 for result in RESULTS}
+    raw_cases = report.get("cases", ())
+    if isinstance(raw_cases, list):
+        for item in raw_cases:
+            if isinstance(item, Mapping):
+                result = str(item.get("result", RESULT_PENDING))
+                if result in RESULTS:
+                    counts[result.lower()] += 1
+    counts["total"] = sum(counts.values())
+    return counts
+
+
+def pending_case_ids(report: Mapping[str, object]) -> tuple[str, ...]:
+    """Return case IDs still awaiting a manual result."""
+    raw_cases = report.get("cases", ())
+    pending = []
+    if isinstance(raw_cases, list):
+        for item in raw_cases:
+            if isinstance(item, Mapping) and str(item.get("result", RESULT_PENDING)) == RESULT_PENDING:
+                case_id = str(item.get("case_id", ""))
+                if case_id:
+                    pending.append(case_id)
+    return tuple(pending)
+
+
 __all__ = [
     "RESULT_BLOCKED",
     "RESULT_FAIL",
@@ -151,5 +178,7 @@ __all__ = [
     "build_report",
     "case_ids",
     "default_cases",
+    "pending_case_ids",
+    "summarize_report",
     "validate_report",
 ]
