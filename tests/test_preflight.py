@@ -272,6 +272,23 @@ class PreflightTests(unittest.TestCase):
         self.assertEqual(result.reason_codes, ("TARGET_NOT_FOUND",))
         self.assertEqual(result.reasons, ("Telegram Desktop was not found.",))
 
+    def test_context_transition_rejects_changed_chat_structure(self):
+        structure_a = title_fingerprint("ListItem|chat-row|uia||ancestor1|Pane|chat-list-a|uia")
+        structure_b = title_fingerprint("ListItem|chat-row|uia||ancestor1|Pane|chat-list-b|uia")
+        initial = WindowContext(
+            100, 200, "",
+            chat_runtime_id=(7, 8, 9),
+            chat_name_fp=title_fingerprint("Chat A"),
+            chat_structure_fp=structure_a,
+        )
+        final = WindowContext(
+            100, 200, "",
+            chat_runtime_id=(7, 8, 9),
+            chat_name_fp=title_fingerprint("Chat A"),
+            chat_structure_fp=structure_b,
+        )
+        self.assertFalse(_context_transition_stable(initial, final))
+
 
 if __name__ == "__main__":
     unittest.main()
