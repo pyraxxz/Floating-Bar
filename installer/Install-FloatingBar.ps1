@@ -18,6 +18,8 @@ if (-not (Test-Path -LiteralPath $SourceExe -PathType Leaf)) {
 
 $resolvedSource = (Resolve-Path -LiteralPath $SourceExe).Path
 $destination = Join-Path $InstallDirectory "FloatingBar.exe"
+$installedUninstaller = Join-Path $InstallDirectory "Uninstall-FloatingBar.ps1"
+$bundledUninstaller = Join-Path $PSScriptRoot "Uninstall-FloatingBar.ps1"
 
 $running = Get-Process -Name "FloatingBar" -ErrorAction SilentlyContinue
 if ($null -ne $running) {
@@ -47,6 +49,11 @@ if ($CreateStartMenuShortcut) {
     $shortcut.WorkingDirectory = $InstallDirectory
     $shortcut.Description = "Floating Bar"
     $shortcut.Save()
+}
+
+if (Test-Path -LiteralPath $bundledUninstaller -PathType Leaf) {
+    Copy-Item -LiteralPath $bundledUninstaller -Destination $installedUninstaller -Force
+    Write-Host "Installed uninstaller: $installedUninstaller"
 }
 
 Write-Host "Floating Bar installed at $destination"
