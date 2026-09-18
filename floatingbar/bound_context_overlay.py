@@ -328,6 +328,14 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         spec = actionable_adapter_for_process(item.process_name)
         if spec is None or not spec.implemented or not spec.supports_background_type:
             return
+        self._advance_selection_generation()
+        self._background_typer.release()
+        self._generic_retry_scope = None
+        self._generic_retry_process_name = ""
+        self._generic_retry_adapter_key = ""
+        self._generic_retry_window_class = ""
+        self._pending_chat = None
+        self._pending_conversation = None
         try:
             if winapi.user32.IsWindow(item.hwnd) and winapi.get_window_pid(item.hwnd) != item.pid:
                 self._show_feedback("That background app changed before it could be selected.")
@@ -344,13 +352,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         except Exception:
             self._show_feedback("That background app could not be verified safely.")
             return
-        self._advance_selection_generation()
-        self._background_typer.release()
         self._background_typer = target_for_adapter(spec)
-        self._generic_retry_scope = None
-        self._generic_retry_process_name = ""
-        self._generic_retry_adapter_key = ""
-        self._generic_retry_window_class = ""
         self._background_process_name = item.process_name
         self._background_adapter_key = spec.key
         self._work_hwnd = item.hwnd
