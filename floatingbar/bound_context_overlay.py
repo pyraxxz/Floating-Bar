@@ -511,7 +511,10 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
                 if current_class != expected_class:
                     raise RuntimeError("Telegram window changed before binding the selected chat")
             bind_attempted = True
-            selected = self.target.select_for_send(preferred_hwnd=chat.hwnd)
+            selected = self.target.select_for_send(
+                preferred_hwnd=chat.hwnd,
+                expected_process_start=getattr(chat, "process_start", None),
+            )
             if selected != chat.hwnd:
                 raise RuntimeError("Telegram selected a different window")
             self.target.bind_chat_identity(chat)
