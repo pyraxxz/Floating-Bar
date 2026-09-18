@@ -251,7 +251,7 @@ Every adapter should eventually produce one of:
 - [x] Packaging and clean upgrade path
 - [x] Core user documentation and troubleshooting guidance
 - [ ] Signed executable and installer packaging
-- [ ] Release update notification
+- [x] On-demand release update notification using public release metadata
 - [x] Lightweight settings UI for safe application preferences
 - [ ] Meaningful milestone release after real desktop validation
 
