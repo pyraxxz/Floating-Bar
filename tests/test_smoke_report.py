@@ -13,6 +13,7 @@ from floatingbar.smoke_matrix import (
     build_report,
     completion_errors,
     default_cases,
+    environment_case_errors,
     matrix_fingerprint,
     pending_case_ids,
     summarize_report,
@@ -21,6 +22,27 @@ from floatingbar.smoke_matrix import (
 
 
 class SmokeReportTests(unittest.TestCase):
+    @staticmethod
+    def _complete_environment():
+        return {
+            "platform": "Windows",
+            "windows_release": "11",
+            "windows_version": "10.0.26100",
+            "architecture": "AMD64",
+            "python_version": "3.12.10",
+            "source_commit": "0123456789abcdef0123456789abcdef01234567",
+            "monitors": [
+                {"index": 0, "width": 1920, "height": 1080, "dpi_x": 96, "dpi_y": 96},
+                {"index": 1, "width": 2560, "height": 1440, "dpi_x": 144, "dpi_y": 144},
+            ],
+            "adapters": [
+                {"key": "telegram", "open_window_count": 1, "observed_processes": ["telegram.exe"]},
+                {"key": "terminal", "open_window_count": 1, "observed_processes": ["windowsterminal.exe", "windowsterminalpreview.exe", "conhost.exe"]},
+                {"key": "powershell", "open_window_count": 1, "observed_processes": ["pwsh.exe"]},
+                {"key": "cmd", "open_window_count": 1, "observed_processes": ["cmd.exe"]},
+            ],
+        }
+
     def test_blank_report_has_complete_pending_matrix(self):
         report = build_report(environment={"windows_release": "11"})
         summary = summarize_report(report)
@@ -107,6 +129,34 @@ class SmokeReportTests(unittest.TestCase):
             len(completion_errors(report)),
             len(default_cases()),
         )
+
+    def test_environment_case_errors_require_distinct_dpi_for_dpi_pass(self):
+        report = build_report(environment={
+            "monitors": [
+                {"index": 0, "width": 1920, "height": 1080, "dpi_x": 96, "dpi_y": 96},
+                {"index": 1, "width": 2560, "height": 1440, "dpi_x": 96, "dpi_y": 96},
+            ]
+        })
+        report["cases"] = [
+            {**item, "result": RESULT_PASS}
+            if item["case_id"] == "env.dpi" else item
+            for item in report["cases"]
+        ]
+        errors = environment_case_errors(report)
+        self.assertIn("env.dpi PASS requires at least two monitors with distinct effective DPI values", errors)
+
+    def test_environment_case_errors_require_terminal_environment_for_critical_pass(self):
+        report = build_report(environment={"monitors": [
+            {"index": 0, "width": 1920, "height": 1080, "dpi_x": 96, "dpi_y": 96},
+            {"index": 1, "width": 2560, "height": 1440, "dpi_x": 144, "dpi_y": 144},
+        ]})
+        report["cases"] = [
+            {**item, "result": RESULT_PASS}
+            if item["case_id"] == "terminal.acceptance.pwsh" else item
+            for item in report["cases"]
+        ]
+        errors = environment_case_errors(report)
+        self.assertIn("environment evidence missing for terminal.acceptance.pwsh", errors)
 
     def test_record_command_stamps_completed_case(self):
         report = build_report()
@@ -241,16 +291,7 @@ class SmokeReportTests(unittest.TestCase):
         )
 
     def test_release_gate_accepts_complete_windows_report(self):
-        report = build_report(
-            environment={
-                "platform": "Windows",
-                "windows_release": "11",
-                "windows_version": "10.0.26100",
-                "architecture": "AMD64",
-                "python_version": "3.12.10",
-                "source_commit": "0123456789abcdef0123456789abcdef01234567",
-            }
-        )
+        report = build_report(environment=self._complete_environment())
         report["cases"] = [
             {**item, "result": RESULT_PASS, "tested_at": "2026-09-18T12:00:00Z"}
             for item in report["cases"]
@@ -279,16 +320,7 @@ class SmokeReportTests(unittest.TestCase):
         self.assertIn("matrix_fingerprint=", result.stdout)
 
     def test_release_gate_rejects_completed_case_without_timestamp(self):
-        report = build_report(
-            environment={
-                "platform": "Windows",
-                "windows_release": "11",
-                "windows_version": "10.0.26100",
-                "architecture": "AMD64",
-                "python_version": "3.12.10",
-                "source_commit": "0123456789abcdef0123456789abcdef01234567",
-            }
-        )
+        report = build_report(environment=self._complete_environment())
         report["cases"] = [
             {**item, "result": RESULT_PASS}
             for item in report["cases"]
