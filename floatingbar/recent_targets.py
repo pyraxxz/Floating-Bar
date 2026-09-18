@@ -115,8 +115,6 @@ class RecentTargetHistory:
             return False
         if int(getattr(left, "pid", 0) or 0) != int(getattr(right, "pid", 0) or 0):
             return False
-        if str(getattr(left, "name", "")) != str(getattr(right, "name", "")):
-            return False
         left_runtime = getattr(left, "runtime_id", None)
         right_runtime = getattr(right, "runtime_id", None)
         if left_runtime is not None or right_runtime is not None:
@@ -250,8 +248,6 @@ class RecentTargetHistory:
                 matches = [row for row in rows if row.runtime_id == target.runtime_id]
                 if len(matches) == 1:
                     row = matches[0]
-                    if row.name != target.label:
-                        return None
                     if target.control_identity is not None and row.control_identity != target.control_identity:
                         return None
                     return row
@@ -260,7 +256,7 @@ class RecentTargetHistory:
                 matches = [
                     row
                     for row in rows
-                    if row.control_identity == target.control_identity and row.name == target.label
+                    if row.control_identity == target.control_identity
                 ]
                 if target.container_identity is not None:
                     matches = [
@@ -273,7 +269,7 @@ class RecentTargetHistory:
             elif target.container_identity is not None:
                 matches = [
                     row for row in rows
-                    if row.container_identity == target.container_identity and row.name == target.label
+                    if row.container_identity == target.container_identity
                 ]
                 if len(matches) == 1:
                     return matches[0]
