@@ -44,6 +44,18 @@ class ChatVerificationTests(unittest.TestCase):
                     result = target.finish_submission_verification(301, 5, "posted-enter (unverified)")
                 self.assertEqual(result, "posted-enter (VERIFIED)")
 
+
+    def test_conversation_change_after_clear_cannot_claim_verified(self):
+        target = self._target()
+        target._pin_candidate(target._verification_candidate)
+        runtime = self._runtime_patches()
+        with runtime[0], runtime[1], runtime[2], self._candidate_patch(target), self._live_target_patch(target), \
+             patch.object(target, "_verification_target", return_value=301), \
+             patch.object(target, "_wait_for_length", return_value=True), \
+             patch.object(target, "_conversation_is_still_selected", return_value=False):
+            result = target.finish_submission_verification(301, 5, "posted-enter (unverified)")
+        self.assertEqual(result, "posted-enter (verification-unavailable)")
+
     def test_existing_draft_without_growth_never_becomes_verified(self):
         target = self._target()
         target._pin_candidate(target._verification_candidate)
