@@ -78,24 +78,53 @@ class HardenedTelegramInjector(TelegramInjector):
             )
         return pid
 
-    def _expected_target_pid(self, hwnd: int, stage: str) -> int:
-        """Return the exact PID already validated for this Telegram scope."""
+    @staticmethod
+    def _process_start_identity(target) -> int | None:
+        """Return a concrete saved process-start identity, when available."""
+        value = getattr(target, "bound_process_start", None)
+        if isinstance(value, bool) or not isinstance(value, int):
+            return None
+        return value
+
+    def _expected_target_identity(self, hwnd: int, stage: str) -> tuple[int, int | None]:
+        """Return the PID and saved process instance already validated for this send."""
         pid = self._assert_target_scope(hwnd, stage)
         if not pid:
             raise InjectionFailed("Telegram's target process could not be verified safely.")
+        return pid, self._process_start_identity(self.target)
+
+    def _expected_target_pid(self, hwnd: int, stage: str) -> int:
+        """Return the exact PID already validated for this Telegram scope."""
+        pid, _process_start = self._expected_target_identity(hwnd, stage)
         return pid
 
     def _post_target_text(self, hwnd: int, target_hwnd: int, text: str, stage: str) -> None:
-        pid = self._expected_target_pid(hwnd, stage)
-        winapi.post_text(target_hwnd, text, expected_pid=pid)
+        pid, process_start = self._expected_target_identity(hwnd, stage)
+        winapi.post_text(
+            target_hwnd,
+            text,
+            expected_pid=pid,
+            expected_process_start=process_start,
+        )
 
     def _post_target_click(self, hwnd: int, client_x: int, client_y: int, stage: str) -> None:
-        pid = self._expected_target_pid(hwnd, stage)
-        winapi.post_click(hwnd, client_x, client_y, expected_pid=pid)
+        pid, process_start = self._expected_target_identity(hwnd, stage)
+        winapi.post_click(
+            hwnd,
+            client_x,
+            client_y,
+            expected_pid=pid,
+            expected_process_start=process_start,
+        )
 
     def _post_target_enter(self, hwnd: int, ctrl: bool, stage: str) -> None:
-        pid = self._expected_target_pid(hwnd, stage)
-        winapi.post_enter(hwnd, ctrl=ctrl, expected_pid=pid)
+        pid, process_start = self._expected_target_identity(hwnd, stage)
+        winapi.post_enter(
+            hwnd,
+            ctrl=ctrl,
+            expected_pid=pid,
+            expected_process_start=process_start,
+        )
     def _pick_compose_text_edit(self, box, fallback, entries):
         """Prefer a positive-value Edit that overlaps the chosen compose."""
         overlapping = []

@@ -26,11 +26,17 @@ class BoundTelegramTarget:
     def __init__(self, target: Optional[TelegramTarget] = None):
         self._inner = target or TelegramTarget()
         self._bound_scope: Optional[TargetScope] = None
+        self._bound_process_start: Optional[int] = None
         self._chat_identity: Optional[TelegramChatItem] = None
 
     @property
     def bound_scope(self) -> Optional[TargetScope]:
         return self._bound_scope
+
+    @property
+    def bound_process_start(self) -> Optional[int]:
+        """Return the saved process-instance identity for the current lease."""
+        return self._bound_process_start
 
     def release(self) -> None:
         """Release the transaction binding and its session-only chat confirmation."""
@@ -41,6 +47,7 @@ class BoundTelegramTarget:
         elif chat is not None:
             clear_confirmed_telegram_chat_for_scope(chat.hwnd, chat.pid)
         self._bound_scope = None
+        self._bound_process_start = None
         self._chat_identity = None
 
     def bind_chat_identity(self, chat: Optional[TelegramChatItem]) -> None:
@@ -67,13 +74,25 @@ class BoundTelegramTarget:
             return True
         return chat_identity_matches(chat)
 
-    def _raw_scope(self, scope: TargetScope) -> bool:
+    def _raw_scope(
+        self,
+        scope: TargetScope,
+        expected_process_start: Optional[int] = None,
+    ) -> bool:
         if not scope.valid:
             return False
         try:
             if not winapi.user32.IsWindow(scope.hwnd):
                 return False
-            return winapi.get_window_pid(scope.hwnd) == scope.pid
+            if winapi.get_window_pid(scope.hwnd) != scope.pid:
+                return False
+            if expected_process_start is not None:
+                current_process_start = winapi.get_process_creation_time(scope.pid)
+                if current_process_start is None:
+                    return False
+                if current_process_start != expected_process_start:
+                    return False
+            return True
         except Exception:
             return False
 
@@ -81,7 +100,7 @@ class BoundTelegramTarget:
         scope = self._bound_scope
         if scope is None:
             return TargetScope(0, 0)
-        if not self._raw_scope(scope):
+        if not self._raw_scope(scope, expected_process_start=self._bound_process_start):
             return TargetScope(0, 0)
         return scope
 
@@ -168,6 +187,10 @@ class BoundTelegramTarget:
             candidate = TargetScope(selected, pid)
             if not self._raw_scope(candidate):
                 return 0
+            try:
+                self._bound_process_start = winapi.get_process_creation_time(candidate.pid)
+            except Exception:
+                self._bound_process_start = None
             self._bound_scope = candidate
         return selected
 
