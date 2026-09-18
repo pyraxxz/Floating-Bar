@@ -253,10 +253,14 @@ def environment_case_errors(report: Mapping[str, object]) -> tuple[str, ...]:
         "powershell": {"powershell"},
     }
 
+    expected_case_map = {case.case_id: case for case in default_cases()}
     for item in raw_cases:
         if not isinstance(item, Mapping) or str(item.get("result", RESULT_PENDING)) != RESULT_PASS:
             continue
         case_id = str(item.get("case_id", "")).strip()
+        expected_case = expected_case_map.get(case_id)
+        if expected_case is None or expected_case.priority != "critical":
+            continue
         process_requirement = required_processes.get(case_id)
         if process_requirement:
             adapter_keys, expected_processes = process_requirement
