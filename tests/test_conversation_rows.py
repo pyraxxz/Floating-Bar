@@ -259,7 +259,7 @@ class ConversationRowTests(unittest.TestCase):
             control_identity=("ListItem", "alice", "row", "uia"),
             container_identity=("ancestor1", "Pane", "workspace-b", "uia"),
         )
-        with patch("floatingbar.conversation_rows.winapi.get_window_pid", return_value=200), \\
+        with patch("floatingbar.conversation_rows.winapi.get_window_pid", return_value=200), \
              patch("floatingbar.conversation_rows.enumerate_conversations", return_value=(moved,)):
             from floatingbar.conversation_rows import _refresh_row
             self.assertEqual(_refresh_row(item), moved)
