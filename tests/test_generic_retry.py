@@ -139,11 +139,7 @@ class GenericRetryTests(unittest.TestCase):
              ):
             window._retry_failed_draft()
 
-        window._background_typer.bind.assert_called_once_with(
-            410,
-            811,
-            expected_process_start=123,
-        )
+        window._background_typer.bind.assert_called_once_with(410, 811)
         self.assertEqual(window._background_process_name, "discord.exe")
         self.assertEqual(window._background_adapter_key, "discord")
         self.assertEqual(window._work_hwnd, 410)
