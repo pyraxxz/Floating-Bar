@@ -310,6 +310,11 @@ def chat_identity_matches(chat: TelegramChatItem) -> bool:
             for row in current_rows
             if row.control_identity == chat.control_identity and row.name == chat.name
         ]
+        if chat.container_identity is not None:
+            matches = [
+                row for row in matches
+                if row.container_identity == chat.container_identity
+            ]
         if len(matches) == 1:
             return bool(matches[0].selected)
         if len(matches) > 1:
