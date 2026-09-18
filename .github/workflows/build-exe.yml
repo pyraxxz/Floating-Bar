@@ -1,7 +1,7 @@
 name: Publish Windows release
 
-# Milestone releases only. The normal Windows CI runs on main; this workflow
-# publishes a downloadable EXE only when an explicit v* tag is pushed.
+# Milestone releases only. Pull-request Windows CI is the development gate;
+# this workflow publishes downloadable release assets only for explicit v* tags.
 
 on:
   push:
@@ -241,3 +241,5 @@ jobs:
           path: |
             dist/FloatingBar.exe
             dist/FloatingBar.exe.sha256
+            dist/Install-FloatingBar.ps1
+            dist/Uninstall-FloatingBar.ps1
