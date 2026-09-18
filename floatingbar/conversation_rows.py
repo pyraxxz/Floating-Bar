@@ -151,7 +151,7 @@ def enumerate_conversations(
                 container_identity = ancestor_identity(item)
                 attention = safe_detect(item, attention_detector)
                 key = runtime_id or (
-                    control_identity,
+                    structural_control_identity,
                     name.casefold(),
                     rect.left,
                     rect.top,
