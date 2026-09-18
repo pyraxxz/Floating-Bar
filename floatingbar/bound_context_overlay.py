@@ -262,6 +262,11 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             if pin.process_name != process_name or pin.adapter_key != adapter_key:
                 continue
             matches = [item for item in live if item.name == pin.label]
+            if pin.control_identity is not None:
+                matches = [
+                    item for item in matches
+                    if item.control_identity == pin.control_identity
+                ]
             if len(matches) == 1:
                 rows.append(matches[0])
         return tuple(rows)
@@ -284,6 +289,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             adapter_key=spec.key,
             process_name=self._background_process_name,
             label=conversation.name,
+            control_identity=conversation.control_identity,
         )
 
     def _remember_bound_application(self, spec, hwnd: int, pid: int) -> None:
