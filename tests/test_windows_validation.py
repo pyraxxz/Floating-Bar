@@ -32,9 +32,59 @@ class WindowsValidationTests(unittest.TestCase):
             ("msteams.exe", "ms-teams.exe", "teams.exe"),
         )
 
+
+    def test_adapter_observation_carries_distinct_process_instances(self):
+        observations = _observe_adapters(
+            ["telegram.exe", "telegram.exe", "discord.exe"],
+            instances={
+                "telegram.exe": (123, 123, 456),
+                "discord.exe": (789,),
+            },
+        )
+        by_key = {item.key: item for item in observations}
+        self.assertEqual(
+            by_key["telegram"].observed_process_instances,
+            (("telegram.exe", 123), ("telegram.exe", 456)),
+        )
+        self.assertEqual(
+            by_key["discord"].observed_process_instances,
+            (("discord.exe", 789),),
+        )
+
+    def test_snapshot_serialization_includes_process_instance_identity(self):
+        snapshot = WindowsValidationSnapshot(
+            schema_version=3,
+            platform="Windows",
+            windows_release="11",
+            windows_version="10.0.26100",
+            windows_service_pack="",
+            architecture="AMD64",
+            python_version="3.13.0",
+            monitor_count=1,
+            dpi_awareness="per-monitor",
+            observed_window_count=2,
+            adapters=(
+                AdapterObservation(
+                    "telegram",
+                    "Telegram",
+                    ("telegram.exe",),
+                    2,
+                    ("telegram.exe",),
+                    observed_process_instances=(("telegram.exe", 123),),
+                ),
+            ),
+        )
+        payload = snapshot.to_dict()
+        self.assertEqual(
+            payload["adapters"][0]["observed_process_instances"],
+            [{"process_name": "telegram.exe", "process_start": 123}],
+        )
+        self.assertNotIn("title", str(payload).lower())
+        self.assertNotIn("message", str(payload).lower())
+
     def test_snapshot_serialization_is_content_free(self):
         snapshot = WindowsValidationSnapshot(
-            schema_version=2,
+            schema_version=3,
             platform="Windows",
             windows_release="11",
             windows_version="10.0.26100",
