@@ -112,7 +112,7 @@ class ScopeGuardedRecoveryInjector(HardenedTelegramInjector):
             info = self.target.send_button_click(near_box=box)
             if info and not _is_voice_name(info[0]):
                 self._assert_target_scope(hwnd, "before focus-steal Send click")
-                winapi.post_click(hwnd, info[1], info[2])
+                self._post_target_click(hwnd, info[1], info[2], "before recovery Send click")
                 verified = self._poll_compose_clear(
                     lambda: self._value_length(box)
                 )
@@ -200,7 +200,7 @@ class ScopeGuardedRecoveryInjector(HardenedTelegramInjector):
                 info = self.target.send_button_click(near_box=box)
                 if info and not _is_voice_name(info[0]):
                     self._assert_target_scope(hwnd, "before clipboard recovery Send click")
-                    winapi.post_click(hwnd, info[1], info[2])
+                    self._post_target_click(hwnd, info[1], info[2], "before recovery Send click")
                     verified = self._poll_compose_clear(
                         lambda: self._value_length(box)
                     )
