@@ -248,7 +248,7 @@ Every adapter should eventually produce one of:
 
 - [ ] Final supported-application matrix after real desktop validation
 - [x] Per-user Windows startup behavior
-- [ ] Packaging and clean upgrade path
+- [x] Packaging and clean upgrade path
 - [x] Core user documentation and troubleshooting guidance
 - [ ] Signed executable and installer packaging
 - [ ] Release update notification

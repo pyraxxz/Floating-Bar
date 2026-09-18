@@ -1,7 +1,7 @@
 name: Publish Windows release
 
-# Milestone releases only. The normal Windows CI runs on main; this workflow
-# publishes a downloadable EXE only when an explicit v* tag is pushed.
+# Milestone releases only. Pull-request Windows CI is the development gate;
+# this workflow publishes downloadable release assets only for explicit v* tags.
 
 on:
   push:
@@ -157,9 +157,37 @@ jobs:
         if: steps.release.outputs.publish == 'true'
         run: python -m unittest discover -s tests -v
 
+      - name: Validate PowerShell installer scripts
+        if: steps.release.outputs.publish == 'true'
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD "installer/Install-FloatingBar.ps1"),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD "installer/Uninstall-FloatingBar.ps1"),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Host $_.Message }
+            exit 1
+          }
+
       - name: Build Windows executable
         if: steps.release.outputs.publish == 'true'
         run: pyinstaller --onefile --noconsole --name FloatingBar main.py
+
+      - name: Stage installer scripts
+        if: steps.release.outputs.publish == 'true'
+        shell: pwsh
+        run: |
+          Copy-Item -LiteralPath installer/Install-FloatingBar.ps1 -Destination dist/Install-FloatingBar.ps1 -Force
+          Copy-Item -LiteralPath installer/Uninstall-FloatingBar.ps1 -Destination dist/Uninstall-FloatingBar.ps1 -Force
 
       - name: Confirm tag source before publication
         if: steps.release.outputs.publish == 'true'
@@ -201,6 +229,8 @@ jobs:
           files: |
             dist/FloatingBar.exe
             dist/FloatingBar.exe.sha256
+            dist/Install-FloatingBar.ps1
+            dist/Uninstall-FloatingBar.ps1
           generate_release_notes: true
 
       - name: Upload build artifact
@@ -211,3 +241,5 @@ jobs:
           path: |
             dist/FloatingBar.exe
             dist/FloatingBar.exe.sha256
+            dist/Install-FloatingBar.ps1
+            dist/Uninstall-FloatingBar.ps1

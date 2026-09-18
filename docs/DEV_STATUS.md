@@ -34,6 +34,9 @@ The Windows environment snapshot also records executable file versions for obser
 
 ## Recent productization work
 
+Packaging now includes a clean PowerShell install/upgrade/uninstall path. The installed executable lives under %LOCALAPPDATA%\\FloatingBar, while user settings remain under %APPDATA%\\FloatingBar and survive normal upgrades.
+
+
 A lightweight Settings dialog now exposes per-user Windows startup and the idle-collapse interval. These preferences remain separate from target discovery and are stored without any window, conversation, message, or UI Automation content.
 
 ## Next engineering target
