@@ -51,6 +51,16 @@ class HardeningTests(unittest.TestCase):
         self.assertFalse(_is_explicit_send_name(""))
         self.assertFalse(_is_explicit_send_name("Emoji"))
 
+    def test_expected_target_pid_uses_pid_validated_by_scope_guard(self):
+        target = Mock()
+        target.scope_matches.return_value = True
+        injector = HardenedTelegramInjector(target)
+        with patch(
+            "floatingbar.hardening.winapi.get_window_pid",
+            side_effect=[10, 999],
+        ):
+            self.assertEqual(injector._expected_target_pid(123, "test"), 10)
+
     def test_land_clicks_compose_before_posting_text_and_uses_focused_child(self):
         events = []
         target = Mock()
