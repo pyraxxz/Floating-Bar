@@ -254,7 +254,7 @@ class ConversationRowTests(unittest.TestCase):
             container_identity=("ancestor1", "Pane", "workspace-a", "uia"),
         )
         moved = ConversationItem(
-            123, 200, "Alice", 80, 500, 480, 560,
+            123, 200, "Alice", 24, 110, 424, 170,
             runtime_id=(9, 9),
             control_identity=("ListItem", "alice", "row", "uia"),
             container_identity=("ancestor1", "Pane", "workspace-b", "uia"),
