@@ -104,6 +104,25 @@ class SelectionRaceTests(unittest.TestCase):
         window._background_typer.bind.assert_not_called()
         window._show_feedback.assert_called_once()
 
+    def test_failed_conversation_finish_releases_target_lease(self):
+        window = self._window()
+        window._background_process_name = "discord.exe"
+        window._work_hwnd = 123
+        window._pending_conversation = Mock(hwnd=123, pid=200, name="Broken")
+        window._background_typer.bind.side_effect = RuntimeError("probe failure")
+        window._background_typer.release = Mock()
+        with patch("floatingbar.bound_context_overlay.actionable_adapter_for_process", return_value=Mock(key="discord")):
+            window._finish_conversation_selection(window._selection_generation_value())
+        window._background_typer.release.assert_called_once()
+
+    def test_failed_telegram_finish_releases_target_lease(self):
+        window = self._window()
+        window._pending_chat = Mock(hwnd=123, pid=200, name="Broken")
+        window.target.release = Mock()
+        window.target.select_for_send.side_effect = RuntimeError("scope changed")
+        window._finish_telegram_chat_selection(window._selection_generation_value())
+        window.target.release.assert_called_once()
+
     def test_stale_generic_selection_callback_cannot_bind_newer_conversation(self):
         window = self._window()
         older = Mock(hwnd=123, pid=200, name="Older")
