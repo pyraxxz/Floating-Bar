@@ -226,6 +226,27 @@ class ConversationRowTests(unittest.TestCase):
             from floatingbar.conversation_rows import _refresh_row
             self.assertEqual(_refresh_row(item), correct)
 
+    def test_container_identity_disambiguates_duplicate_control_identity(self):
+        item = ConversationItem(
+            123, 200, "general", 20, 100, 420, 160, False, None,
+            ("ListItem", "shared", "row", "uia"),
+            container_identity=("ancestor1", "Pane", "workspace-a", "uia"),
+        )
+        correct = ConversationItem(
+            123, 200, "general", 22, 102, 422, 162, False, None,
+            ("ListItem", "shared", "row", "uia"),
+            container_identity=("ancestor1", "Pane", "workspace-a", "uia"),
+        )
+        duplicate = ConversationItem(
+            123, 200, "general", 24, 300, 424, 360, False, None,
+            ("ListItem", "shared", "row", "uia"),
+            container_identity=("ancestor1", "Pane", "workspace-b", "uia"),
+        )
+        with patch("floatingbar.conversation_rows.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.conversation_rows.enumerate_conversations", return_value=(duplicate, correct)):
+            from floatingbar.conversation_rows import _refresh_row
+            self.assertEqual(_refresh_row(item), correct)
+
     def test_ambiguous_structural_identity_is_rejected(self):
         item = ConversationItem(123, 200, "Alice", 20, 100, 420, 160, False, None, ("ListItem", "shared", "row", "uia"))
         first = ConversationItem(123, 200, "Alice", 22, 102, 422, 162, False, None, ("ListItem", "shared", "row", "uia"))
