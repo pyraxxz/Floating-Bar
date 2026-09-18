@@ -30,7 +30,7 @@ The current implementation includes:
 
 Pins and quick replies are intentionally separate from background-app discovery: no HWND/PID/runtime identifiers are persisted for pins, and quick-reply text is stored only because the user explicitly saved it.
 
-The Windows CI gate currently runs for pull requests (plus manual dispatch), compiles the Python sources, runs the regression suite, and builds the Windows executable with PyInstaller before a change is merged.
+The Windows CI gate runs for pull requests, pushes to `main`, and manual dispatches. It compiles the Python sources, validates the installer scripts, runs the regression suite, and builds the Windows executable with PyInstaller.
 
 ---
 

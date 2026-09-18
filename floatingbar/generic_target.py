@@ -155,6 +155,10 @@ class BackgroundTypingTarget:
                 return False
         return True
 
+    def is_available(self) -> bool:
+        """Expose the minimal background-target contract explicitly."""
+        return self.available()
+
     def input_candidates(self) -> tuple[InputCandidate, ...]:
         """Return content-free editable controls inside the exact target."""
         scope = self._scope
