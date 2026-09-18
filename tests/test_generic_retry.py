@@ -153,8 +153,17 @@ class GenericRetryTests(unittest.TestCase):
         window._show_bar = Mock()
         window._work_hwnd = 0
 
-        item = Mock(hwnd=512, pid=900, process_name="whatsapp.exe", actionable=True)
-        with patch("floatingbar.bound_context_overlay.target_for_adapter", return_value=window._background_typer):
+        item = Mock(
+            hwnd=512,
+            pid=900,
+            process_name="whatsapp.exe",
+            actionable=True,
+            window_class="WhatsAppMainWindow",
+        )
+        with patch("floatingbar.bound_context_overlay.target_for_adapter", return_value=window._background_typer), \
+             patch("floatingbar.bound_context_overlay.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.bound_context_overlay.winapi.get_window_pid", return_value=900), \
+             patch("floatingbar.bound_context_overlay.winapi.get_window_class_name", return_value="WhatsAppMainWindow"):
             window._select_background_window(item)
 
         self.assertIsNone(window._generic_retry_scope)
