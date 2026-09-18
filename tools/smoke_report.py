@@ -7,13 +7,15 @@ Run from the repository root on Windows:
     python tools/smoke_report.py --validate smoke-report.json --require-complete
 
 The initializer combines the content-free Windows environment snapshot with
-the declarative smoke matrix. It never reads or stores window titles,
+the declarative smoke matrix. Use --record to stamp a completed case without
+hand-editing timestamps. It never reads or stores window titles,
 conversation names, message bodies, input values, or clipboard contents.
 """
 
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import json
 import os
 import subprocess
@@ -115,6 +117,60 @@ def _release_environment_errors(report: dict) -> tuple[str, ...]:
     return ()
 
 
+def _record(path: Path, case_id: str, result: str, force: bool) -> int:
+    """Record one manual smoke result with an execution timestamp."""
+    report = _load(path)
+    errors = validate_report(report)
+    if errors:
+        print("Smoke report validation: FAIL")
+        for error in errors:
+            print(f"  - {error}")
+        return 2
+
+    normalized_result = str(result or "").strip().upper()
+    allowed = {"PASS", "FAIL", "BLOCKED"}
+    if normalized_result not in allowed:
+        print(
+            "Smoke report record: FAIL — result must be one of PASS, FAIL, BLOCKED",
+            file=sys.stderr,
+        )
+        return 2
+
+    raw_cases = report.get("cases")
+    if not isinstance(raw_cases, list):
+        print("Smoke report record: FAIL — cases must be a list", file=sys.stderr)
+        return 2
+
+    selected = None
+    for item in raw_cases:
+        if isinstance(item, dict) and str(item.get("case_id", "")) == case_id:
+            selected = item
+            break
+    if selected is None:
+        print(f"Smoke report record: FAIL — unknown case_id: {case_id}", file=sys.stderr)
+        return 2
+
+    current = str(selected.get("result", "PENDING"))
+    if current != "PENDING" and not force:
+        print(
+            f"Smoke report record: REFUSED — {case_id} is already {current}; "
+            "use --force to replace an existing completed result",
+            file=sys.stderr,
+        )
+        return 3
+
+    selected["result"] = normalized_result
+    selected["tested_at"] = (
+        datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    )
+    _write(path, report)
+    print(
+        f"Recorded {case_id}: result={normalized_result} "
+        f"tested_at={selected['tested_at']}"
+    )
+    return 0
+
+
 def _validate(path: Path, require_complete: bool) -> int:
     report = _load(path)
     errors = validate_report(report)
@@ -164,6 +220,21 @@ def main() -> int:
     actions = parser.add_mutually_exclusive_group(required=True)
     actions.add_argument("--init", metavar="PATH", help="create a fresh smoke report")
     actions.add_argument("--validate", metavar="PATH", help="validate an existing smoke report")
+    actions.add_argument("--record", metavar="PATH", help="record one completed smoke case")
+    parser.add_argument(
+        "--case-id",
+        help="case_id to update with --record",
+    )
+    parser.add_argument(
+        "--result",
+        choices=("PASS", "FAIL", "BLOCKED"),
+        help="result to record with --record",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="allow --record to replace an already-completed case",
+    )
     parser.add_argument(
         "--require-complete",
         action="store_true",
@@ -171,16 +242,26 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    path = Path(args.init or args.validate)
+    path = Path(args.init or args.validate or args.record)
     try:
         if args.init:
             if path.exists():
                 print(f"Refusing to overwrite existing report: {path}", file=sys.stderr)
                 return 2
             return _init(path)
+        if args.record:
+            if not args.case_id:
+                parser.error("--case-id is required with --record")
+            if not args.result:
+                parser.error("--result is required with --record")
+            return _record(path, args.case_id, args.result, args.force)
         return _validate(path, args.require_complete)
     except Exception as exc:
-        print(f"Smoke report operation failed safely: {exc}", file=sys.stderr)
+        print(
+            "Smoke report operation failed safely "
+            f"(exception={type(exc).__name__})",
+            file=sys.stderr,
+        )
         return 2
 
 

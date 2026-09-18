@@ -108,6 +108,138 @@ class SmokeReportTests(unittest.TestCase):
             len(default_cases()),
         )
 
+    def test_record_command_stamps_completed_case(self):
+        report = build_report()
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "smoke.json"
+            path.write_text(json.dumps(report), encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(root / "tools" / "smoke_report.py"),
+                    "--record",
+                    str(path),
+                    "--case-id",
+                    "telegram.send",
+                    "--result",
+                    "PASS",
+                ],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            updated = json.loads(path.read_text(encoding="utf-8"))
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        selected = next(
+            item for item in updated["cases"] if item["case_id"] == "telegram.send"
+        )
+        self.assertEqual(selected["result"], "PASS")
+        self.assertRegex(
+            selected["tested_at"],
+            r"^20[0-9]{2}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+        )
+        self.assertTrue(all(
+            item["result"] == "PENDING"
+            for item in updated["cases"]
+            if item["case_id"] != "telegram.send"
+        ))
+
+    def test_cli_failure_does_not_expose_raw_exception_text(self):
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "broken.json"
+            path.write_text("{ definitely not json", encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(root / "tools" / "smoke_report.py"),
+                    "--validate",
+                    str(path),
+                ],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("exception=JSONDecodeError", result.stderr)
+        self.assertNotIn("definitely not json", result.stderr)
+
+    def test_record_command_refuses_overwrite_without_force(self):
+        report = build_report()
+        report["cases"][0]["result"] = "PASS"
+        report["cases"][0]["tested_at"] = "2026-09-18T12:00:00Z"
+        root = Path(__file__).resolve().parents[1]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "smoke.json"
+            path.write_text(json.dumps(report), encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(root / "tools" / "smoke_report.py"),
+                    "--record",
+                    str(path),
+                    "--case-id",
+                    report["cases"][0]["case_id"],
+                    "--result",
+                    "FAIL",
+                ],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            updated = json.loads(path.read_text(encoding="utf-8"))
+
+        self.assertEqual(result.returncode, 3)
+        self.assertIn("already PASS", result.stderr)
+        self.assertEqual(updated["cases"][0]["result"], "PASS")
+        self.assertEqual(updated["cases"][0]["tested_at"], "2026-09-18T12:00:00Z")
+
+    def test_record_command_force_replaces_completed_case(self):
+        report = build_report()
+        report["cases"][0]["result"] = "PASS"
+        report["cases"][0]["tested_at"] = "2026-09-18T12:00:00Z"
+        root = Path(__file__).resolve().parents[1]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "smoke.json"
+            path.write_text(json.dumps(report), encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(root / "tools" / "smoke_report.py"),
+                    "--record",
+                    str(path),
+                    "--case-id",
+                    report["cases"][0]["case_id"],
+                    "--result",
+                    "BLOCKED",
+                    "--force",
+                ],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            updated = json.loads(path.read_text(encoding="utf-8"))
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(updated["cases"][0]["result"], "BLOCKED")
+        self.assertNotEqual(updated["cases"][0]["tested_at"], "2026-09-18T12:00:00Z")
+        self.assertRegex(
+            updated["cases"][0]["tested_at"],
+            r"^20[0-9]{2}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+        )
+
     def test_release_gate_accepts_complete_windows_report(self):
         report = build_report(
             environment={
