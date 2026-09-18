@@ -75,6 +75,6 @@ Before `v0.2.0`:
 
 ## CI development policy
 
-Windows CI is a pull-request gate, not a development-push notification loop. The workflow runs for pull requests and manual dispatches; it does not run on ordinary pushes to `main`. Development changes should be made on a topic branch and merged only after the Windows regression suite and executable build are green.
+Windows CI is the integration gate for both pull requests and `main` pushes, plus manual dispatches. Pull requests remain the merge-time gate; the `main` push trigger is an additional post-integration safety net so a broken integration commit is detected immediately.
 
-The repository's `main` branch should be treated as the integration branch, not as the place to debug failing changes. Branch protection should require the **Windows CI / test** check before merging pull requests.
+Development changes should be made on topic branches and merged only after the Windows regression suite and executable build are green. The repository's `main` branch should remain the integration branch, not the place to debug failing changes. Branch protection should require the **Windows CI / test** check before merging pull requests.
