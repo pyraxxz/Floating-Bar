@@ -27,6 +27,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from floatingbar.smoke_matrix import (
     build_report,
     completion_errors,
+    environment_case_errors,
     pending_case_ids,
     summarize_report,
     validate_report,
@@ -202,6 +203,12 @@ def _validate(path: Path, require_complete: bool) -> int:
             for error in completion_issues:
                 print(f"  - {error}")
             return 3
+        environment_case_issues = environment_case_errors(report)
+        if environment_case_issues:
+            print("Release gate: BLOCKED — smoke PASS results lack matching environment evidence:")
+            for error in environment_case_issues:
+                print(f"  - {error}")
+            return 6
     if require_complete and summary["pending"]:
         print("Release gate: BLOCKED — unresolved smoke cases remain:")
         for case_id in pending_case_ids(report):
