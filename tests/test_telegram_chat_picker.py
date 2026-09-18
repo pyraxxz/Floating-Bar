@@ -163,7 +163,7 @@ class TelegramChatPickerTests(unittest.TestCase):
     def test_select_chat_refreshes_row_before_background_click(self):
         chat = TelegramChatItem(100, 200, "Alice", 100, 200, 300, 260)
         refreshed = TelegramChatItem(100, 200, "Alice", 110, 210, 310, 270, False, (1, 1), ("ListItem", "row", "uia"))
-        selected = TelegramChatItem(100, 200, "Alice", 110, 210, 310, 270, True, (1, 1), ("ListItem", "alice", "row", "uia"))
+        selected = TelegramChatItem(100, 200, "Alice", 110, 210, 310, 270, True, (1, 1), ("ListItem", "row", "uia"))
         with patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
              patch("floatingbar.telegram_chats.enumerate_telegram_chats", side_effect=[(refreshed,), (selected,)]) as enumerate_rows, \
