@@ -57,8 +57,8 @@ class HardenedTelegramInjector(TelegramInjector):
             return strategy
         return EvidenceStrategy(strategy, self._last_submission_evidence)
 
-    def _assert_target_scope(self, hwnd: int, stage: str) -> None:
-        """Refuse to continue if Telegram's top-level target changed mid-send."""
+    def _assert_target_scope(self, hwnd: int, stage: str) -> int:
+        """Return the exact PID validated for the Telegram send scope."""
         try:
             pid = winapi.get_window_pid(hwnd)
         except Exception:
@@ -76,16 +76,11 @@ class HardenedTelegramInjector(TelegramInjector):
                 "Telegram changed or restarted while the message was being sent. "
                 "The send was stopped safely; try again."
             )
+        return pid
 
     def _expected_target_pid(self, hwnd: int, stage: str) -> int:
-        """Return the trusted Telegram PID immediately before a Win32 post."""
-        self._assert_target_scope(hwnd, stage)
-        try:
-            pid = winapi.get_window_pid(hwnd)
-        except Exception as exc:
-            raise InjectionFailed(
-                "Telegram's target process could not be verified safely."
-            ) from exc
+        """Return the exact PID already validated for this Telegram scope."""
+        pid = self._assert_target_scope(hwnd, stage)
         if not pid:
             raise InjectionFailed("Telegram's target process could not be verified safely.")
         return pid
