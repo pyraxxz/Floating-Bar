@@ -208,6 +208,25 @@ class ConversationRowTests(unittest.TestCase):
             from floatingbar.conversation_rows import _refresh_row
             self.assertEqual(_refresh_row(item), fresh)
 
+    def test_runtime_identity_ambiguity_is_rejected(self):
+        item = ConversationItem(
+            123, 200, "Alice", 20, 100, 420, 160,
+            runtime_id=(9, 9),
+        )
+        first = ConversationItem(
+            123, 200, "Alice", 22, 102, 422, 162,
+            runtime_id=(9, 9),
+        )
+        second = ConversationItem(
+            123, 200, "Alice", 24, 300, 424, 360,
+            runtime_id=(9, 9),
+        )
+        with patch("floatingbar.conversation_rows.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.conversation_rows.enumerate_conversations", return_value=(first, second)):
+            from floatingbar.conversation_rows import _refresh_row
+            with self.assertRaisesRegex(RuntimeError, "runtime identity is ambiguous"):
+                _refresh_row(item)
+
     def test_runtime_identity_change_is_rejected(self):
         item = ConversationItem(123, 200, "Alice", 20, 100, 420, 160, False, (9, 9))
         changed = ConversationItem(123, 200, "Bob", 20, 100, 420, 160, False, (9, 9))
