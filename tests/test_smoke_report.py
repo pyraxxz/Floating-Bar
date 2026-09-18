@@ -373,7 +373,7 @@ class SmokeReportTests(unittest.TestCase):
             r"^20[0-9]{2}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
         )
         self.assertEqual(selected["evidence"]["recorded_at"], selected["tested_at"])
-        self.assertIn("adapters", selected["evidence"])
+        self.assertIn("process_instances", selected["evidence"])
         self.assertTrue(all(
             item["result"] == "PENDING"
             for item in updated["cases"]
