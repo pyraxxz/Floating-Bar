@@ -18,8 +18,8 @@ from typing import Optional, Sequence
 
 _APPDATA = os.environ.get("APPDATA") or os.path.expanduser("~")
 _DEFAULT_PATH = os.path.join(_APPDATA, "FloatingBar", "pinned-targets.json")
-_SCHEMA_VERSION = 2
-_SUPPORTED_SCHEMA_VERSIONS = frozenset({1, 2})
+_SCHEMA_VERSION = 3
+_SUPPORTED_SCHEMA_VERSIONS = frozenset({1, 2, 3})
 
 
 @dataclass(frozen=True)
@@ -29,6 +29,7 @@ class PinnedTarget:
     process_name: str
     label: str
     control_identity: tuple[str, ...] | None = None
+    window_class: str | None = None
 
     @property
     def valid(self) -> bool:
@@ -47,6 +48,7 @@ class PinnedTarget:
             self.process_name.casefold(),
             self.label.casefold(),
             self.control_identity,
+            self.window_class,
         )
 
     def to_dict(self) -> dict:
@@ -58,6 +60,8 @@ class PinnedTarget:
         }
         if self.control_identity:
             payload["control_identity"] = list(self.control_identity)
+        if self.window_class:
+            payload["window_class"] = self.window_class
         return payload
 
 
@@ -93,6 +97,7 @@ class PinnedTargetStore:
         adapter_key: str,
         process_name: str,
         label: str,
+        window_class: Optional[str] = None,
     ) -> bool:
         return self._toggle(
             PinnedTarget(
@@ -100,6 +105,7 @@ class PinnedTargetStore:
                 adapter_key=str(adapter_key),
                 process_name=str(process_name).casefold(),
                 label=str(label).strip(),
+                window_class=str(window_class or "").strip() or None,
             )
         )
 
@@ -171,6 +177,7 @@ class PinnedTargetStore:
                         if isinstance(raw.get("control_identity", ()), (list, tuple))
                         else None
                     ),
+                    window_class=str(raw.get("window_class", "")).strip() or None,
                 )
             except (TypeError, ValueError):
                 continue
