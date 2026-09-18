@@ -165,7 +165,7 @@ class ConversationRowTests(unittest.TestCase):
 
         self.assertEqual(confirmed, fresh)
         self.assertTrue(confirmed.selected)
-        post_click.assert_called_once_with(123, 220, 134)
+        post_click.assert_called_once_with(123, 220, 134, expected_pid=200)
 
     def test_selection_waits_for_selected_state_after_background_click(self):
         item = ConversationItem(123, 200, "Alice", 20, 100, 420, 160, False, (1, 10), ("ListItem", "alice", "row", "uia"))
@@ -181,7 +181,7 @@ class ConversationRowTests(unittest.TestCase):
 
         self.assertEqual(confirmed, selected)
         self.assertTrue(confirmed.selected)
-        post_click.assert_called_once_with(123, 220, 134)
+        post_click.assert_called_once_with(123, 220, 134, expected_pid=200)
         self.assertEqual(sleep.call_count, 1)
 
     def test_selection_rejects_click_that_never_becomes_selected(self):
@@ -196,7 +196,7 @@ class ConversationRowTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "was not selected"):
                 select_conversation(item)
 
-        post_click.assert_called_once_with(123, 220, 134)
+        post_click.assert_called_once_with(123, 220, 134, expected_pid=200)
         self.assertEqual(sleep.call_count, 4)
 
     def test_runtime_identity_takes_precedence_over_duplicate_names(self):
