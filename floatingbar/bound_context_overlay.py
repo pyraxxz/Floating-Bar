@@ -377,10 +377,30 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             self._conversation_picker.show()
             return
 
-        self._bind_generic_target(item.hwnd, item.pid, spec, item.window_class)
+        self._bind_generic_target(
+            item.hwnd,
+            item.pid,
+            spec,
+            item.window_class,
+            getattr(item, "process_start", None),
+        )
 
-    def _bind_generic_target(self, hwnd: int, pid: int, spec=None, window_class: str = "") -> None:
-        self._background_typer.bind(hwnd, pid)
+    def _bind_generic_target(
+        self,
+        hwnd: int,
+        pid: int,
+        spec=None,
+        window_class: str = "",
+        process_start: int | None = None,
+    ) -> None:
+        if process_start is None:
+            self._background_typer.bind(hwnd, pid)
+        else:
+            self._background_typer.bind(
+                hwnd,
+                pid,
+                expected_process_start=process_start,
+            )
         self._bind_adapter_metadata(spec)
         self._update_status()
         try:
@@ -425,7 +445,15 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
                 current_class = str(winapi.get_window_class_name(conversation.hwnd) or "").strip()
                 if current_class != expected_class:
                     raise RuntimeError("selected conversation window changed before binding")
-            scope = self._background_typer.bind(conversation.hwnd, conversation.pid)
+            process_start = getattr(conversation, "process_start", None)
+            if process_start is None:
+                scope = self._background_typer.bind(conversation.hwnd, conversation.pid)
+            else:
+                scope = self._background_typer.bind(
+                    conversation.hwnd,
+                    conversation.pid,
+                    expected_process_start=process_start,
+                )
             self._bind_adapter_metadata(spec)
             if scope.hwnd != self._work_hwnd or scope.pid != conversation.pid:
                 raise RuntimeError("conversation selected a different window or process")
@@ -584,7 +612,14 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
                 self._show_feedback("The original background app process restarted before the retry could start.")
                 return
         target = target_for_adapter(spec)
-        rebound = target.bind(scope.hwnd, scope.pid)
+        if saved_process_start is None:
+            rebound = target.bind(scope.hwnd, scope.pid)
+        else:
+            rebound = target.bind(
+                scope.hwnd,
+                scope.pid,
+                expected_process_start=saved_process_start,
+            )
         if rebound != scope or not target.scope_matches(scope.hwnd, scope.pid):
             target.release()
             self._show_feedback("The original background app changed before the retry could start.")

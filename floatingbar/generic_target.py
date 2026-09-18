@@ -70,15 +70,35 @@ class BackgroundTypingTarget:
         """Return the saved process-start identity for the current bind, when known."""
         return self._bound_process_start
 
-    def bind(self, hwnd: int, pid: int, spec=None) -> TargetScope:
+    def bind(
+        self,
+        hwnd: int,
+        pid: int,
+        spec=None,
+        expected_process_start: int | None = None,
+    ) -> TargetScope:
+        """Bind one scope, optionally requiring a previously observed process instance.
+
+        When a picker/row supplies a saved process-start identity, the bind must
+        match that exact instance before the target adopts the HWND/PID lease.
+        This closes the check-then-bind race where a PID could be recycled between
+        picker validation and target binding.
+        """
         scope = TargetScope(hwnd, pid)
+        try:
+            process_start = winapi.get_process_creation_time(pid)
+        except Exception as exc:
+            process_start = None
+            trace.trace_exception("background process identity inspection unavailable", exc)
+
+        if expected_process_start is not None:
+            if process_start is None or int(process_start) != int(expected_process_start):
+                self.release()
+                raise RuntimeError("background target process instance changed before binding")
+
         self._scope = scope
         self._adapter_spec = spec
-        try:
-            self._bound_process_start = winapi.get_process_creation_time(pid)
-        except Exception as exc:
-            self._bound_process_start = None
-            trace.trace_exception("background process identity inspection unavailable", exc)
+        self._bound_process_start = process_start
         self._bind_verified = self._verify_bound_scope(
             scope,
             expected_process_start=self._bound_process_start,

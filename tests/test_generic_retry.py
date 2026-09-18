@@ -114,7 +114,11 @@ class GenericRetryTests(unittest.TestCase):
         with patch("floatingbar.bound_context_overlay.target_for_adapter", return_value=window._background_typer),              patch("floatingbar.bound_context_overlay.winapi.get_process_creation_time", return_value=123):
             window._retry_failed_draft()
 
-        window._background_typer.bind.assert_called_once_with(410, 811)
+        window._background_typer.bind.assert_called_once_with(
+            410,
+            811,
+            expected_process_start=123,
+        )
         self.assertEqual(window._background_process_name, "discord.exe")
 
     def test_generic_retry_rebinds_original_scope_instead_of_foreground_path(self):

@@ -68,6 +68,25 @@ class BackgroundTypingTargetTests(unittest.TestCase):
             self.target.bind(100, 200)
             self.assertTrue(self.target.scope_matches(100, 200))
 
+    def test_bind_accepts_matching_expected_process_start(self):
+        with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.generic_target.winapi.get_process_creation_time", return_value=123), \
+             patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True):
+            self.target.bind(100, 200, expected_process_start=123)
+            self.assertEqual(self.target.scope(), TargetScope(100, 200))
+            self.assertEqual(self.target.bound_process_start, 123)
+            self.assertTrue(self.target.scope_matches(100, 200))
+
+    def test_bind_rejects_replacement_before_adopting_the_scope(self):
+        with patch("floatingbar.generic_target.winapi.get_process_creation_time", return_value=456):
+            with self.assertRaisesRegex(RuntimeError, "process instance changed"):
+                self.target.bind(100, 200, expected_process_start=123)
+
+        self.assertEqual(self.target.scope(), TargetScope(0, 0))
+        self.assertIsNone(self.target.bound_process_start)
+        self.assertFalse(self.target.is_available())
+
     def test_available_revalidates_a_previously_rejected_bind(self):
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.generic_target.winapi.get_window_pid", side_effect=[999, 200, 200]), \

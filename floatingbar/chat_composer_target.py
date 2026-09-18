@@ -27,8 +27,19 @@ class ChatComposerTarget(BackgroundTypingTarget):
         super().__init__(hwnd, pid)
         self._conversation_guard = None
 
-    def bind(self, hwnd: int, pid: int, spec=None):
-        scope = super().bind(hwnd, pid, spec=spec)
+    def bind(
+        self,
+        hwnd: int,
+        pid: int,
+        spec=None,
+        expected_process_start: int | None = None,
+    ):
+        scope = super().bind(
+            hwnd,
+            pid,
+            spec=spec,
+            expected_process_start=expected_process_start,
+        )
         self._conversation_guard = selected_conversation_for_scope(hwnd, pid)
         return scope
 
