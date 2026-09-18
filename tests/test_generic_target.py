@@ -63,6 +63,33 @@ class BackgroundTypingTargetTests(unittest.TestCase):
             self.target.bind(100, 200)
             self.assertTrue(self.target.scope_matches(100, 200))
 
+    def test_available_revalidates_a_previously_rejected_bind(self):
+        with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.generic_target.winapi.get_window_pid", side_effect=[999, 200]), \
+             patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True):
+            self.target.bind(100, 200)
+            self.target._bound_process_start = 123
+            with patch("floatingbar.generic_target.winapi.get_process_creation_time", return_value=123):
+                self.assertFalse(self.target._bind_verified)
+                self.assertTrue(self.target.available())
+                self.assertTrue(self.target._bind_verified)
+
+    def test_available_stays_blocked_when_failed_bind_cannot_be_revalidated(self):
+        with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.generic_target.winapi.get_window_pid", return_value=999):
+            self.target.bind(100, 200)
+            self.assertFalse(self.target._bind_verified)
+            self.assertFalse(self.target.available())
+
+    def test_process_start_drift_invalidates_an_already_verified_bind(self):
+        self.target._bound_process_start = 123
+        with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
+             patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.generic_target.winapi.get_process_creation_time", return_value=456):
+            self.assertFalse(self.target.available())
+            self.assertFalse(self.target._bind_verified)
+
     def test_bind_marks_closed_window_unverified(self):
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=False):
             self.target.bind(100, 200)
