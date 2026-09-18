@@ -69,16 +69,17 @@ class RecentTargetHistory:
 
     @staticmethod
     def _dedupe_key(target: RecentTarget) -> tuple[object, ...]:
-        return (
+        base = (
             target.kind,
             target.adapter_key,
             target.scope.hwnd,
             target.scope.pid,
-            target.runtime_id,
-            target.control_identity,
-            target.container_identity,
-            target.label if target.kind != "application" else "",
         )
+        if target.runtime_id is not None:
+            return base + ("runtime", target.runtime_id)
+        if target.control_identity is not None or target.container_identity is not None:
+            return base + ("structural", target.control_identity, target.container_identity)
+        return base + ("label", target.label if target.kind != "application" else "")
 
     def record_application(
         self,
