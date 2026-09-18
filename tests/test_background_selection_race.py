@@ -25,6 +25,40 @@ class SelectionRaceTests(unittest.TestCase):
         window.target = Mock()
         return window
 
+    def test_background_selection_rejects_recycled_same_process_window(self):
+        window = self._window()
+        item = Mock(
+            hwnd=123,
+            pid=200,
+            process_name="discord.exe",
+            actionable=True,
+            window_class="DiscordMainWindow",
+        )
+        with patch("floatingbar.bound_context_overlay.target_for_adapter", return_value=window._background_typer), \
+             patch("floatingbar.bound_context_overlay.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.bound_context_overlay.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.bound_context_overlay.winapi.get_window_class_name", return_value="DifferentWindow"):
+            window._select_background_window(item)
+        window._background_typer.bind.assert_not_called()
+        window._show_feedback.assert_called_once()
+
+    def test_background_selection_rejects_replaced_process_before_binding(self):
+        window = self._window()
+        item = Mock(
+            hwnd=123,
+            pid=200,
+            process_name="discord.exe",
+            actionable=True,
+            window_class="DiscordMainWindow",
+        )
+        with patch("floatingbar.bound_context_overlay.target_for_adapter", return_value=window._background_typer), \
+             patch("floatingbar.bound_context_overlay.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.bound_context_overlay.winapi.get_window_pid", return_value=999), \
+             patch("floatingbar.bound_context_overlay.winapi.get_window_class_name", return_value="DiscordMainWindow"):
+            window._select_background_window(item)
+        window._background_typer.bind.assert_not_called()
+        window._show_feedback.assert_called_once()
+
     def test_stale_generic_selection_callback_cannot_bind_newer_conversation(self):
         window = self._window()
         older = Mock(hwnd=123, pid=200, name="Older")
