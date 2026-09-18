@@ -78,6 +78,23 @@ class TelegramChatIdentityAmbiguityTests(unittest.TestCase):
         self.assertEqual(selected, correct)
         post_click.assert_called_once()
 
+    def test_chat_identity_matches_uses_container_identity_without_control_identity(self):
+        requested = TelegramChatItem(
+            100, 200, "Alex", 10, 100, 310, 150, True,
+            container_identity=("ancestor1", "Pane", "workspace-a", "uia"),
+        )
+        correct = TelegramChatItem(
+            100, 200, "Alex", 12, 102, 312, 152, True,
+            container_identity=("ancestor1", "Pane", "workspace-a", "uia"),
+        )
+        other = TelegramChatItem(
+            100, 200, "Alex", 12, 202, 312, 252, True,
+            container_identity=("ancestor1", "Pane", "workspace-b", "uia"),
+        )
+        with patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.telegram_chats.enumerate_telegram_chats", return_value=(correct, other)):
+            self.assertTrue(chat_identity_matches(requested))
+
     def test_chat_identity_matches_uses_container_identity(self):
         requested = TelegramChatItem(
             100, 200, "Alex", 10, 100, 310, 150, True,
