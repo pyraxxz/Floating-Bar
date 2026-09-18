@@ -89,7 +89,7 @@ class HardeningTests(unittest.TestCase):
             with self.assertRaises(InjectionFailed) as raised:
                 injector._land_text(SimpleNamespace(), 123, "danger")
 
-        click.assert_called_once_with(123, 77, 88)
+        click.assert_called_once_with(123, 77, 88, expected_pid=10)
         post_text.assert_not_called()
         self.assertIn("focused safely", str(raised.exception))
 
@@ -155,7 +155,7 @@ class HardeningTests(unittest.TestCase):
             result = injector._submit_invisible(object(), 123, False, "unknown")
 
         self.assertEqual(result, "posted-click (unverified-explicit-send)")
-        posted.assert_called_once_with(123, 20, 30)
+        posted.assert_called_once_with(123, 20, 30, expected_pid=1)
 
     def test_unverified_voice_button_raises_and_never_clicks(self):
         target = Mock()
