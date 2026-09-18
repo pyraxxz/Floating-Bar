@@ -23,6 +23,7 @@ The current implementation includes:
 * persistent user-authored **Quick replies** that insert a draft but never auto-send it;
 * a global `Ctrl+Alt+Space` summon hotkey;
 * a lightweight Settings dialog for Windows startup and idle-collapse behavior;
+* an on-demand release update check that uses public version metadata only;
 * a first-run mini-tutorial and content-free background-target feedback;
 * machine-readable Windows smoke-test tooling and a 33-case declarative desktop smoke matrix.
 
