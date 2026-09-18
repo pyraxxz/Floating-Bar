@@ -8,8 +8,10 @@ Run from the repository root on Windows:
 
 The initializer combines the content-free Windows environment snapshot with
 the declarative smoke matrix. Use --record to stamp a completed case without
-hand-editing timestamps. It never reads or stores window titles,
-conversation names, message bodies, input values, or clipboard contents.
+hand-editing timestamps; on Windows, --record also captures a fresh,
+content-free case-local environment snapshot for release-gate evidence. It
+never reads or stores window titles, conversation names, message bodies, input
+values, or clipboard contents.
 """
 
 from __future__ import annotations
@@ -47,6 +49,37 @@ def _write(path: Path, report: dict) -> None:
     with path.open("w", encoding="utf-8", newline="\n") as handle:
         json.dump(report, handle, indent=2, sort_keys=True)
         handle.write("\n")
+
+
+def _record_case_evidence(snapshot, tested_at: str) -> dict:
+    """Return content-free environment evidence captured at case-record time."""
+    evidence = {"recorded_at": tested_at}
+    try:
+        evidence["monitors"] = [
+            {
+                "index": int(monitor.index),
+                "width": int(monitor.width),
+                "height": int(monitor.height),
+                "dpi_x": int(monitor.dpi_x),
+                "dpi_y": int(monitor.dpi_y),
+            }
+            for monitor in snapshot.monitors
+        ]
+        evidence["process_instances"] = [
+            {
+                "adapter_key": str(adapter.key),
+                "process_name": str(name).casefold(),
+                "process_start": int(start),
+            }
+            for adapter in snapshot.adapters
+            for name, start in adapter.observed_process_instances
+            if isinstance(start, int) and not isinstance(start, bool) and int(start) > 0
+        ]
+    except Exception:
+        # Keep the timestamp so a later release-gate check can distinguish
+        # attempted evidence capture from missing case evidence.
+        pass
+    return evidence
 
 
 def _source_commit() -> str:
@@ -164,6 +197,11 @@ def _record(path: Path, case_id: str, result: str, force: bool) -> int:
     selected["tested_at"] = (
         datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     )
+    try:
+        snapshot = capture_snapshot()
+        selected["evidence"] = _record_case_evidence(snapshot, selected["tested_at"])
+    except Exception:
+        selected["evidence"] = {"recorded_at": selected["tested_at"]}
     _write(path, report)
     print(
         f"Recorded {case_id}: result={normalized_result} "

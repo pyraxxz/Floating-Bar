@@ -37,7 +37,7 @@ class SmokeReportTests(unittest.TestCase):
             ],
             "adapters": [
                 {"key": "telegram", "open_window_count": 1, "observed_processes": ["telegram.exe"], "observed_process_instances": [{"process_name": "telegram.exe", "process_start": 1001}]},
-                {"key": "terminal", "open_window_count": 1, "observed_processes": ["windowsterminal.exe", "windowsterminalpreview.exe", "conhost.exe"], "observed_process_instances": [{"process_name": "windowsterminal.exe", "process_start": 1002}]},
+                {"key": "terminal", "open_window_count": 1, "observed_processes": ["windowsterminal.exe", "windowsterminalpreview.exe", "conhost.exe"], "observed_process_instances": [{"process_name": "windowsterminal.exe", "process_start": 1002}, {"process_name": "windowsterminalpreview.exe", "process_start": 1012}, {"process_name": "conhost.exe", "process_start": 1013}]},
                 {"key": "powershell", "open_window_count": 1, "observed_processes": ["pwsh.exe"], "observed_process_instances": [{"process_name": "pwsh.exe", "process_start": 1003}]},
                 {"key": "cmd", "open_window_count": 1, "observed_processes": ["cmd.exe"], "observed_process_instances": [{"process_name": "cmd.exe", "process_start": 1004}]},
                 {"key": "whatsapp", "open_window_count": 1, "observed_processes": ["whatsapp.exe"], "observed_process_instances": [{"process_name": "whatsapp.exe", "process_start": 1005}]},
@@ -46,6 +46,22 @@ class SmokeReportTests(unittest.TestCase):
                 {"key": "teams", "open_window_count": 1, "observed_processes": ["msteams.exe"], "observed_process_instances": [{"process_name": "msteams.exe", "process_start": 1008}]},
             ],
         }
+
+    @staticmethod
+    def _attach_complete_case_evidence(report, recorded_at="2026-09-18T12:00:00Z"):
+        environment = report["environment"]
+        evidence = {
+            "recorded_at": recorded_at,
+            "monitors": list(environment.get("monitors", [])),
+            "process_instances": [
+                {**instance, "adapter_key": item["key"]}
+                for item in environment.get("adapters", [])
+                if isinstance(item, dict) and item.get("key")
+                for instance in item.get("observed_process_instances", [])
+            ],
+        }
+        for item in report["cases"]:
+            item["evidence"] = dict(evidence)
 
     def test_blank_report_has_complete_pending_matrix(self):
         report = build_report(environment={"windows_release": "11"})
@@ -63,9 +79,9 @@ class SmokeReportTests(unittest.TestCase):
         self.assertEqual(report["matrix_fingerprint"], matrix_fingerprint())
         self.assertRegex(report["matrix_fingerprint"], r"^[0-9a-f]{64}$")
 
-    def test_schema_v2_report_is_rejected_after_provenance_change(self):
+    def test_schema_v3_report_is_rejected_after_case_evidence_change(self):
         report = build_report()
-        report["schema_version"] = 2
+        report["schema_version"] = 3
 
         errors = validate_report(report)
         self.assertIn("unsupported schema_version", errors)
@@ -125,7 +141,7 @@ class SmokeReportTests(unittest.TestCase):
                 item["result"] = RESULT_PASS
         errors = environment_case_errors(report)
         self.assertIn(
-            "environment process-instance evidence missing for telegram.send (telegram)",
+            "environment case evidence missing for telegram.send (telegram)",
             errors,
         )
 
@@ -137,7 +153,7 @@ class SmokeReportTests(unittest.TestCase):
                     "open_window_count": 1,
                     "observed_processes": ["telegram.exe"],
                     "observed_process_instances": [
-                        {"process_name": "telegram.exe", "process_start": 123}
+                        {"adapter_key": "telegram", "process_name": "telegram.exe", "process_start": 123}
                     ],
                 },
             ]
@@ -145,6 +161,17 @@ class SmokeReportTests(unittest.TestCase):
         for item in report["cases"]:
             if item["case_id"] == "telegram.send":
                 item["result"] = RESULT_PASS
+                item["tested_at"] = "2026-09-18T12:00:00Z"
+                item["evidence"] = {
+                    "recorded_at": item["tested_at"],
+                    "process_instances": [
+                        {
+                            "adapter_key": "telegram",
+                            "process_name": "telegram.exe",
+                            "process_start": 123,
+                        }
+                    ],
+                }
         errors = environment_case_errors(report)
         self.assertNotIn(
             "environment process-instance evidence missing for telegram.send (telegram)",
@@ -167,7 +194,7 @@ class SmokeReportTests(unittest.TestCase):
                 item["result"] = RESULT_PASS
         errors = environment_case_errors(report)
         self.assertIn(
-            "environment process-instance evidence missing for telegram.restart (telegram)",
+            "environment case evidence missing for telegram.restart (telegram)",
             errors,
         )
 
@@ -187,9 +214,64 @@ class SmokeReportTests(unittest.TestCase):
         for item in report["cases"]:
             if item["case_id"] == "telegram.restart":
                 item["result"] = RESULT_PASS
+                item["tested_at"] = "2026-09-18T12:00:00Z"
+                item["evidence"] = {
+                    "recorded_at": item["tested_at"],
+                    "process_instances": [
+                        {
+                            "adapter_key": "telegram",
+                            "process_name": "telegram.exe",
+                            "process_start": 123,
+                        }
+                    ],
+                }
         errors = environment_case_errors(report)
         self.assertNotIn(
             "environment process-instance evidence missing for telegram.restart (telegram)",
+            errors,
+        )
+
+    def test_high_priority_chat_pass_requires_case_process_instance_evidence(self):
+        report = build_report(environment={
+            "adapters": [
+                {
+                    "key": "whatsapp",
+                    "open_window_count": 1,
+                    "observed_processes": ["whatsapp.exe"],
+                    "observed_process_instances": [
+                        {"process_name": "whatsapp.exe", "process_start": 123}
+                    ],
+                },
+            ]
+        })
+        for item in report["cases"]:
+            if item["case_id"] == "chat.whatsapp":
+                item["result"] = RESULT_PASS
+        errors = environment_case_errors(report)
+        self.assertIn(
+            "environment case evidence missing for chat.whatsapp (whatsapp)",
+            errors,
+        )
+
+    def test_case_local_process_evidence_timestamp_mismatch_is_rejected(self):
+        report = build_report()
+        for item in report["cases"]:
+            if item["case_id"] == "telegram.send":
+                item["result"] = RESULT_PASS
+                item["tested_at"] = "2026-09-18T12:00:00Z"
+                item["evidence"] = {
+                    "recorded_at": "2026-09-18T12:01:00Z",
+                    "process_instances": [
+                        {
+                            "adapter_key": "telegram",
+                            "process_name": "telegram.exe",
+                            "process_start": 123,
+                        }
+                    ],
+                }
+        errors = environment_case_errors(report)
+        self.assertIn(
+            "environment case evidence timestamp mismatch for telegram.send (telegram)",
             errors,
         )
 
@@ -227,7 +309,13 @@ class SmokeReportTests(unittest.TestCase):
             ]
         })
         report["cases"] = [
-            {**item, "result": RESULT_PASS}
+            {**item, "result": RESULT_PASS, "tested_at": "2026-09-18T12:00:00Z", "evidence": {
+                "recorded_at": "2026-09-18T12:00:00Z",
+                "monitors": [
+                    {"index": 0, "width": 1920, "height": 1080, "dpi_x": 96, "dpi_y": 96},
+                    {"index": 1, "width": 2560, "height": 1440, "dpi_x": 96, "dpi_y": 96},
+                ],
+            }}
             if item["case_id"] == "env.dpi" else item
             for item in report["cases"]
         ]
@@ -240,7 +328,10 @@ class SmokeReportTests(unittest.TestCase):
             {"index": 1, "width": 2560, "height": 1440, "dpi_x": 144, "dpi_y": 144},
         ]})
         report["cases"] = [
-            {**item, "result": RESULT_PASS}
+            {**item, "result": RESULT_PASS, "tested_at": "2026-09-18T12:00:00Z", "evidence": {
+                "recorded_at": "2026-09-18T12:00:00Z",
+                "adapters": [{"key": "powershell", "observed_process_instances": []}],
+            }}
             if item["case_id"] == "terminal.acceptance.pwsh" else item
             for item in report["cases"]
         ]
@@ -281,6 +372,8 @@ class SmokeReportTests(unittest.TestCase):
             selected["tested_at"],
             r"^20[0-9]{2}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
         )
+        self.assertEqual(selected["evidence"]["recorded_at"], selected["tested_at"])
+        self.assertIn("process_instances", selected["evidence"])
         self.assertTrue(all(
             item["result"] == "PENDING"
             for item in updated["cases"]
@@ -385,6 +478,7 @@ class SmokeReportTests(unittest.TestCase):
             {**item, "result": RESULT_PASS, "tested_at": "2026-09-18T12:00:00Z"}
             for item in report["cases"]
         ]
+        self._attach_complete_case_evidence(report)
 
         root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as tmp:
@@ -524,7 +618,7 @@ class SmokeReportTests(unittest.TestCase):
             path = Path(tmp) / "smoke.json"
             path.write_text(json.dumps(report), encoding="utf-8")
             text = path.read_text(encoding="utf-8")
-            self.assertIn('"schema_version": 3', text)
+            self.assertIn('"schema_version": 4', text)
             self.assertIn('"matrix_fingerprint":', text)
 
 

@@ -15,7 +15,7 @@ from typing import Iterable, Mapping
 from .app_adapters import registry_validation_errors
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 RESULT_PENDING = "PENDING"
 RESULT_PASS = "PASS"
@@ -130,6 +130,7 @@ def build_report(
                 "result": RESULT_PENDING,
                 "notes": "",
                 "tested_at": "",
+                "evidence": {},
             }
             for case in selected
         ],
@@ -217,21 +218,28 @@ def environment_case_errors(report: Mapping[str, object]) -> tuple[str, ...]:
                 if key:
                     adapters[key] = item
 
-    raw_monitors = environment.get("monitors", ())
-    monitors = raw_monitors if isinstance(raw_monitors, list) else []
-
-    if any(
-        isinstance(item, Mapping)
-        and str(item.get("case_id", "")) == "env.dpi"
-        and str(item.get("result", RESULT_PENDING)) == RESULT_PASS
-        for item in raw_cases
-    ):
+    for item in raw_cases:
+        if not isinstance(item, Mapping):
+            continue
+        if str(item.get("case_id", "")) != "env.dpi":
+            continue
+        if str(item.get("result", RESULT_PENDING)) != RESULT_PASS:
+            continue
+        evidence = item.get("evidence")
+        if not isinstance(evidence, Mapping):
+            errors.append("environment case evidence missing for env.dpi")
+            continue
+        if str(evidence.get("recorded_at", "")).strip() != str(item.get("tested_at", "")).strip():
+            errors.append("environment case evidence timestamp mismatch for env.dpi")
+            continue
+        raw_monitors = evidence.get("monitors", ())
+        monitors = raw_monitors if isinstance(raw_monitors, list) else []
         dpi_values = {
-            (int(item.get("dpi_x", 0) or 0), int(item.get("dpi_y", 0) or 0))
-            for item in monitors
-            if isinstance(item, Mapping)
-            and int(item.get("dpi_x", 0) or 0) > 0
-            and int(item.get("dpi_y", 0) or 0) > 0
+            (int(monitor.get("dpi_x", 0) or 0), int(monitor.get("dpi_y", 0) or 0))
+            for monitor in monitors
+            if isinstance(monitor, Mapping)
+            and int(monitor.get("dpi_x", 0) or 0) > 0
+            and int(monitor.get("dpi_y", 0) or 0) > 0
         }
         if len(monitors) < 2 or len(dpi_values) < 2:
             errors.append("env.dpi PASS requires at least two monitors with distinct effective DPI values")
@@ -295,7 +303,7 @@ def environment_case_errors(report: Mapping[str, object]) -> tuple[str, ...]:
             continue
         case_id = str(item.get("case_id", "")).strip()
         expected_case = expected_case_map.get(case_id)
-        if expected_case is None or expected_case.priority != "critical":
+        if expected_case is None:
             continue
         process_requirement = required_processes.get(case_id)
         if process_requirement:
@@ -303,11 +311,21 @@ def environment_case_errors(report: Mapping[str, object]) -> tuple[str, ...]:
             observed = set()
             for adapter_key in adapter_keys:
                 spec = adapters.get(adapter_key)
-                if spec is not None:
-                    raw_observed = spec.get("observed_processes", ())
-                    if isinstance(raw_observed, (list, tuple)):
-                        observed.update(str(value).casefold() for value in raw_observed)
-            if not (observed & expected_processes):
+                case_evidence = item.get("evidence")
+                raw_instances = case_evidence.get("process_instances", ()) if isinstance(case_evidence, Mapping) else ()
+                if isinstance(raw_instances, list):
+                    for instance in raw_instances:
+                        if isinstance(instance, Mapping):
+                            name = str(instance.get("process_name", "")).casefold()
+                            start = instance.get("process_start")
+                            if name in expected_processes and isinstance(start, int) and not isinstance(start, bool) and start > 0:
+                                observed.add(name)
+            case_evidence = item.get("evidence")
+            if not isinstance(case_evidence, Mapping) or not case_evidence:
+                errors.append(f"environment case evidence missing for {case_id}")
+            elif str(case_evidence.get("recorded_at", "")).strip() != str(item.get("tested_at", "")).strip():
+                errors.append(f"environment case evidence timestamp mismatch for {case_id}")
+            elif not (observed & expected_processes):
                 errors.append(f"environment evidence missing for {case_id}")
             continue
 
@@ -324,49 +342,65 @@ def environment_case_errors(report: Mapping[str, object]) -> tuple[str, ...]:
                     spec = adapters.get(adapter_key)
                     relevant = {adapter_key: spec} if spec is not None else {}
                 instances = set()
-                for spec in relevant.values():
-                    raw_instances = spec.get("observed_process_instances", ())
-                    if isinstance(raw_instances, (list, tuple)):
-                        for item_instance in raw_instances:
-                            if isinstance(item_instance, Mapping):
-                                name = str(item_instance.get("process_name", "")).casefold()
-                                start = item_instance.get("process_start")
-                            elif isinstance(item_instance, (list, tuple)) and len(item_instance) == 2:
-                                name = str(item_instance[0]).casefold()
-                                start = item_instance[1]
-                            else:
-                                continue
-                            if name in expected_processes and isinstance(start, int) and not isinstance(start, bool) and start > 0:
-                                instances.add((name, start))
-                if not instances:
+                case_evidence = item.get("evidence")
+                raw_instances = case_evidence.get("process_instances", ()) if isinstance(case_evidence, Mapping) else ()
+                if isinstance(raw_instances, list):
+                    for item_instance in raw_instances:
+                        if not isinstance(item_instance, Mapping):
+                            continue
+                        name = str(item_instance.get("process_name", "")).casefold()
+                        start = item_instance.get("process_start")
+                        recorded_adapter = str(item_instance.get("adapter_key", "")).strip()
+                        adapter_matches = adapter_key == "all" or recorded_adapter == adapter_key
+                        if (
+                            adapter_matches
+                            and name in expected_processes
+                            and isinstance(start, int)
+                            and not isinstance(start, bool)
+                            and start > 0
+                        ):
+                            instances.add((name, start))
+                if not isinstance(case_evidence, Mapping) or not case_evidence:
+                    errors.append(f"environment case evidence missing for {case_id} ({adapter_key})")
+                elif str(case_evidence.get("recorded_at", "")).strip() != str(item.get("tested_at", "")).strip():
+                    errors.append(f"environment case evidence timestamp mismatch for {case_id} ({adapter_key})")
+                elif not instances:
                     errors.append(f"environment process-instance evidence missing for {case_id} ({adapter_key})")
             continue
 
         critical_requirement = critical_app_process_requirements.get(case_id)
         if critical_requirement:
+            case_evidence = item.get("evidence")
+            if not isinstance(case_evidence, Mapping) or not case_evidence:
+                for adapter_key in critical_requirement:
+                    errors.append(f"environment case evidence missing for {case_id} ({adapter_key})")
+                continue
+            if str(case_evidence.get("recorded_at", "")).strip() != str(item.get("tested_at", "")).strip():
+                for adapter_key in critical_requirement:
+                    errors.append(
+                        f"environment case evidence timestamp mismatch for {case_id} ({adapter_key})"
+                    )
+                continue
+            raw_instances = case_evidence.get("process_instances", ())
+            instances_by_adapter: dict[str, set[tuple[str, int]]] = {}
+            if isinstance(raw_instances, list):
+                for item_instance in raw_instances:
+                    if not isinstance(item_instance, Mapping):
+                        continue
+                    name = str(item_instance.get("process_name", "")).casefold()
+                    start = item_instance.get("process_start")
+                    recorded_adapter = str(item_instance.get("adapter_key", "")).strip()
+                    if (
+                        recorded_adapter
+                        and name
+                        and isinstance(start, int)
+                        and not isinstance(start, bool)
+                        and start > 0
+                    ):
+                        instances_by_adapter.setdefault(recorded_adapter, set()).add((name, start))
             for adapter_key, expected_processes in critical_requirement.items():
-                spec = adapters.get(adapter_key)
-                instances = set()
-                if spec is not None:
-                    raw_instances = spec.get("observed_process_instances", ())
-                    if isinstance(raw_instances, (list, tuple)):
-                        for item_instance in raw_instances:
-                            if isinstance(item_instance, Mapping):
-                                name = str(item_instance.get("process_name", "")).casefold()
-                                start = item_instance.get("process_start")
-                            elif isinstance(item_instance, (list, tuple)) and len(item_instance) == 2:
-                                name = str(item_instance[0]).casefold()
-                                start = item_instance[1]
-                            else:
-                                continue
-                            if (
-                                name in expected_processes
-                                and isinstance(start, int)
-                                and not isinstance(start, bool)
-                                and start > 0
-                            ):
-                                instances.add((name, start))
-                if not instances:
+                instances = instances_by_adapter.get(adapter_key, set())
+                if not any(name in expected_processes for name, _start in instances):
                     errors.append(
                         f"environment process-instance evidence missing for {case_id} ({adapter_key})"
                     )
