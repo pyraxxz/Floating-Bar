@@ -182,7 +182,10 @@ def _run_context_diagnostic(hwnd: int) -> int:
         window_rect = window.rectangle()
         items = window.descendants(control_type="ListItem")
     except Exception as exc:
-        print(f"  FAILED to enumerate ListItem controls: {exc}")
+        print(
+            "  FAILED to enumerate ListItem controls safely "
+            f"(exception={trace.exception_name(exc)})"
+        )
         return 2
 
     width = max(1, window_rect.width())
@@ -272,8 +275,11 @@ def _run_full_diagnostic(target: TelegramTarget, hwnd: int) -> int:
     window = app.window(handle=hwnd).wrapper_object()
     try:
         edits = window.descendants(control_type="Edit")
-    except Exception as e:
-        print(f"  FAILED to enumerate: {e}")
+    except Exception as exc:
+        print(
+            "  FAILED to enumerate Edit controls safely "
+            f"(exception={trace.exception_name(exc)})"
+        )
         return 2
 
     if not edits:
@@ -331,8 +337,11 @@ def _run_full_diagnostic(target: TelegramTarget, hwnd: int) -> int:
     try:
         buttons = window.descendants(control_type="Button")
         window_rect = window.rectangle()
-    except Exception as e:
-        print(f"  enumeration failed: {e}")
+    except Exception as exc:
+        print(
+            "  button enumeration failed safely "
+            f"(exception={trace.exception_name(exc)})"
+        )
         buttons = []
         window_rect = rect
     near = 0
@@ -415,8 +424,11 @@ def _run_guarded_send(target: TelegramTarget, text: str, preferred_hwnd: int) ->
         )
         print(f"  -> OK, context-guarded strategy used: {result}")
         return 0
-    except Exception as e:
-        print(f"  -> FAILED: {e}")
+    except Exception as exc:
+        print(
+            "  -> FAILED safely "
+            f"(exception={trace.exception_name(exc)})"
+        )
         print(f"  (full stage-by-stage detail in {trace.path()})")
         return 4
     finally:
