@@ -242,8 +242,6 @@ class RecentTargetHistory:
                         return None
                     if target.control_identity is not None and row.control_identity != target.control_identity:
                         return None
-                    if target.container_identity is not None and row.container_identity != target.container_identity:
-                        return None
                     return row
                 return None
             if target.control_identity is not None:
