@@ -63,11 +63,16 @@ def evidence_for_adapter(
     else:
         mode = getattr(spec, "verification_mode", "unverified") if spec is not None else "unverified"
         allowed = _VERIFICATION_ALLOWLIST.get(mode, frozenset({EvidenceState.SUBMITTED}))
-
         contract = verification_contract(spec)
+
         if raw.state is EvidenceState.VERIFIED:
             if not _exact_verified_contract(spec) or contract is None:
-                allowed = frozenset({EvidenceState.SUBMITTED})
+                result = SubmissionEvidence(
+                    state=EvidenceState.SUBMITTED,
+                    strategy=raw.strategy or strategy,
+                    detail=raw.detail or "adapter verification contract does not prove submission",
+                    retryable=False,
+                )
             elif raw.proof_kind is not None and raw.proof_kind != contract.proof_kind:
                 result = SubmissionEvidence(
                     state=EvidenceState.SUBMITTED,
@@ -85,9 +90,9 @@ def evidence_for_adapter(
                 )
             else:
                 result = raw
-        if raw.state in allowed and raw.state is not EvidenceState.VERIFIED:
+        elif raw.state in allowed:
             result = raw
-        elif raw.state is not EvidenceState.VERIFIED:
+        else:
             # Unknown or unsupported verification modes fail closed to
             # submitted-but-unverified rather than allowing an accidental
             # VERIFIED result. Preserve trusted producer metadata so the
@@ -97,6 +102,7 @@ def evidence_for_adapter(
                 strategy=raw.strategy or strategy,
                 detail=raw.detail or "adapter verification contract does not prove submission",
                 retryable=False,
+                proof_kind=None,
             )
 
     spec_key = getattr(spec, "key", "legacy") if spec is not None else "legacy"
