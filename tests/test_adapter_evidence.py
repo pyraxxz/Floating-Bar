@@ -34,6 +34,7 @@ class AdapterEvidenceTests(unittest.TestCase):
                 evidence = evidence_for_adapter(spec, strategy="posted-enter (VERIFIED)")
                 self.assertEqual(evidence.state, EvidenceState.VERIFIED)
                 self.assertTrue(evidence.confirmed)
+                self.assertEqual(evidence.proof_kind, "input-acceptance")
 
     def test_typed_evidence_wins_over_conflicting_strategy_text(self):
         spec = adapter_for_process("telegram.exe")
@@ -72,6 +73,7 @@ class AdapterEvidenceTests(unittest.TestCase):
         evidence = evidence_for_adapter(spec, submission_evidence=typed)
         self.assertEqual(evidence.state, EvidenceState.VERIFIED)
         self.assertTrue(evidence.confirmed)
+        self.assertEqual(evidence.proof_kind, "input-acceptance")
 
     def test_failed_send_remains_failed_for_any_adapter(self):
         spec = adapter_for_process("wt.exe")
