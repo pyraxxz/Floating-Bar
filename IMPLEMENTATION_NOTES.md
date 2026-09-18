@@ -197,3 +197,8 @@ The orb menu now exposes an explicit update check. It queries only the public la
 ## Multi-monitor/DPI validation evidence
 
 The Windows validation snapshot now records bounded per-monitor geometry and effective DPI alongside the process DPI-awareness mode. It intentionally omits display-device names and any UI content, making mixed-DPI and multi-monitor acceptance reports more reproducible without adding machine-identifying display metadata.
+
+
+## Smoke-report environment integrity
+
+The release-gate validator now cross-checks critical PASS cases against the report's content-free environment snapshot. Mixed-DPI PASS requires at least two monitors with distinct effective DPI values, and critical Telegram/terminal acceptance PASS cases require the matching supported process family to have been observed in that same snapshot. This prevents a completed report from silently mixing manual results with unrelated environment evidence.
