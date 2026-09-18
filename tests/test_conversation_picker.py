@@ -95,6 +95,24 @@ class ConversationPickerRowTests(unittest.TestCase):
         )
         self.assertEqual(conversation_picker_identity(original), conversation_picker_identity(moved))
 
+    def test_runtime_identity_ignores_ancestor_reflow(self):
+        original = ConversationItem(
+            100, 200, "general", 0, 100, 300, 150,
+            runtime_id=(9, 9),
+            control_identity=("ListItem", "same", "row", "uia"),
+            container_identity=("ancestor1", "Pane", "workspace-a", "uia"),
+        )
+        moved = ConversationItem(
+            100, 200, "general", 0, 500, 300, 550,
+            runtime_id=(9, 9),
+            control_identity=("ListItem", "same", "row", "uia"),
+            container_identity=("ancestor1", "Pane", "workspace-b", "uia"),
+        )
+        self.assertEqual(
+            conversation_picker_identity(original),
+            conversation_picker_identity(moved),
+        )
+
     def test_container_identity_disambiguates_duplicate_structural_rows(self):
         first = ConversationItem(
             100, 200, "general", 0, 100, 300, 150,
