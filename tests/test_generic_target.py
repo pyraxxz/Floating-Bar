@@ -21,9 +21,9 @@ class BackgroundTypingTargetTests(unittest.TestCase):
              patch("floatingbar.generic_target.winapi.get_process_creation_time", return_value=123), \
              patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True):
             self.target.bind(100, 200)
+            self.assertTrue(self.target.scope_matches(100, 200))
 
         self.assertEqual(self.target._bound_process_start, 123)
-        self.assertTrue(self.target.scope_matches(100, 200))
 
     def test_available_rejects_reused_pid_when_process_start_changes(self):
         self.target._bound_process_start = 123
