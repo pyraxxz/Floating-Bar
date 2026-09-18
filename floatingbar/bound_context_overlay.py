@@ -19,6 +19,7 @@ from .pinned_targets import PinnedTargetStore
 from .quick_replies import QuickReply, QuickReplyManager, QuickReplyStore
 from . import trace
 from . import onboarding
+from . import winapi
 from .overlay import OrbRelayWindow as _BaseOverlay
 
 
@@ -69,6 +70,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self._generic_retry_scope = None
         self._generic_retry_process_name = ""
         self._generic_retry_adapter_key = ""
+        self._generic_retry_window_class = ""
         self._pending_chat = None
         self._pending_conversation = None
         self._selection_generation = 0
@@ -332,6 +334,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self._generic_retry_scope = None
         self._generic_retry_process_name = ""
         self._generic_retry_adapter_key = ""
+        self._generic_retry_window_class = ""
         self._background_process_name = item.process_name
         self._background_adapter_key = spec.key
         self._work_hwnd = item.hwnd
@@ -545,6 +548,13 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self._bind_adapter_metadata(spec)
         self._background_process_name = self._generic_retry_process_name
         self._background_adapter_key = self._generic_retry_adapter_key
+        expected_class = str(getattr(self, "_generic_retry_window_class", "") or "").strip()
+        if expected_class:
+            current_class = str(winapi.get_window_class_name(scope.hwnd) or "").strip()
+            if current_class != expected_class:
+                target.release()
+                self._show_feedback("The original background window changed before the retry could start.")
+                return
         self._work_hwnd = scope.hwnd
         self._hide_feedback()
         self._show_bar()
@@ -557,17 +567,22 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         retry_scope = None
         retry_process_name = self._background_process_name
         retry_adapter_key = self._background_adapter_key
+        retry_window_class = ""
         try:
             retry_scope = self._background_typer.scope()
+            if retry_scope.valid:
+                retry_window_class = str(winapi.get_window_class_name(retry_scope.hwnd) or "").strip()
             _BaseOverlay._send_finished(self, completion)
             if getattr(self, "_retry_draft", None):
                 self._generic_retry_scope = retry_scope
                 self._generic_retry_process_name = retry_process_name
                 self._generic_retry_adapter_key = retry_adapter_key
+                self._generic_retry_window_class = retry_window_class
             else:
                 self._generic_retry_scope = None
                 self._generic_retry_process_name = ""
                 self._generic_retry_adapter_key = ""
+                self._generic_retry_window_class = ""
         finally:
             self._generic_attempt_id = 0
             self._background_typer.release()
