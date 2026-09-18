@@ -72,6 +72,7 @@ class TelegramChatIdentityAmbiguityTests(unittest.TestCase):
         with patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
              patch("floatingbar.telegram_chats.enumerate_telegram_chats", return_value=(correct, other)), \
+             patch("floatingbar.telegram_chats._screen_to_client", return_value=(20, 110)), \
              patch("floatingbar.telegram_chats.winapi.post_click") as post_click, \
              patch("floatingbar.telegram_chats._confirm_selected", return_value=correct):
             selected = select_telegram_chat(requested)
