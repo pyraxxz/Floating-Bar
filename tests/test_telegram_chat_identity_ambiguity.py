@@ -30,7 +30,7 @@ class TelegramChatIdentityAmbiguityTests(unittest.TestCase):
         correct = TelegramChatItem(
             100, 200, "Alex", 12, 102, 312, 152, True,
             None, ("ListItem", "shared", "row", "uia"),
-            ("ancestor1", "Pane", "workspace-a", "uia"),
+            container_identity=("ancestor1", "Pane", "workspace-a", "uia"),
         )
         other = TelegramChatItem(
             100, 200, "Alex", 12, 202, 312, 252, True,
