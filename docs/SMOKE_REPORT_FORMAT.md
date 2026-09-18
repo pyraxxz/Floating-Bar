@@ -44,3 +44,13 @@ present in the release workspace and is an ancestor of the tagged release.
 
 The smoke report contains no window titles, conversation names, message text,
 input values, clipboard contents, or credentials.
+
+## Recording results
+
+Use the report tool instead of hand-editing completion timestamps:
+
+```bat
+python tools/smoke_report.py --record smoke-report.json --case-id telegram.send --result PASS
+```
+
+Supported completed results are `PASS`, `FAIL`, and `BLOCKED`. The command validates the report before changing it and writes a UTC `tested_at` timestamp atomically. An already-completed case is protected from accidental replacement; use `--force` when a deliberate correction is required.
