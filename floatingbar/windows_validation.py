@@ -54,9 +54,9 @@ class WindowsValidationSnapshot:
     python_version: str
     monitor_count: int
     dpi_awareness: str
-    monitors: tuple[MonitorObservation, ...]
     observed_window_count: int
     adapters: tuple[AdapterObservation, ...]
+    monitors: tuple[MonitorObservation, ...] = ()
 
     def to_dict(self) -> dict:
         """Return a JSON-safe, content-free representation."""
