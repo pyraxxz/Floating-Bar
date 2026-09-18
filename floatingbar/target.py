@@ -131,7 +131,7 @@ class TelegramTarget:
             self._hwnd = None
             self._pid = None
             raise TelegramNotFound(
-                f"Could not read Telegram's window tree: {e}"
+                "Could not read Telegram's window tree safely."
             ) from e
 
         if not edits:
