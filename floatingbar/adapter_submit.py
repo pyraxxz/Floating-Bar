@@ -26,14 +26,24 @@ def validate_submission_mode(spec) -> str:
     raise RuntimeError(f"background adapter submit mode is unsupported: {mode or 'unknown'}")
 
 
-def submit_background_target(spec, target_hwnd: int, expected_pid: int = 0) -> str:
+def submit_background_target(
+    spec,
+    target_hwnd: int,
+    expected_pid: int = 0,
+    expected_process_start: int | None = None,
+) -> str:
     """Submit an already-validated background target using its adapter policy."""
     if not target_hwnd:
         raise RuntimeError("background submission target is unavailable")
     mode = validate_submission_mode(spec)
     if mode in {"legacy-enter", "enter"}:
-        if expected_pid:
-            winapi.post_enter(target_hwnd, target=target_hwnd, expected_pid=expected_pid)
+        if expected_pid or expected_process_start is not None:
+            winapi.post_enter(
+                target_hwnd,
+                target=target_hwnd,
+                expected_pid=expected_pid,
+                expected_process_start=expected_process_start,
+            )
         else:
             winapi.post_enter(target_hwnd, target=target_hwnd)
         return "posted-enter (unverified)"
