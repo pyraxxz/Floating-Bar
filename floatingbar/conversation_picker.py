@@ -41,7 +41,9 @@ def conversation_picker_identity(item: ConversationItem) -> tuple[object, ...]:
     if item.control_identity is not None or item.container_identity is not None:
         return scope + ("structural", item.control_identity, item.container_identity)
     # Geometry is only a fallback when no stronger identity exists.
-    return base + (
+    return scope + (
+        "label",
+        item.name.casefold(),
         "geometry",
         item.left,
         item.top,
