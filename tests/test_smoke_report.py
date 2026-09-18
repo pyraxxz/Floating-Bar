@@ -6,7 +6,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from floatingbar.smoke_matrix import (    RESULT_BLOCKED,
+from floatingbar.smoke_matrix import (
+    RESULT_BLOCKED,
     RESULT_FAIL,
     RESULT_PASS,
     build_report,
@@ -60,7 +61,7 @@ class SmokeReportTests(unittest.TestCase):
                 {"index": 1, "width": 2560, "height": 1440, "dpi_x": 144, "dpi_y": 144},
             ],
             "adapters": [
-                {"key": "telegram", "open_window_count": 1, "observed_processes": ["telegram.exe"], "observed_process_instances": [{"process_name": "telegram.exe", "process_start": 1001}]},
+                {"key": "telegram", "open_window_count": 1, "observed_processes": ["telegram.exe"], "observed_process_instances": [{"process_name": "telegram.exe", "process_start": 1001}], "observed_versions": ["5.9.1"]},
                 {"key": "terminal", "open_window_count": 1, "observed_processes": ["windowsterminal.exe", "windowsterminalpreview.exe", "conhost.exe"], "observed_process_instances": [{"process_name": "windowsterminal.exe", "process_start": 1002}, {"process_name": "windowsterminalpreview.exe", "process_start": 1012}, {"process_name": "conhost.exe", "process_start": 1013}]},
                 {"key": "powershell", "open_window_count": 1, "observed_processes": ["pwsh.exe"], "observed_process_instances": [{"process_name": "pwsh.exe", "process_start": 1003}]},
                 {"key": "cmd", "open_window_count": 1, "observed_processes": ["cmd.exe"], "observed_process_instances": [{"process_name": "cmd.exe", "process_start": 1004}]},
@@ -82,6 +83,13 @@ class SmokeReportTests(unittest.TestCase):
                 for item in environment.get("adapters", [])
                 if isinstance(item, dict) and item.get("key")
                 for instance in item.get("observed_process_instances", [])
+            ],
+            "executable_versions": [
+                {"adapter_key": item["key"], "version": str(version).strip()}
+                for item in environment.get("adapters", [])
+                if isinstance(item, dict) and item.get("key")
+                for version in item.get("observed_versions", [])
+                if str(version).strip()
             ],
         }
         for item in report["cases"]:
