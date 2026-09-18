@@ -24,6 +24,21 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         for fragment in required_fragments:
             self.assertIn(fragment, workflow)
 
+    def test_release_workflow_requires_exact_smoke_report_source(self):
+        workflow = (
+            REPO_ROOT / ".github" / "workflows" / "build-exe.yml"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn(
+            '$sourceCommit.ToLowerInvariant() -ne $env:EXPECTED_SHA.ToLowerInvariant()',
+            workflow,
+        )
+        self.assertIn(
+            "The smoke report was generated from $sourceCommit, but the tagged release source is $env:EXPECTED_SHA.",
+            workflow,
+        )
+        self.assertNotIn("git merge-base --is-ancestor", workflow)
+
     def test_release_workflow_keeps_release_source_ancestry_guard(self):
         workflow = (
             REPO_ROOT / ".github" / "workflows" / "build-exe.yml"
