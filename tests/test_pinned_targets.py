@@ -136,6 +136,56 @@ class PinnedTargetStoreTests(unittest.TestCase):
             )
             self.assertEqual(len(store), 0)
 
+    def test_structural_pin_matches_renamed_live_conversation(self):
+        pin = PinnedTarget(
+            kind="conversation",
+            adapter_key="discord",
+            process_name="discord.exe",
+            label="general",
+            control_identity=("ListItem", "channel-42", "row", "uia"),
+        )
+        renamed = type("Row", (), {
+            "name": "renamed-general",
+            "control_identity": ("ListItem", "channel-42", "row", "uia"),
+            "container_identity": None,
+        })()
+        self.assertTrue(pin.matches_conversation(renamed))
+
+    def test_structural_pin_rejects_changed_live_conversation_identity(self):
+        pin = PinnedTarget(
+            kind="conversation",
+            adapter_key="discord",
+            process_name="discord.exe",
+            label="general",
+            control_identity=("ListItem", "channel-42", "row", "uia"),
+        )
+        changed = type("Row", (), {
+            "name": "general",
+            "control_identity": ("ListItem", "channel-99", "row", "uia"),
+            "container_identity": None,
+        })()
+        self.assertFalse(pin.matches_conversation(changed))
+
+    def test_name_only_pin_uses_display_label_as_fallback_identity(self):
+        pin = PinnedTarget(
+            kind="conversation",
+            adapter_key="teams",
+            process_name="teams.exe",
+            label="Project Chat",
+        )
+        same = type("Row", (), {
+            "name": "Project Chat",
+            "control_identity": None,
+            "container_identity": None,
+        })()
+        renamed = type("Row", (), {
+            "name": "Renamed Project Chat",
+            "control_identity": None,
+            "container_identity": None,
+        })()
+        self.assertTrue(pin.matches_conversation(same))
+        self.assertFalse(pin.matches_conversation(renamed))
+
     def test_schema_one_conversation_pin_loads_without_structural_identity(self):
         with tempfile.TemporaryDirectory() as directory:
             path = os.path.join(directory, "pins.json")

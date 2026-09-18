@@ -271,17 +271,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         for pin in self._pinned_targets.items(kind="conversation"):
             if pin.process_name != process_name or pin.adapter_key != adapter_key:
                 continue
-            matches = [item for item in live if item.name == pin.label]
-            if pin.control_identity is not None:
-                matches = [
-                    item for item in matches
-                    if item.control_identity == pin.control_identity
-                ]
-            if pin.container_identity is not None:
-                matches = [
-                    item for item in matches
-                    if item.container_identity == pin.container_identity
-                ]
+            matches = [item for item in live if pin.matches_conversation(item)]
             if len(matches) == 1:
                 rows.append(matches[0])
         return tuple(rows)
