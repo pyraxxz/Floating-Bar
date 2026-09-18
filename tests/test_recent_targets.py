@@ -26,6 +26,17 @@ class RecentTargetHistoryTests(unittest.TestCase):
             [TargetScope(30, 300), TargetScope(10, 100)],
         )
 
+    def test_recent_application_without_window_class_is_stale(self):
+        history = RecentTargetHistory()
+        target = history.record_application(
+            hwnd=44,
+            pid=444,
+            process_name="demo.exe",
+            label="Demo",
+            adapter_key="demo",
+        )
+        self.assertFalse(history.application_is_live(target))
+
     def test_recent_application_validation_requires_exact_scope_adapter_and_class(self):
         history = RecentTargetHistory()
         target = history.record_application(
