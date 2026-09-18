@@ -294,7 +294,10 @@ class ConversationRowTests(unittest.TestCase):
 
     def test_runtime_identity_change_is_rejected(self):
         item = ConversationItem(123, 200, "Alice", 20, 100, 420, 160, False, (9, 9))
-        changed = ConversationItem(123, 200, "Bob", 20, 100, 420, 160, False, (9, 9))
+        changed = ConversationItem(
+            123, 200, "Alice Cooper", 20, 100, 420, 160,
+            False, (9, 9), ("ListItem", "different", "row", "uia")
+        )
         with patch("floatingbar.conversation_rows.winapi.get_window_pid", return_value=200), \
              patch("floatingbar.conversation_rows.enumerate_conversations", return_value=(changed,)):
             from floatingbar.conversation_rows import _refresh_row
