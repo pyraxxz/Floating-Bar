@@ -224,6 +224,22 @@ def pending_case_ids(report: Mapping[str, object]) -> tuple[str, ...]:
     return tuple(pending)
 
 
+def completion_errors(report: Mapping[str, object]) -> tuple[str, ...]:
+    """Return completed cases that lack the operator timestamp."""
+    raw_cases = report.get("cases", ())
+    errors = []
+    if isinstance(raw_cases, list):
+        for item in raw_cases:
+            if not isinstance(item, Mapping):
+                continue
+            result = str(item.get("result", RESULT_PENDING))
+            case_id = str(item.get("case_id", "")).strip()
+            tested_at = str(item.get("tested_at", "")).strip()
+            if result != RESULT_PENDING and case_id and not tested_at:
+                errors.append(f"missing tested_at for {case_id}")
+    return tuple(errors)
+
+
 __all__ = [
     "RESULT_BLOCKED",
     "RESULT_FAIL",
@@ -235,6 +251,7 @@ __all__ = [
     "SmokeResult",
     "build_report",
     "case_ids",
+    "completion_errors",
     "default_cases",
     "matrix_fingerprint",
     "pending_case_ids",
