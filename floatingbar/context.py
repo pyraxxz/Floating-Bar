@@ -62,7 +62,46 @@ def _is_selected_chat_row(item) -> bool:
         return False
 
 
-def _selected_chat_anchor(hwnd: int) -> Tuple[Tuple[int, ...], str]:
+def _structural_fingerprint(item) -> str:
+    """Fingerprint non-content UIA row structure and bounded ancestors."""
+    parts = []
+    try:
+        current = item
+        for depth in range(4):
+            info = current.element_info
+            values = (
+                getattr(info, "control_type", None),
+                getattr(info, "automation_id", None),
+                getattr(info, "class_name", None),
+                getattr(info, "framework_id", None),
+            )
+            normalized = tuple(
+                str(value).strip()
+                for value in values
+                if value not in (None, "")
+            )
+            if normalized:
+                parts.append("level" + str(depth) + ":" + "|".join(normalized))
+            if depth < 3:
+                current = current.parent()
+    except Exception:
+        pass
+    if not parts:
+        return ""
+    return title_fingerprint("||".join(parts))
+
+
+def _normalize_chat_anchor(value):
+    """Accept legacy (runtime_id, name_fp) and the structural form."""
+    try:
+        runtime_id, name_fp = value[:2]
+        structure_fp = value[2] if len(value) >= 3 else ""
+    except (TypeError, ValueError, IndexError):
+        return (), "", ""
+    return tuple(runtime_id or ()), str(name_fp or ""), str(structure_fp or "")
+
+
+def _selected_chat_anchor(hwnd: int):
     """Return a unique selected left-pane chat anchor when UIA exposes one."""
     if not hwnd:
         return (), ""
@@ -92,8 +131,9 @@ def _selected_chat_anchor(hwnd: int) -> Tuple[Tuple[int, ...], str]:
             except Exception:
                 name = ""
             name_fp = title_fingerprint(name)
-            if runtime_id or name_fp:
-                anchors.append((runtime_id, name_fp))
+            structure_fp = _structural_fingerprint(item)
+            if runtime_id or name_fp or structure_fp:
+                anchors.append((runtime_id, name_fp, structure_fp))
 
         if len(anchors) == 1:
             return anchors[0]
@@ -131,6 +171,7 @@ class WindowContext:
     process_name: str = ""
     chat_runtime_id: Tuple[int, ...] = ()
     chat_name_fp: str = ""
+    chat_structure_fp: str = ""
 
     @property
     def guard_available(self) -> bool:
@@ -140,6 +181,7 @@ class WindowContext:
             or self.compose_runtime_id
             or self.chat_runtime_id
             or self.chat_name_fp
+            or self.chat_structure_fp
         )
 
     def matches(self) -> bool:
@@ -163,13 +205,17 @@ class WindowContext:
             if self.compose_runtime_id:
                 if not compose_runtime_id_present(self.hwnd, self.compose_runtime_id):
                     return False
-            if self.chat_runtime_id or self.chat_name_fp:
-                current_runtime_id, current_name_fp = _selected_chat_anchor(self.hwnd)
-                if not current_runtime_id and not current_name_fp:
+            if self.chat_runtime_id or self.chat_name_fp or self.chat_structure_fp:
+                current_runtime_id, current_name_fp, current_structure_fp = _normalize_chat_anchor(
+                    _selected_chat_anchor(self.hwnd)
+                )
+                if not current_runtime_id and not current_name_fp and not current_structure_fp:
                     return False
                 if self.chat_runtime_id and current_runtime_id != self.chat_runtime_id:
                     return False
                 if self.chat_name_fp and current_name_fp != self.chat_name_fp:
+                    return False
+                if self.chat_structure_fp and current_structure_fp != self.chat_structure_fp:
                     return False
             return True
         except Exception:
@@ -184,7 +230,9 @@ def capture(
     pid = winapi.get_window_pid(hwnd) if hwnd else 0
     title = winapi.get_window_title(hwnd) if hwnd else ""
     rid = tuple(compose_runtime_id or ())
-    chat_runtime_id, chat_name_fp = _selected_chat_anchor(hwnd)
+    chat_runtime_id, chat_name_fp, chat_structure_fp = _normalize_chat_anchor(
+        _selected_chat_anchor(hwnd)
+    )
     return WindowContext(
         hwnd=hwnd or 0,
         pid=pid,
@@ -193,4 +241,5 @@ def capture(
         process_name=_process_basename(pid),
         chat_runtime_id=chat_runtime_id,
         chat_name_fp=chat_name_fp,
+        chat_structure_fp=chat_structure_fp,
     )
