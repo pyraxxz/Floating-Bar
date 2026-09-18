@@ -19,12 +19,31 @@ from . import startup
 
 _APPDATA = os.environ.get("APPDATA") or os.path.expanduser("~")
 _DEFAULT_PATH = os.path.join(_APPDATA, "FloatingBar", "settings.json")
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
+
+HOTKEY_OPTIONS = {
+    "Ctrl+Alt+Space": (0x0002 | 0x0001, 0x20),
+    "Ctrl+Shift+Space": (0x0002 | 0x0004, 0x20),
+    "Alt+Shift+Space": (0x0001 | 0x0004, 0x20),
+    "Ctrl+Alt+Enter": (0x0002 | 0x0001, 0x0D),
+}
+DEFAULT_HOTKEY = "Ctrl+Alt+Space"
+
+
+def normalize_hotkey(value: object) -> str:
+    candidate = str(value or "").strip()
+    return candidate if candidate in HOTKEY_OPTIONS else DEFAULT_HOTKEY
+
+
+def hotkey_spec_for_name(value: object) -> tuple[int, int]:
+    return HOTKEY_OPTIONS[normalize_hotkey(value)]
+
 
 
 @dataclass(frozen=True)
 class AppSettings:
     idle_collapse_ms: int = 4000
+    summon_hotkey: str = DEFAULT_HOTKEY
 
     @staticmethod
     def normalize_idle(value: object) -> int:
@@ -54,7 +73,19 @@ class SettingsStore:
 
     def update_idle_collapse_ms(self, value: object) -> AppSettings:
         normalized = AppSettings.normalize_idle(value)
-        self._settings = AppSettings(idle_collapse_ms=normalized)
+        self._settings = AppSettings(
+            idle_collapse_ms=normalized,
+            summon_hotkey=self._settings.summon_hotkey,
+        )
+        self._save()
+        return self._settings
+
+    def update_summon_hotkey(self, value: object) -> AppSettings:
+        normalized = normalize_hotkey(value)
+        self._settings = AppSettings(
+            idle_collapse_ms=self._settings.idle_collapse_ms,
+            summon_hotkey=normalized,
+        )
         self._save()
         return self._settings
 
@@ -64,10 +95,16 @@ class SettingsStore:
                 payload = json.load(handle)
         except (OSError, ValueError, TypeError):
             return
-        if not isinstance(payload, dict) or payload.get("version") != _SCHEMA_VERSION:
+        version = payload.get("version")
+        if version not in {1, _SCHEMA_VERSION}:
             return
         self._settings = AppSettings(
-            idle_collapse_ms=AppSettings.normalize_idle(payload.get("idle_collapse_seconds", 4))
+            idle_collapse_ms=AppSettings.normalize_idle(payload.get("idle_collapse_seconds", 4)),
+            summon_hotkey=(
+                normalize_hotkey(payload.get("summon_hotkey", DEFAULT_HOTKEY))
+                if version == _SCHEMA_VERSION
+                else DEFAULT_HOTKEY
+            ),
         )
 
     def _save(self) -> None:
@@ -83,6 +120,7 @@ class SettingsStore:
                 payload = {
                     "version": _SCHEMA_VERSION,
                     "idle_collapse_seconds": self._settings.idle_collapse_ms // 1000,
+                    "summon_hotkey": self._settings.summon_hotkey,
                 }
                 with os.fdopen(fd, "w", encoding="utf-8") as handle:
                     json.dump(payload, handle, indent=2, sort_keys=True)
@@ -135,6 +173,18 @@ class SettingsDialog(tk.Toplevel):
             anchor="w",
             highlightthickness=0,
         ).pack(fill="x")
+
+        tk.Label(
+            frame,
+            text="Summon hotkey (restart Floating Bar after changing)",
+            bg="#18181b",
+            fg="#d4d4d8",
+            anchor="w",
+        ).pack(fill="x", pady=(12, 2))
+
+        hotkey_var = tk.StringVar(value=store.settings.summon_hotkey)
+        self._hotkey_var = hotkey_var
+        tk.OptionMenu(frame, hotkey_var, *HOTKEY_OPTIONS.keys()).pack(fill="x")
 
         tk.Label(
             frame,
@@ -201,10 +251,15 @@ class SettingsDialog(tk.Toplevel):
             self._status.config(text="Startup setting could not be changed.")
             self._startup_var.set(startup.is_startup_enabled())
             return
+        previous_hotkey = self.store.settings.summon_hotkey
+        self.store.update_summon_hotkey(self._hotkey_var.get())
         settings = self.store.update_idle_collapse_ms(self._seconds.get())
         self.on_apply(settings)
-        self._status.config(text="Settings applied.")
+        if previous_hotkey != settings.summon_hotkey:
+            self._status.config(text="Settings applied. Restart to use the new summon hotkey.")
+        else:
+            self._status.config(text="Settings applied.")
         self.after(700, self.destroy)
 
 
-__all__ = ["AppSettings", "SettingsDialog", "SettingsStore"]
+__all__ = ["AppSettings", "DEFAULT_HOTKEY", "HOTKEY_OPTIONS", "SettingsDialog", "SettingsStore", "hotkey_spec_for_name", "normalize_hotkey"]
