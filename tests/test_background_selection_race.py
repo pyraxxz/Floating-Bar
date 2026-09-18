@@ -16,6 +16,7 @@ class SelectionRaceTests(unittest.TestCase):
         window._work_hwnd = 123
         window._background_process_name = "discord.exe"
         window._background_adapter_key = "discord"
+        window._background_window_class = ""
         window._background_typer = Mock()
         window._background_typer.bind.return_value = TargetScope(123, 200)
         window._background_typer.probe.return_value = Mock(available=True, candidate_count=1)
