@@ -217,10 +217,35 @@ class BackgroundTypingTargetTests(unittest.TestCase):
             result = self.target.send("hello")
 
         self.assertEqual(result, "posted-enter (unverified)")
-        post_text.assert_called_once_with(300, "hello", expected_pid=200)
-        post_enter.assert_called_once_with(300, target=300, expected_pid=200)
+        post_text.assert_called_once_with(300, "hello", expected_pid=200, expected_process_start=None)
+        post_enter.assert_called_once_with(300, target=300, expected_pid=200, expected_process_start=None)
         self.assertIsNotNone(self.target.last_post_send_check)
         self.assertTrue(self.target.last_post_send_check.healthy)
+
+
+    def test_send_carries_bound_process_instance_to_injection_and_submit(self):
+        self.target._bound_process_start = 123
+        with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
+             patch("floatingbar.generic_target.winapi.get_window_pid", side_effect=[200, 200, 200, 200]), \
+             patch("floatingbar.generic_target.winapi.get_focused_hwnd", return_value=300), \
+             patch("floatingbar.generic_target.winapi.post_text") as post_text, \
+             patch("floatingbar.generic_target.winapi.post_enter") as post_enter:
+            result = self.target.send("hello")
+
+        self.assertEqual(result, "posted-enter (unverified)")
+        post_text.assert_called_once_with(
+            300,
+            "hello",
+            expected_pid=200,
+            expected_process_start=123,
+        )
+        post_enter.assert_called_once_with(
+            300,
+            target=300,
+            expected_pid=200,
+            expected_process_start=123,
+        )
 
     def test_send_surfaces_verification_unavailable_when_target_changes_after_submit(self):
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
@@ -232,8 +257,8 @@ class BackgroundTypingTargetTests(unittest.TestCase):
             result = self.target.send("hello")
 
         self.assertEqual(result, "posted-enter (verification-unavailable)")
-        post_text.assert_called_once_with(300, "hello", expected_pid=200)
-        post_enter.assert_called_once_with(300, target=300, expected_pid=200)
+        post_text.assert_called_once_with(300, "hello", expected_pid=200, expected_process_start=None)
+        post_enter.assert_called_once_with(300, target=300, expected_pid=200, expected_process_start=None)
         self.assertIsNotNone(self.target.last_post_send_check)
         self.assertFalse(self.target.last_post_send_check.healthy)
         self.assertEqual(self.target.last_post_send_check.reason, "scope-changed")
@@ -252,8 +277,8 @@ class BackgroundTypingTargetTests(unittest.TestCase):
             result = self.target.send("hello")
 
         self.assertEqual(result, "posted-enter (unverified)")
-        post_text.assert_called_once_with(301, "hello", expected_pid=200)
-        post_enter.assert_called_once_with(301, target=301, expected_pid=200)
+        post_text.assert_called_once_with(301, "hello", expected_pid=200, expected_process_start=None)
+        post_enter.assert_called_once_with(301, target=301, expected_pid=200, expected_process_start=None)
         self.assertEqual(self.target.pinned_hwnd, 0)
         self.assertIsNotNone(self.target.last_post_send_check)
 
@@ -301,8 +326,8 @@ class BackgroundTypingTargetTests(unittest.TestCase):
             self.target.pin_best_input()
             result = self.target.send("hello")
         self.assertEqual(result, "posted-enter (unverified)")
-        post_text.assert_called_once_with(301, "hello", expected_pid=200)
-        post_enter.assert_called_once_with(301, target=301, expected_pid=200)
+        post_text.assert_called_once_with(301, "hello", expected_pid=200, expected_process_start=None)
+        post_enter.assert_called_once_with(301, target=301, expected_pid=200, expected_process_start=None)
 
     def test_pinned_child_must_still_exist_in_structural_inventory(self):
         self.target._pinned_hwnd = 301
