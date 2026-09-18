@@ -36,10 +36,10 @@ class SmokeReportTests(unittest.TestCase):
                 {"index": 1, "width": 2560, "height": 1440, "dpi_x": 144, "dpi_y": 144},
             ],
             "adapters": [
-                {"key": "telegram", "open_window_count": 1, "observed_processes": ["telegram.exe"]},
-                {"key": "terminal", "open_window_count": 1, "observed_processes": ["windowsterminal.exe", "windowsterminalpreview.exe", "conhost.exe"]},
-                {"key": "powershell", "open_window_count": 1, "observed_processes": ["pwsh.exe"]},
-                {"key": "cmd", "open_window_count": 1, "observed_processes": ["cmd.exe"]},
+                {"key": "telegram", "open_window_count": 1, "observed_processes": ["telegram.exe"], "observed_process_instances": [{"process_name": "telegram.exe", "process_start": 1001}]},
+                {"key": "terminal", "open_window_count": 1, "observed_processes": ["windowsterminal.exe", "windowsterminalpreview.exe", "conhost.exe"], "observed_process_instances": [{"process_name": "windowsterminal.exe", "process_start": 1002}]},
+                {"key": "powershell", "open_window_count": 1, "observed_processes": ["pwsh.exe"], "observed_process_instances": [{"process_name": "pwsh.exe", "process_start": 1003}]},
+                {"key": "cmd", "open_window_count": 1, "observed_processes": ["cmd.exe"], "observed_process_instances": [{"process_name": "cmd.exe", "process_start": 1004}]},
             ],
         }
 
@@ -103,6 +103,49 @@ class SmokeReportTests(unittest.TestCase):
             {"pending": expected_pending, "pass": 1, "fail": 1, "blocked": 1, "total": len(default_cases())},
         )
         self.assertEqual(validate_report(report), ())
+
+
+    def test_restart_pass_requires_process_instance_evidence(self):
+        report = build_report(environment={
+            "adapters": [
+                {
+                    "key": "telegram",
+                    "open_window_count": 1,
+                    "observed_processes": ["telegram.exe"],
+                    "observed_process_instances": [],
+                },
+            ]
+        })
+        for item in report["cases"]:
+            if item["case_id"] == "telegram.restart":
+                item["result"] = RESULT_PASS
+        errors = environment_case_errors(report)
+        self.assertIn(
+            "environment process-instance evidence missing for telegram.restart (telegram)",
+            errors,
+        )
+
+    def test_restart_pass_accepts_process_instance_evidence(self):
+        report = build_report(environment={
+            "adapters": [
+                {
+                    "key": "telegram",
+                    "open_window_count": 1,
+                    "observed_processes": ["telegram.exe"],
+                    "observed_process_instances": [
+                        {"process_name": "telegram.exe", "process_start": 123}
+                    ],
+                },
+            ]
+        })
+        for item in report["cases"]:
+            if item["case_id"] == "telegram.restart":
+                item["result"] = RESULT_PASS
+        errors = environment_case_errors(report)
+        self.assertNotIn(
+            "environment process-instance evidence missing for telegram.restart (telegram)",
+            errors,
+        )
 
     def test_terminal_acceptance_matrix_has_each_supported_variant_case(self):
         report = build_report()
