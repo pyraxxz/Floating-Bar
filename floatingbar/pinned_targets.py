@@ -64,6 +64,20 @@ class PinnedTarget:
             self.container_identity,
         )
 
+    def matches_conversation(self, item) -> bool:
+        """Return whether a live row matches this pin's strongest safe identity."""
+        if self.kind != "conversation":
+            return False
+        control = getattr(item, "control_identity", None)
+        container = getattr(item, "container_identity", None)
+        if self.control_identity is not None or self.container_identity is not None:
+            if self.control_identity is not None and control != self.control_identity:
+                return False
+            if self.container_identity is not None and container != self.container_identity:
+                return False
+            return True
+        return str(getattr(item, "name", "")) == self.label
+
     def to_dict(self) -> dict:
         payload = {
             "kind": self.kind,
