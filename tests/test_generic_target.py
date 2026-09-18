@@ -212,7 +212,6 @@ class BackgroundTypingTargetTests(unittest.TestCase):
              patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
              patch("floatingbar.generic_target.winapi.get_window_pid", side_effect=[200, 200, 200, 200]), \
              patch("floatingbar.generic_target.winapi.get_focused_hwnd", return_value=300), \
-             patch("floatingbar.generic_target.winapi.get_process_creation_time", return_value=123), \
              patch("floatingbar.generic_target.winapi.post_text") as post_text, \
              patch("floatingbar.generic_target.winapi.post_enter") as post_enter:
             result = self.target.send("hello")
@@ -230,6 +229,7 @@ class BackgroundTypingTargetTests(unittest.TestCase):
              patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True), \
              patch("floatingbar.generic_target.winapi.get_window_pid", side_effect=[200, 200, 200, 200]), \
              patch("floatingbar.generic_target.winapi.get_focused_hwnd", return_value=300), \
+             patch("floatingbar.generic_target.winapi.get_process_creation_time", return_value=123), \
              patch("floatingbar.generic_target.winapi.post_text") as post_text, \
              patch("floatingbar.generic_target.winapi.post_enter") as post_enter:
             result = self.target.send("hello")
