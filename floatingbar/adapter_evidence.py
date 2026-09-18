@@ -7,7 +7,11 @@ string; the registry remains the authority for what the adapter can prove.
 """
 
 from . import trace
-from .app_verification import is_chat_compose_verification, is_terminal_input_verification
+from .app_verification import (
+    is_chat_compose_verification,
+    is_terminal_input_verification,
+    verification_contract,
+)
 from .evidence import EvidenceState, SubmissionEvidence, from_result
 
 
@@ -60,12 +64,30 @@ def evidence_for_adapter(
         mode = getattr(spec, "verification_mode", "unverified") if spec is not None else "unverified"
         allowed = _VERIFICATION_ALLOWLIST.get(mode, frozenset({EvidenceState.SUBMITTED}))
 
-        if raw.state is EvidenceState.VERIFIED and not _exact_verified_contract(spec):
-            allowed = frozenset({EvidenceState.SUBMITTED})
-
-        if raw.state in allowed:
+        contract = verification_contract(spec)
+        if raw.state is EvidenceState.VERIFIED:
+            if not _exact_verified_contract(spec) or contract is None:
+                allowed = frozenset({EvidenceState.SUBMITTED})
+            elif raw.proof_kind is not None and raw.proof_kind != contract.proof_kind:
+                result = SubmissionEvidence(
+                    state=EvidenceState.SUBMITTED,
+                    strategy=raw.strategy or strategy,
+                    detail="adapter verification proof scope does not match its declared contract",
+                    retryable=False,
+                )
+            elif raw.proof_kind is None:
+                result = SubmissionEvidence(
+                    state=raw.state,
+                    strategy=raw.strategy,
+                    detail=raw.detail,
+                    retryable=raw.retryable,
+                    proof_kind=contract.proof_kind,
+                )
+            else:
+                result = raw
+        if raw.state in allowed and raw.state is not EvidenceState.VERIFIED:
             result = raw
-        else:
+        elif raw.state is not EvidenceState.VERIFIED:
             # Unknown or unsupported verification modes fail closed to
             # submitted-but-unverified rather than allowing an accidental
             # VERIFIED result. Preserve trusted producer metadata so the
@@ -80,7 +102,8 @@ def evidence_for_adapter(
     spec_key = getattr(spec, "key", "legacy") if spec is not None else "legacy"
     trace.trace(
         f"stage=verification adapter={spec_key} state={result.state.value} "
-        f"confirmed={'yes' if result.confirmed else 'no'}"
+        f"confirmed={'yes' if result.confirmed else 'no'} "
+        f"proof={result.proof_kind or 'none'}"
     )
     return result
 
