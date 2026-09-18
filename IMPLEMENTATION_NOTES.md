@@ -207,3 +207,8 @@ The release-gate validator now cross-checks critical PASS cases against the repo
 ## Configurable summon hotkey
 
 The Settings dialog now persists one of four predefined global summon shortcuts. The choice is normalized against a fixed allowlist and loaded before hotkey registration at startup. Changing it intentionally requires an application restart so the current global registration is never torn down or replaced unexpectedly while the app is in use.
+
+
+## Content-free conversation identity hardening
+
+Conversation runtime IDs and structural control/container identities are now authoritative for picker, recent-target, and pinned-target identity. Visible conversation names remain display labels and are only used as an identity fallback when no stronger UI identity is available. Strongly identified rows may therefore be renamed or relabeled without becoming a new target, while runtime/control/container drift continues to fail closed.
