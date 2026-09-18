@@ -26,7 +26,7 @@ class RecentTargetHistoryTests(unittest.TestCase):
             [TargetScope(30, 300), TargetScope(10, 100)],
         )
 
-    def test_recent_application_validation_requires_exact_scope_and_adapter(self):
+    def test_recent_application_validation_requires_exact_scope_adapter_and_class(self):
         history = RecentTargetHistory()
         target = history.record_application(
             hwnd=44,
@@ -34,6 +34,7 @@ class RecentTargetHistoryTests(unittest.TestCase):
             process_name="demo.exe",
             label="Demo",
             adapter_key="demo",
+            window_class="DemoWindow",
         )
 
         class User32:
@@ -55,17 +56,10 @@ class RecentTargetHistoryTests(unittest.TestCase):
                             "floatingbar.recent_targets.winapi.get_window_class_name",
                             return_value="DemoWindow",
                         ):
-                            target = history.record_application(
-                                hwnd=44, pid=444, process_name="demo.exe",
-                                label="Demo", adapter_key="demo",
-                                window_class="DemoWindow",
-                            )
                             self.assertTrue(history.application_is_live(target))
-                        self.assertTrue(history.application_is_live(target))
-                self.assertFalse(history.application_is_live(target)) if False else None
 
         with patch("floatingbar.recent_targets.winapi.user32", User32()):
-            with patch("floatingbar.recent_targets.winapi.get_window_pid", return_value=445):
+            with patch("floatingbar.recent_targets.winapi.get_window_pid", return_value=444):
                 with patch(
                     "floatingbar.recent_targets.winapi.get_process_image_name",
                     return_value=r"C:\\demo.exe",
@@ -74,7 +68,11 @@ class RecentTargetHistoryTests(unittest.TestCase):
                         "floatingbar.recent_targets.actionable_adapter_for_process",
                         return_value=SimpleNamespace(implemented=True, key="demo"),
                     ):
-                        self.assertFalse(history.application_is_live(target))
+                        with patch(
+                            "floatingbar.recent_targets.winapi.get_window_class_name",
+                            return_value="OtherWindow",
+                        ):
+                            self.assertFalse(history.application_is_live(target))
 
     def test_live_applications_discards_only_stale_app_entries(self):
         history = RecentTargetHistory()
