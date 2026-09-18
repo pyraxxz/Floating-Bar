@@ -11,11 +11,11 @@ This document records the current validation infrastructure on `main`. It is sep
 - Smoke-report schema validation with a matrix SHA-256 fingerprint.
 - Field-level validation of immutable smoke-case definitions.
 - Explicit handling for malformed schema versions, duplicate IDs, unknown IDs, invalid results, and missing cases.
-- Release-gate checks for a Windows environment snapshot, valid source commit ancestry, execution timestamps for every completed smoke case, and matching environment evidence for critical PASS cases.
+- Release-gate checks for a Windows environment snapshot, valid source commit ancestry, execution timestamps for every completed smoke case, and case-local environment evidence captured when each result is recorded.
 - Content-free Windows environment snapshots covering Windows build, Python version, architecture, monitor count, process DPI-awareness, per-monitor geometry/effective DPI, observed supported-app windows, observed executable file versions, and content-free process-instance identities (process name + process-start timestamp).
 - Adapter-registry consistency checks for duplicate keys, executable alias collisions, malformed aliases, unsupported capabilities, and inconsistent chat/type metadata.
 - Generic background-target leases, recent application targets, conversation rows, Telegram chat rows, retries, and the hover picker preserve content-free process-start identity alongside HWND/PID where available, rejecting same-PID process replacement before reuse.
-- Critical app-specific PASS cases in the smoke matrix require matching content-free process-instance evidence, not merely an observed executable name.
+- Critical/app-specific PASS cases require matching content-free process-instance evidence captured for that case, not merely an observed executable name from the initial report snapshot.
 - Verification cannot claim `VERIFIED` solely from an observed clear: the exact pinned control is revalidated afterward, and chat targets additionally revalidate the selected conversation before publishing verified evidence.
 
 ## Real Windows validation still required
@@ -36,4 +36,4 @@ The smoke matrix remains the source of truth for human desktop validation. The r
 
 A manually completed `smoke-report.json` must be generated from the same code revision that is being evaluated. The report records no message bodies, conversation content, raw window titles, input values, or clipboard content.
 
-The report's matrix fingerprint prevents a report created against an older smoke matrix from silently validating against a newer matrix. The release workflow also verifies that the recorded source commit is an ancestor of the tagged release source before publication.
+The report's matrix fingerprint prevents a report created against an older smoke matrix from silently validating against a newer matrix. `--record` captures a content-free case-local snapshot (process instances and monitor geometry) at the same timestamp as the result, and the release gate requires that evidence to match the case timestamp for critical/app-specific passes. The release workflow also verifies that the recorded source commit is an ancestor of the tagged release source before publication.
