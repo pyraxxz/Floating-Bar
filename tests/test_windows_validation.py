@@ -116,6 +116,33 @@ class WindowsValidationTests(unittest.TestCase):
         self.assertEqual(payload["monitors"][1]["dpi_x"], 144)
         self.assertEqual(payload["adapters"][0]["open_window_count"], 2)
 
+
+    def test_capture_snapshot_wires_process_instances_into_adapter_observations(self):
+        from unittest.mock import patch
+        from types import SimpleNamespace
+        from floatingbar.windows_validation import capture_snapshot
+
+        windows = (
+            SimpleNamespace(pid=200, process_name="telegram.exe"),
+            SimpleNamespace(pid=200, process_name="telegram.exe"),
+            SimpleNamespace(pid=300, process_name="discord.exe"),
+        )
+        with patch("floatingbar.windows_validation.enumerate_background_windows", return_value=windows),              patch("floatingbar.windows_validation._monitor_observations", return_value=()),              patch("floatingbar.windows_validation._monitor_count", return_value=1),              patch("floatingbar.windows_validation._dpi_awareness", return_value="per-monitor"),              patch("floatingbar.windows_validation._process_file_version", return_value="1.0.0"),              patch("floatingbar.windows_validation.winapi", SimpleNamespace(
+                 get_process_image_name=lambda _pid: r"C:\app.exe",
+                 get_process_creation_time=lambda pid: {200: 123, 300: 456}[pid],
+             )):
+            snapshot = capture_snapshot()
+
+        by_key = {item.key: item for item in snapshot.adapters}
+        self.assertEqual(
+            by_key["telegram"].observed_process_instances,
+            (("telegram.exe", 123),),
+        )
+        self.assertEqual(
+            by_key["discord"].observed_process_instances,
+            (("discord.exe", 456),),
+        )
+
     def test_report_uses_adapter_labels_not_window_titles(self):
         snapshot = WindowsValidationSnapshot(
             2,
