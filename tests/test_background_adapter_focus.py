@@ -52,8 +52,8 @@ class BackgroundAdapterFocusTests(unittest.TestCase):
             result = target.send("background reply")
 
         self.assertEqual(result, "posted-enter (unverified)")
-        post_text.assert_called_once_with(401, "background reply")
-        post_enter.assert_called_once_with(401, target=401)
+        post_text.assert_called_once_with(401, "background reply", expected_pid=200)
+        post_enter.assert_called_once_with(401, target=401, expected_pid=200)
 
     def test_chat_prefers_composer_shaped_control_over_focused_search_field(self):
         target = ChatComposerTarget(100, 200)
@@ -73,8 +73,8 @@ class BackgroundAdapterFocusTests(unittest.TestCase):
             result = target.send("background reply")
 
         self.assertEqual(result, "posted-enter (unverified)")
-        post_text.assert_called_once_with(403, "background reply")
-        post_enter.assert_called_once_with(403, target=403)
+        post_text.assert_called_once_with(403, "background reply", expected_pid=200)
+        post_enter.assert_called_once_with(403, target=403, expected_pid=200)
 
     def test_terminal_does_not_require_target_to_be_focused(self):
         target = TerminalTypingTarget(100, 200)
@@ -87,8 +87,8 @@ class BackgroundAdapterFocusTests(unittest.TestCase):
             result = target.send("echo hello")
 
         self.assertEqual(result, "posted-enter (unverified)")
-        post_text.assert_called_once_with(402, "echo hello")
-        post_enter.assert_called_once_with(402, target=402)
+        post_text.assert_called_once_with(402, "echo hello", expected_pid=200)
+        post_enter.assert_called_once_with(402, target=402, expected_pid=200)
 
 
 if __name__ == "__main__":
