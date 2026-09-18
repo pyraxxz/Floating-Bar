@@ -71,7 +71,7 @@ class TelegramChatIdentityAmbiguityTests(unittest.TestCase):
             container_identity=("ancestor1", "Pane", "workspace-a", "uia"),
         )
         moved = TelegramChatItem(
-            100, 200, "Alex", 80, 500, 380, 550,
+            100, 200, "Alex", 24, 110, 324, 170,
             selected=True,
             runtime_id=(1, 2, 3),
             control_identity=("ListItem", "alex", "row", "uia"),
