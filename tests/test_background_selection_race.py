@@ -210,8 +210,8 @@ class SelectionRaceTests(unittest.TestCase):
 
     def test_stale_generic_selection_callback_cannot_bind_newer_conversation(self):
         window = self._window()
-        older = Mock(hwnd=123, pid=200, name="Older")
-        newer = Mock(hwnd=123, pid=200, name="Newer")
+        older = Mock(hwnd=123, pid=200, name="Older", process_start=None)
+        newer = Mock(hwnd=123, pid=200, name="Newer", process_start=None)
         callbacks = []
         window.after = lambda _delay, callback: callbacks.append(callback)
 
