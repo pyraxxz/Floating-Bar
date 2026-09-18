@@ -92,13 +92,19 @@ class RecentTargetHistory:
         window_class: str | None = None,
     ) -> RecentTarget:
         """Remember a successfully bound application target."""
+        resolved_class = str(window_class or "").strip()
+        if not resolved_class:
+            try:
+                resolved_class = str(winapi.get_window_class_name(int(hwnd)) or "").strip()
+            except Exception:
+                resolved_class = ""
         target = RecentTarget(
             kind="application",
             adapter_key=str(adapter_key),
             process_name=str(process_name).casefold(),
             label=str(label or process_name or "Application"),
             scope=TargetScope(int(hwnd), int(pid)),
-            window_class=str(window_class or "").strip() or None,
+            window_class=resolved_class or None,
         )
         return self._remember(target)
 
