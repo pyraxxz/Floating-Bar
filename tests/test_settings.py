@@ -22,8 +22,9 @@ class SettingsStoreTests(unittest.TestCase):
             self.assertEqual(store.idle_collapse_ms, 15000)
 
             payload = json.loads(path.read_text(encoding="utf-8"))
-            self.assertEqual(payload["version"], 1)
+            self.assertEqual(payload["version"], 2)
             self.assertEqual(payload["idle_collapse_seconds"], 15)
+            self.assertEqual(payload["summon_hotkey"], "Ctrl+Alt+Space")
 
     def test_invalid_payload_falls_back_to_defaults(self):
         with tempfile.TemporaryDirectory() as directory:
