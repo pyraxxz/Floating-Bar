@@ -243,7 +243,7 @@ class SettingsDialog(tk.Toplevel):
             fg="#d4d4d8",
         ).pack(side="right")
 
-        self.geometry("390x190")
+        self.geometry("390x255")
 
     def _apply(self) -> None:
         startup_ok = startup.set_startup_enabled(bool(self._startup_var.get()))
