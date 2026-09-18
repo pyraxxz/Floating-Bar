@@ -59,6 +59,60 @@ class TelegramChatPickerTests(unittest.TestCase):
         self.assertEqual([item.name for item in result], ["Unread", "Current", "Normal"])
         self.assertEqual(result[0].attention.state, AttentionState.UNREAD)
 
+    def test_chat_catalog_captures_process_instance_identity(self):
+        item = SimpleNamespace(
+            rectangle=lambda: SimpleNamespace(left=10, top=10, right=320, bottom=50, width=lambda: 310, height=lambda: 40),
+            element_info=SimpleNamespace(name="Private Chat", runtime_id=(1, 2), control_type="ListItem", item_status="0"),
+            is_selected=lambda: False,
+        )
+        window = Mock()
+        window.rectangle.return_value = SimpleNamespace(left=0, top=0, width=lambda: 500, bottom=500)
+        window.descendants.return_value = [item]
+        with patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.telegram_chats.winapi.get_process_creation_time", return_value=123), \
+             patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.telegram_chats.Application") as app_cls:
+            connected = app_cls.return_value.connect.return_value
+            connected.window.return_value.wrapper_object.return_value = window
+            result = enumerate_telegram_chats(100, limit=1)
+        self.assertEqual(result[0].process_start, 123)
+
+    def test_select_chat_rejects_same_pid_after_process_restart(self):
+        chat = TelegramChatItem(100, 200, "Alice", 0, 10, 300, 60, process_start=123)
+        with patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.telegram_chats.winapi.get_process_creation_time", return_value=456), \
+             patch("floatingbar.telegram_chats.winapi.post_click") as post_click:
+            with self.assertRaisesRegex(RuntimeError, "process instance changed"):
+                select_telegram_chat(chat)
+        post_click.assert_not_called()
+
+    def test_select_chat_forwards_process_instance_identity_to_click(self):
+        chat = TelegramChatItem(100, 200, "Alice", 100, 200, 300, 260, process_start=123)
+        refreshed = TelegramChatItem(100, 200, "Alice", 110, 210, 310, 270, False, (1, 1), ("ListItem", "row", "uia"), process_start=123)
+        selected = TelegramChatItem(100, 200, "Alice", 110, 210, 310, 270, True, (1, 1), ("ListItem", "row", "uia"), process_start=123)
+        with patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.telegram_chats.winapi.get_process_creation_time", return_value=123), \
+             patch("floatingbar.telegram_chats.enumerate_telegram_chats", side_effect=[(refreshed,), (selected,)]), \
+             patch("floatingbar.telegram_chats._screen_to_client", return_value=(120, 140)), \
+             patch("floatingbar.telegram_chats.winapi.post_click") as post_click:
+            result = select_telegram_chat(chat)
+        self.assertEqual(result, selected)
+        post_click.assert_called_once_with(
+            100, 120, 140,
+            expected_pid=200,
+            expected_process_start=123,
+        )
+
+    def test_chat_identity_matches_rejects_same_pid_after_process_restart(self):
+        chat = TelegramChatItem(100, 200, "Alice", 100, 200, 300, 260, True, (1, 2), process_start=123)
+        with patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.telegram_chats.winapi.get_process_creation_time", return_value=456), \
+             patch("floatingbar.telegram_chats.enumerate_telegram_chats") as enumerate_rows:
+            self.assertFalse(chat_identity_matches(chat))
+        enumerate_rows.assert_not_called()
+
     def test_chat_catalog_excludes_automation_id_from_control_identity(self):
         item = SimpleNamespace(
             rectangle=lambda: SimpleNamespace(left=10, top=10, right=320, bottom=50, width=lambda: 310, height=lambda: 40),
