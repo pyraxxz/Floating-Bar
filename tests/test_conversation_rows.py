@@ -296,12 +296,12 @@ class ConversationRowTests(unittest.TestCase):
         item = ConversationItem(123, 200, "Alice", 20, 100, 420, 160, False, (9, 9))
         changed = ConversationItem(
             123, 200, "Alice Cooper", 20, 100, 420, 160,
-            False, (9, 9), ("ListItem", "different", "row", "uia")
+            False, (9, 10), ("ListItem", "different", "row", "uia")
         )
         with patch("floatingbar.conversation_rows.winapi.get_window_pid", return_value=200), \
              patch("floatingbar.conversation_rows.enumerate_conversations", return_value=(changed,)):
             from floatingbar.conversation_rows import _refresh_row
-            with self.assertRaisesRegex(RuntimeError, "identity changed"):
+            with self.assertRaisesRegex(RuntimeError, "runtime identity disappeared"):
                 _refresh_row(item)
 
     def test_structural_identity_prevents_duplicate_name_ambiguity(self):
