@@ -8,7 +8,7 @@ win merely because it owns focus.
 
 import time
 
-from .app_verification import is_chat_compose_verification
+from .app_verification import is_chat_compose_verification, verification_proof_kind
 from .generic_target import BackgroundTypingTarget
 from .control_candidates import best_input_candidate
 from .conversation_rows import refresh_conversation, selected_conversation_for_scope
@@ -166,6 +166,7 @@ class ChatComposerTarget(BackgroundTypingTarget):
             strategy=strategy,
             detail=f"contract={mode}; {detail}",
             retryable=False,
+            proof_kind=verification_proof_kind(self._adapter_spec),
         )
         return EvidenceStrategy(strategy, evidence)
 
