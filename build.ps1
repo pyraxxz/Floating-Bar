@@ -9,6 +9,10 @@ if ($LASTEXITCODE -ne 0) { Write-Host "Install failed."; exit 1 }
 pyinstaller --onefile --noconsole --name FloatingBar main.py
 if ($LASTEXITCODE -ne 0) { Write-Host "Build failed."; exit 1 }
 
+Copy-Item -LiteralPath installer\Install-FloatingBar.ps1 -Destination dist\Install-FloatingBar.ps1 -Force
+Copy-Item -LiteralPath installer\Uninstall-FloatingBar.ps1 -Destination dist\Uninstall-FloatingBar.ps1 -Force
+
 Write-Host ""
 Write-Host "Done. Your exe is at: dist\FloatingBar.exe"
-Write-Host "Double-click it (or pin it to Start) to run."
+Write-Host "Installer: dist\Install-FloatingBar.ps1"
+Write-Host "Uninstaller: dist\Uninstall-FloatingBar.ps1"
