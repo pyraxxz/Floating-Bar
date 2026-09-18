@@ -70,7 +70,7 @@ class HardeningTests(unittest.TestCase):
         def click(*args, **kwargs):
             events.append("click")
 
-        def text(*args):
+        def text(*args, **kwargs):
             events.append(("text", args[0]))
 
         injector = HardenedTelegramInjector(target)
