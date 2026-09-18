@@ -8,7 +8,7 @@ python tools/smoke_report.py --init smoke-report.json
 
 ## Matrix identity
 
-The report uses `schema_version: 2` and includes `matrix_fingerprint`.
+The report uses `schema_version: 3` and includes `matrix_fingerprint`.
 
 `matrix_fingerprint` is a SHA-256 digest of the current smoke-case definitions:
 case ID, area, title, application labels, priority, and destructive flag.
@@ -31,10 +31,14 @@ Each case records exactly one of:
 `notes` may contain human test notes. Validation and summary code never reads
 those notes to decide whether a case passed.
 
+Every completed (`PASS`, `FAIL`, or `BLOCKED`) case must also contain a non-empty
+`tested_at` execution timestamp. Pending cases leave `tested_at` empty.
+
 ## Release gate
 
 A complete release report must also contain a Windows environment snapshot and
 an exact 40-character Git commit SHA in `environment.source_commit`.
+Every completed case must include its `tested_at` execution timestamp.
 The release workflow separately checks that the smoke-report source commit is
 present in the release workspace and is an ancestor of the tagged release.
 
