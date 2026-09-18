@@ -204,7 +204,12 @@ class RecentTargetHistory:
             if current_class != expected_class:
                 return False
             spec = actionable_adapter_for_process(process_name)
-            return bool(spec and spec.implemented and spec.key == target.adapter_key)
+            return bool(
+                spec
+                and spec.implemented
+                and spec.supports_background_type
+                and spec.key == target.adapter_key
+            )
         except Exception:
             return False
 
