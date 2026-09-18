@@ -32,12 +32,18 @@ class ConversationPickerRow:
 
 def conversation_picker_identity(item: ConversationItem) -> tuple[object, ...]:
     """Return structural row identity without reading message content."""
-    return (
+    identity = (
         item.hwnd,
         item.pid,
         item.runtime_id,
         item.control_identity,
         item.name,
+    )
+    # Runtime/structural identities survive ordinary UI reflow. Geometry is
+    # only a fallback when no stronger identity exists.
+    if item.runtime_id is not None or item.control_identity is not None:
+        return identity
+    return identity + (
         item.left,
         item.top,
         item.right,
