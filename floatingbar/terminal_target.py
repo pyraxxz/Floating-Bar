@@ -175,10 +175,18 @@ class TerminalTypingTarget(BackgroundTypingTarget):
             )
         result = self._wait_for_length(target_hwnd, lambda length: length == 0)
         if result is True:
+            try:
+                self._verification_target(target_hwnd)
+            except Exception:
+                return self._typed_verification_result(
+                    "posted-enter (verification-unavailable)",
+                    EvidenceState.UNAVAILABLE,
+                    "pinned terminal control changed after clear observation",
+                )
             return self._typed_verification_result(
                 "posted-enter (VERIFIED)",
                 EvidenceState.VERIFIED,
-                "exact terminal input observed grow then clear",
+                "exact terminal input observed grow then clear with stable target",
             )
         if result is None:
             return self._typed_verification_result(
