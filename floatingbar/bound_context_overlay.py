@@ -437,6 +437,10 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             if self._state != "bar":
                 self._show_bar()
         except Exception as exc:
+            try:
+                self._background_typer.release()
+            except Exception:
+                pass
             trace.trace(f"conversation target bind failed safely: {exc}")
             self._show_feedback(str(exc) if str(exc) else "The selected conversation has no safe background typing control yet.")
 
@@ -487,6 +491,10 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             if self._state != "bar":
                 self._show_bar()
         except Exception as exc:
+            try:
+                self.target.release()
+            except Exception:
+                pass
             trace.trace(f"telegram chat context recapture failed safely: {exc}")
             self._show_feedback("Telegram changed before the selected chat could be guarded.")
 
