@@ -148,6 +148,28 @@ class SmokeReportTests(unittest.TestCase):
             if item["case_id"] != "telegram.send"
         ))
 
+    def test_cli_failure_does_not_expose_raw_exception_text(self):
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "broken.json"
+            path.write_text("{ definitely not json", encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(root / "tools" / "smoke_report.py"),
+                    "--validate",
+                    str(path),
+                ],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("exception=JSONDecodeError", result.stderr)
+        self.assertNotIn("definitely not json", result.stderr)
+
     def test_record_command_refuses_overwrite_without_force(self):
         report = build_report()
         report["cases"][0]["result"] = "PASS"
