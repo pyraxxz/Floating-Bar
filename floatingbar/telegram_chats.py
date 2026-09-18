@@ -240,8 +240,6 @@ def _refresh_selected_row(chat: TelegramChatItem) -> TelegramChatItem:
                 raise RuntimeError("Telegram chat row identity changed")
             if chat.control_identity is not None and current.control_identity != chat.control_identity:
                 raise RuntimeError("Telegram chat row control identity changed")
-            if chat.container_identity is not None and current.container_identity != chat.container_identity:
-                raise RuntimeError("Telegram chat row container identity changed")
             if abs(current.left - chat.left) + abs(current.top - chat.top) > 24:
                 raise RuntimeError("Telegram chat row moved before selection")
             return current
