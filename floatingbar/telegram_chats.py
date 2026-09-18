@@ -265,6 +265,21 @@ def _refresh_selected_row(chat: TelegramChatItem) -> TelegramChatItem:
             raise RuntimeError("Telegram chat row structural identity is ambiguous")
         raise RuntimeError("Telegram chat row structural identity disappeared")
 
+    if chat.container_identity is not None:
+        container_matches = [
+            row
+            for row in current_rows
+            if row.container_identity == chat.container_identity and row.name == chat.name
+        ]
+        if len(container_matches) == 1:
+            current = container_matches[0]
+            if abs(current.left - chat.left) + abs(current.top - chat.top) > 24:
+                raise RuntimeError("Telegram chat row moved before selection")
+            return current
+        if len(container_matches) > 1:
+            raise RuntimeError("Telegram chat row container identity is ambiguous")
+        raise RuntimeError("Telegram chat row container identity disappeared")
+
     candidates = [row for row in current_rows if row.name == chat.name]
     if not candidates:
         raise RuntimeError("Telegram chat row is no longer available")
@@ -318,10 +333,16 @@ def chat_identity_matches(chat: TelegramChatItem) -> bool:
             return bool(matches[0].selected)
         if len(matches) > 1:
             return False
-        if chat.container_identity is not None:
-            return False
-        if chat.runtime_id is not None:
-            return False
+        return False
+    if chat.container_identity is not None:
+        matches = [
+            row
+            for row in current_rows
+            if row.container_identity == chat.container_identity and row.name == chat.name
+        ]
+        if len(matches) == 1:
+            return bool(matches[0].selected)
+        return False
     if chat.runtime_id is not None:
         return False
     candidates = [
