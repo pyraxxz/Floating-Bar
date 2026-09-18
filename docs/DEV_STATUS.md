@@ -58,3 +58,10 @@ Before `v0.2.0`:
 16. diagnostic JSON remains content-free and useful for support snapshots;
 17. terminal input-control verification is validated on the supported Windows console variants without reading terminal content;
 18. each supported chat adapter is validated on at least one real desktop build with its exact adapter-bound verification contract.
+
+
+## CI development policy
+
+Windows CI is a pull-request gate, not a development-push notification loop. The workflow runs for pull requests and manual dispatches; it does not run on ordinary pushes to `main`. Development changes should be made on a topic branch and merged only after the Windows regression suite and executable build are green.
+
+The repository's `main` branch should be treated as the integration branch, not as the place to debug failing changes. Branch protection should require the **Windows CI / test** check before merging pull requests.
