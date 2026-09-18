@@ -227,6 +227,25 @@ class ConversationRowTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "runtime identity is ambiguous"):
                 _refresh_row(item)
 
+    def test_runtime_identity_with_changed_structure_is_rejected(self):
+        item = ConversationItem(
+            123, 200, "Alice", 20, 100, 420, 160,
+            runtime_id=(9, 9),
+            control_identity=("ListItem", "alice", "row", "uia"),
+            container_identity=("ancestor1", "Pane", "workspace-a", "uia"),
+        )
+        changed = ConversationItem(
+            123, 200, "Alice", 22, 102, 422, 162,
+            runtime_id=(9, 9),
+            control_identity=("ListItem", "alice", "changed", "uia"),
+            container_identity=("ancestor1", "Pane", "workspace-b", "uia"),
+        )
+        with patch("floatingbar.conversation_rows.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.conversation_rows.enumerate_conversations", return_value=(changed,)):
+            from floatingbar.conversation_rows import _refresh_row
+            with self.assertRaisesRegex(RuntimeError, "control identity changed"):
+                _refresh_row(item)
+
     def test_runtime_identity_change_is_rejected(self):
         item = ConversationItem(123, 200, "Alice", 20, 100, 420, 160, False, (9, 9))
         changed = ConversationItem(123, 200, "Bob", 20, 100, 420, 160, False, (9, 9))
