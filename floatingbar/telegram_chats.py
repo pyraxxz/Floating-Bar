@@ -379,7 +379,7 @@ def select_telegram_chat(chat: TelegramChatItem) -> TelegramChatItem:
         raise RuntimeError("Telegram chat window no longer exists")
     current = _refresh_selected_row(chat)
     client_x, client_y = _screen_to_client(chat.hwnd, *current.center)
-    winapi.post_click(chat.hwnd, client_x, client_y)
+    winapi.post_click(chat.hwnd, client_x, client_y, expected_pid=chat.pid)
     confirmed = _confirm_selected(current)
     _remember_confirmed_chat(confirmed)
     return confirmed
