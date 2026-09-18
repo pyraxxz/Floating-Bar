@@ -69,6 +69,8 @@ pip install pyinstaller
 pyinstaller --onefile --noconsole --name FloatingBar main.py
 ```
 
+The local build also copies installer/Install-FloatingBar.ps1 and installer/Uninstall-FloatingBar.ps1 into dist. The installer places the executable under %LOCALAPPDATA%\\FloatingBar and preserves the existing %APPDATA%\\FloatingBar settings and quick replies during upgrades.
+
 ---
 
 ## Background-target flow
