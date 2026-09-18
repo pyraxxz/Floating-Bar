@@ -222,6 +222,7 @@ Every adapter should eventually produce one of:
 - [x] Concrete per-adapter verification contract binding for Telegram, WhatsApp, Discord, Slack, Teams, Terminal, CMD, and PowerShell
 - [ ] App-specific semantic verification for terminal and chat adapters where shared contracts are insufficient
 - [x] Bounded post-send checks
+- [x] Final content-free revalidation before `VERIFIED`: terminal control identity must remain stable after clear observation; chat verification also requires the selected conversation to remain unchanged
 - [x] Generic post-send target loss cannot become an automatic retry
 - [x] Generic submit exceptions after text injection cannot become an automatic retry
 - [x] Clear user feedback for blocked targets
