@@ -18,8 +18,8 @@ from typing import Optional, Sequence
 
 _APPDATA = os.environ.get("APPDATA") or os.path.expanduser("~")
 _DEFAULT_PATH = os.path.join(_APPDATA, "FloatingBar", "pinned-targets.json")
-_SCHEMA_VERSION = 4
-_SUPPORTED_SCHEMA_VERSIONS = frozenset({1, 2, 3, 4})
+_SCHEMA_VERSION = 5
+_SUPPORTED_SCHEMA_VERSIONS = frozenset({1, 2, 3, 4, 5})
 
 
 @dataclass(frozen=True)
@@ -187,6 +187,7 @@ class PinnedTargetStore:
         if not isinstance(payload, dict) or payload.get("version") not in _SUPPORTED_SCHEMA_VERSIONS:
             self._items = []
             return
+        version = int(payload.get("version"))
         raw_items = payload.get("pins")
         if not isinstance(raw_items, list):
             self._items = []
@@ -208,7 +209,8 @@ class PinnedTargetStore:
                             for part in raw.get("control_identity", ())
                             if str(part).strip()
                         ) or None
-                        if isinstance(raw.get("control_identity", ()), (list, tuple))
+                        if version == _SCHEMA_VERSION
+                        and isinstance(raw.get("control_identity", ()), (list, tuple))
                         else None
                     ),
                     window_class=str(raw.get("window_class", "")).strip() or None,
@@ -218,7 +220,8 @@ class PinnedTargetStore:
                             for part in raw.get("container_identity", ())
                             if str(part).strip()
                         ) or None
-                        if isinstance(raw.get("container_identity", ()), (list, tuple))
+                        if version == _SCHEMA_VERSION
+                        and isinstance(raw.get("container_identity", ()), (list, tuple))
                         else None
                     ),
                 )
@@ -231,6 +234,8 @@ class PinnedTargetStore:
             if len(parsed) >= self.limit:
                 break
         self._items = parsed
+        if version != _SCHEMA_VERSION and self._items:
+            self._save()
 
     def _save(self) -> None:
         payload = {
