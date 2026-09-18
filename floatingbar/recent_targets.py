@@ -128,7 +128,7 @@ class RecentTargetHistory:
         right_container = getattr(right, "container_identity", None)
         if left_container is not None or right_container is not None:
             return left_container == right_container
-        return True
+        return str(getattr(left, "name", "")) == str(getattr(right, "name", ""))
 
     @staticmethod
     def _fresh_selected_row(conversation):
