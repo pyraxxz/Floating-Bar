@@ -34,6 +34,9 @@ The Windows environment snapshot also records executable file versions for obser
 
 ## Recent productization work
 
+The orb now has an on-demand release update check. It is opt-in from the menu, does not run during startup, and exchanges only public release-version metadata with GitHub.
+
+
 Packaging now includes a clean PowerShell install/upgrade/uninstall path. The installed executable lives under %LOCALAPPDATA%\\FloatingBar, while user settings remain under %APPDATA%\\FloatingBar and survive normal upgrades.
 
 

@@ -10,11 +10,13 @@ import os
 import queue
 import threading
 import tkinter as tk
+import webbrowser
 
 import config
 from . import trace
 from . import winapi
 from .settings import SettingsDialog, SettingsStore
+from .update_checker import fetch_latest_release, is_newer_version, ReleaseInfo
 from . import __version__
 from .injector import InjectionFailed
 from .hardening import HardenedTelegramInjector
@@ -58,6 +60,8 @@ class OrbRelayWindow(tk.Tk):
         self._win_off = (0, 0)
         self._retry_menu_label = "Retry failed draft"
         self._settings_store = SettingsStore()
+        self._update_queue = queue.Queue()
+        self._update_checking = False
         config.IDLE_COLLAPSE_MS = self._settings_store.idle_collapse_ms
 
         self.overrideredirect(True)
@@ -117,6 +121,7 @@ class OrbRelayWindow(tk.Tk):
             state="disabled",
         )
         self.menu.add_command(label="Settings", command=self._open_settings)
+        self.menu.add_command(label="Check for updates", command=self._check_for_updates)
         self.menu.add_separator()
         self.menu.add_command(label="Quit", command=self.destroy)
         self.orb.bind("<Button-3>", self._show_menu)
@@ -125,12 +130,118 @@ class OrbRelayWindow(tk.Tk):
         trace.reset_session(__version__)
         self._show_orb()
         self._poll_results()
+        self._poll_updates()
 
         self.update_idletasks()
         try:
             winapi.hide_from_alt_tab(self.winfo_id())
         except Exception:
             pass
+
+    def _check_for_updates(self) -> None:
+        """Check public release metadata without blocking the Tk event loop."""
+        if self._update_checking:
+            return
+        self._update_checking = True
+        try:
+            self.menu.entryconfig("Check for updates", state="disabled")
+        except Exception:
+            pass
+        self._show_feedback("Checking for updates...", "#a1a1aa")
+
+        def worker():
+            try:
+                info = fetch_latest_release()
+                self._update_queue.put(("release", info))
+            except Exception as exc:
+                trace.trace_exception("release update check failed safely", exc)
+                self._update_queue.put(("error", type(exc).__name__))
+
+        threading.Thread(target=worker, name="FloatingBarUpdateCheck", daemon=True).start()
+
+    def _poll_updates(self) -> None:
+        try:
+            while True:
+                kind, value = self._update_queue.get_nowait()
+                self._update_checking = False
+                try:
+                    self.menu.entryconfig("Check for updates", state="normal")
+                except Exception:
+                    pass
+                if kind == "release" and isinstance(value, ReleaseInfo):
+                    try:
+                        newer = is_newer_version(__version__, value.version)
+                    except Exception:
+                        newer = False
+                    if newer:
+                        self._show_update_dialog(value)
+                    else:
+                        self._show_feedback("Floating Bar is up to date.", config.ORB_COLOR_OK)
+                else:
+                    self._show_feedback("Update check could not be completed.", config.ORB_COLOR_UNVERIFIED)
+        except queue.Empty:
+            pass
+        self.after(120, self._poll_updates)
+
+    def _show_update_dialog(self, release: ReleaseInfo) -> None:
+        dialog = tk.Toplevel(self)
+        dialog.title("Floating Bar update")
+        dialog.resizable(False, False)
+        dialog.transient(self)
+        dialog.attributes("-topmost", True)
+        dialog.configure(bg="#18181b")
+        dialog.protocol("WM_DELETE_WINDOW", dialog.destroy)
+
+        frame = tk.Frame(dialog, bg="#18181b", padx=16, pady=14)
+        frame.pack(fill="both", expand=True)
+        tk.Label(
+            frame,
+            text=f"New version available: v{release.version}",
+            bg="#18181b",
+            fg="#f4f4f5",
+            font=("Segoe UI", 10, "bold"),
+            anchor="w",
+        ).pack(fill="x")
+        tk.Label(
+            frame,
+            text=f"Current version: v{__version__}",
+            bg="#18181b",
+            fg="#a1a1a1",
+            anchor="w",
+        ).pack(fill="x", pady=(4, 12))
+
+        buttons = tk.Frame(frame, bg="#18181b")
+        buttons.pack(fill="x")
+        tk.Button(
+            buttons,
+            text="Open release",
+            command=lambda: self._open_release_page(release.url, dialog),
+            relief="flat",
+            bd=0,
+            bg="#27272a",
+            fg="#f4f4f5",
+        ).pack(side="right", padx=(6, 0))
+        tk.Button(
+            buttons,
+            text="Close",
+            command=dialog.destroy,
+            relief="flat",
+            bd=0,
+            bg="#27272a",
+            fg="#d4d4d8",
+        ).pack(side="right")
+        dialog.geometry("320x120")
+
+    @staticmethod
+    def _open_release_page(url: str, dialog: tk.Toplevel | None = None) -> None:
+        try:
+            webbrowser.open(url)
+        finally:
+            if dialog is not None:
+                try:
+                    dialog.destroy()
+                except Exception:
+                    pass
 
     def _open_settings(self) -> None:
         """Open the lightweight application settings dialog."""
