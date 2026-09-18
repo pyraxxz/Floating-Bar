@@ -72,6 +72,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self._generic_retry_process_name = ""
         self._generic_retry_adapter_key = ""
         self._generic_retry_window_class = ""
+        self._generic_retry_process_start = None
         self._pending_chat = None
         self._pending_conversation = None
         self._selection_generation = 0
@@ -325,6 +326,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self._generic_retry_process_name = ""
         self._generic_retry_adapter_key = ""
         self._generic_retry_window_class = ""
+        self._generic_retry_process_start = None
         self._pending_chat = None
         self._pending_conversation = None
         self._background_process_name = ""
@@ -564,6 +566,15 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         ):
             self._show_feedback("The original background app is no longer supported safely.")
             return
+        saved_process_start = getattr(self, "_generic_retry_process_start", None)
+        if saved_process_start is not None:
+            try:
+                current_process_start = winapi.get_process_creation_time(scope.pid)
+            except Exception:
+                current_process_start = None
+            if current_process_start is None or current_process_start != saved_process_start:
+                self._show_feedback("The original background app process restarted before the retry could start.")
+                return
         target = target_for_adapter(spec)
         rebound = target.bind(scope.hwnd, scope.pid)
         if rebound != scope or not target.scope_matches(scope.hwnd, scope.pid):
@@ -604,6 +615,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         retry_process_name = self._background_process_name
         retry_adapter_key = self._background_adapter_key
         retry_window_class = ""
+        retry_process_start = getattr(self._background_typer, "bound_process_start", None)
         try:
             retry_scope = self._background_typer.scope()
             if retry_scope.valid:
@@ -614,11 +626,13 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
                 self._generic_retry_process_name = retry_process_name
                 self._generic_retry_adapter_key = retry_adapter_key
                 self._generic_retry_window_class = retry_window_class
+                self._generic_retry_process_start = retry_process_start
             else:
                 self._generic_retry_scope = None
                 self._generic_retry_process_name = ""
                 self._generic_retry_adapter_key = ""
                 self._generic_retry_window_class = ""
+                self._generic_retry_process_start = None
         finally:
             self._generic_attempt_id = 0
             self._background_typer.release()

@@ -41,6 +41,11 @@ class BackgroundTypingTargetTests(unittest.TestCase):
              patch("floatingbar.generic_target.winapi.get_process_creation_time", return_value=None):
             self.assertFalse(self.target.scope_matches(100, 200))
 
+
+    def test_bound_process_start_is_exposed_for_retry_guarding(self):
+        self.target._bound_process_start = 123
+        self.assertEqual(self.target.bound_process_start, 123)
+
     def test_bind_marks_current_window_process_as_verified(self):
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200), \

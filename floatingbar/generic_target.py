@@ -65,6 +65,11 @@ class BackgroundTypingTarget:
         self._last_post_send_check = None
         self._last_submission_evidence = None
 
+    @property
+    def bound_process_start(self) -> int | None:
+        """Return the saved process-start identity for the current bind, when known."""
+        return self._bound_process_start
+
     def bind(self, hwnd: int, pid: int, spec=None) -> TargetScope:
         scope = TargetScope(hwnd, pid)
         self._scope = scope
