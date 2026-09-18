@@ -242,11 +242,10 @@ def refresh_conversation(item: ConversationItem) -> ConversationItem:
 
     if item.runtime_id is not None:
         identity_matches = [row for row in current if row.runtime_id == item.runtime_id]
+        if len(identity_matches) > 1:
+            raise RuntimeError("conversation row runtime identity is ambiguous")
         if identity_matches:
-            fresh = min(
-                identity_matches,
-                key=lambda row: abs(row.left - item.left) + abs(row.top - item.top),
-            )
+            fresh = identity_matches[0]
             if fresh.name != item.name:
                 raise RuntimeError("conversation row identity changed")
             if abs(fresh.left - item.left) + abs(fresh.top - item.top) > 24:
