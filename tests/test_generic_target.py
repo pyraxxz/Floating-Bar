@@ -65,7 +65,7 @@ class BackgroundTypingTargetTests(unittest.TestCase):
 
     def test_available_revalidates_a_previously_rejected_bind(self):
         with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True), \
-             patch("floatingbar.generic_target.winapi.get_window_pid", side_effect=[999, 200]), \
+             patch("floatingbar.generic_target.winapi.get_window_pid", side_effect=[999, 200, 200]), \
              patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True):
             self.target.bind(100, 200)
             self.target._bound_process_start = 123
