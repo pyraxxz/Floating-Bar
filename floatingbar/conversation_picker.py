@@ -32,14 +32,14 @@ class ConversationPickerRow:
 
 def conversation_picker_identity(item: ConversationItem) -> tuple[object, ...]:
     """Return the strongest available content-free row identity."""
-    base = (item.hwnd, item.pid, item.name)
-    # Runtime identity is strongest; ancestor changes must not perturb it.
+    scope = (item.hwnd, item.pid)
+    # Runtime identity is strongest and is independent of the visible label.
     if item.runtime_id is not None:
-        return base + ("runtime", item.runtime_id)
+        return scope + ("runtime", item.runtime_id)
     # Structural identity is next. The ancestor chain disambiguates duplicate
     # row controls without relying on message text or window content.
     if item.control_identity is not None or item.container_identity is not None:
-        return base + ("structural", item.control_identity, item.container_identity)
+        return scope + ("structural", item.control_identity, item.container_identity)
     # Geometry is only a fallback when no stronger identity exists.
     return base + (
         "geometry",
