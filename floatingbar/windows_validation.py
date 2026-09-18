@@ -22,7 +22,7 @@ from .background_windows import enumerate_background_windows
 from .dpi import enable_per_monitor_awareness
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 @dataclass(frozen=True)
@@ -42,6 +42,7 @@ class AdapterObservation:
     open_window_count: int
     observed_processes: tuple[str, ...]
     observed_versions: tuple[str, ...] = ()
+    observed_process_instances: tuple[tuple[str, int], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -84,6 +85,10 @@ class WindowsValidationSnapshot:
                     "open_window_count": item.open_window_count,
                     "observed_processes": list(item.observed_processes),
                     "observed_versions": list(item.observed_versions),
+                    "observed_process_instances": [
+                        {"process_name": name, "process_start": start}
+                        for name, start in item.observed_process_instances
+                    ],
                 }
                 for item in self.adapters
             ],
@@ -226,6 +231,7 @@ def _process_file_version(path: str) -> str:
 def _observe_adapters(
     processes: Iterable[str],
     versions: Mapping[str, Iterable[str]] | None = None,
+    instances: Mapping[str, Iterable[int]] | None = None,
 ) -> tuple[AdapterObservation, ...]:
     counts = Counter(str(name).casefold() for name in processes if name)
     normalized_versions = {
@@ -233,6 +239,12 @@ def _observe_adapters(
             sorted({str(version).strip() for version in values if str(version).strip()})
         )
         for name, values in (versions or {}).items()
+    }
+    normalized_instances = {
+        str(name).casefold(): tuple(
+            sorted({int(start) for start in values if isinstance(start, int) and not isinstance(start, bool) and int(start) > 0})
+        )
+        for name, values in (instances or {}).items()
     }
     result = []
     for spec in _adapter_specs():
@@ -251,6 +263,11 @@ def _observe_adapters(
                 open_window_count=sum(counts.get(name, 0) for name in aliases),
                 observed_processes=matching,
                 observed_versions=tuple(dict.fromkeys(observed_versions)),
+                observed_process_instances=tuple(
+                    (name, start)
+                    for name in matching
+                    for start in normalized_instances.get(name, ())
+                ),
             )
         )
     return tuple(result)
@@ -263,6 +280,7 @@ def capture_snapshot() -> WindowsValidationSnapshot:
 
     release, version, service_pack = platform.win32_ver()
     versions: dict[str, set[str]] = {}
+    instances: dict[str, set[int]] = {}
     try:
         windows = enumerate_background_windows(include_minimized=True)
         process_names = tuple(item.process_name for item in windows)
@@ -277,6 +295,14 @@ def capture_snapshot() -> WindowsValidationSnapshot:
             file_version = _process_file_version(image_path or "")
             if file_version:
                 versions.setdefault(item.process_name.casefold(), set()).add(file_version)
+            try:
+                from . import winapi
+
+                process_start = winapi.get_process_creation_time(item.pid)
+            except Exception:
+                process_start = None
+            if process_start is not None:
+                instances.setdefault(item.process_name.casefold(), set()).add(int(process_start))
         observed_window_count = len(windows)
     except Exception:
         process_names = ()
@@ -296,7 +322,7 @@ def capture_snapshot() -> WindowsValidationSnapshot:
         dpi_awareness=_dpi_awareness(),
         monitors=monitors,
         observed_window_count=observed_window_count,
-        adapters=_observe_adapters(process_names, versions),
+        adapters=_observe_adapters(process_names, versions, instances),
     )
 
 
@@ -322,9 +348,10 @@ def format_report(snapshot: WindowsValidationSnapshot) -> str:
     for adapter in snapshot.adapters:
         observed = ",".join(adapter.observed_processes) or "none"
         versions = ",".join(adapter.observed_versions) or "unknown"
+        instances = ",".join(f"{name}@{start}" for name, start in adapter.observed_process_instances) or "unknown"
         lines.append(
             f"    - {adapter.label}: open_window_count={adapter.open_window_count} "
-            f"observed_processes={observed} versions={versions}"
+            f"observed_processes={observed} versions={versions} process_instances={instances}"
         )
     return "\n".join(lines)
 
