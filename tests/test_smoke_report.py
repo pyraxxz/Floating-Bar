@@ -11,6 +11,7 @@ from floatingbar.smoke_matrix import (
     RESULT_FAIL,
     RESULT_PASS,
     build_report,
+    completion_errors,
     default_cases,
     matrix_fingerprint,
     pending_case_ids,
@@ -95,8 +96,50 @@ class SmokeReportTests(unittest.TestCase):
         ]
         self.assertEqual(summarize_report(report)["pending"], 0)
         self.assertEqual(validate_report(report), ())
+        self.assertEqual(
+            len(completion_errors(report)),
+            len(default_cases()),
+        )
 
     def test_release_gate_accepts_complete_windows_report(self):
+        report = build_report(
+            environment={
+                "platform": "Windows",
+                "windows_release": "11",
+                "windows_version": "10.0.26100",
+                "architecture": "AMD64",
+                "python_version": "3.12.10",
+                "source_commit": "0123456789abcdef0123456789abcdef01234567",
+            }
+        )
+        report["cases"] = [
+            {**item, "result": RESULT_PASS, "tested_at": "2026-09-18T12:00:00Z"}
+            for item in report["cases"]
+        ]
+
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "smoke.json"
+            path.write_text(json.dumps(report), encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(root / "tools" / "smoke_report.py"),
+                    "--validate",
+                    str(path),
+                    "--require-complete",
+                ],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Release gate: PASS", result.stdout)
+        self.assertIn("matrix_fingerprint=", result.stdout)
+
+    def test_release_gate_rejects_completed_case_without_timestamp(self):
         report = build_report(
             environment={
                 "platform": "Windows",
@@ -130,9 +173,8 @@ class SmokeReportTests(unittest.TestCase):
                 check=False,
             )
 
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("Release gate: PASS", result.stdout)
-        self.assertIn("matrix_fingerprint=", result.stdout)
+        self.assertEqual(result.returncode, 3)
+        self.assertIn("missing tested_at", result.stdout)
 
     def test_release_gate_rejects_non_windows_environment(self):
         report = build_report(
