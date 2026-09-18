@@ -82,6 +82,26 @@ class ConversationPickerRowTests(unittest.TestCase):
         self.assertTrue(row.pinned)
         self.assertEqual(row.suffix, "  Pinned")
 
+    def test_structural_identity_survives_geometry_reflow(self):
+        original = ConversationItem(
+            100, 200, "Alice", 0, 100, 300, 150,
+            runtime_id=(1, 42),
+            control_identity=("ListItem", "alice", "row", "uia"),
+        )
+        moved = ConversationItem(
+            100, 200, "Alice", 80, 500, 400, 560,
+            runtime_id=(1, 42),
+            control_identity=("ListItem", "alice", "row", "uia"),
+        )
+        self.assertEqual(conversation_picker_identity(original), conversation_picker_identity(moved))
+
+    def test_geometry_remains_fallback_when_structural_identity_is_missing(self):
+        first = _item(1)
+        moved = ConversationItem(
+            100, 200, first.name, 5, first.top, first.right + 20, first.bottom,
+        )
+        self.assertNotEqual(conversation_picker_identity(first), conversation_picker_identity(moved))
+
     def test_picker_merges_pinned_then_recent_then_live_and_deduplicates(self):
         pinned = _item(1)
         recent = _item(2)
