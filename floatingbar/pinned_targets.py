@@ -1,9 +1,10 @@
 """Persistent, content-free pinned background targets.
 
-Pins store only stable app/adapter identity and, for conversation pins, the
-visible conversation name. They never persist HWND/PID/runtime IDs, window
-titles, message text, or UIA values. Live HWND/PID and row identity are
-resolved and validated afresh before a pin is offered for use.
+Pins store stable app/adapter identity and, for conversation pins, the
+visible conversation name plus optional structural UI identity. They never
+persist HWND/PID/runtime IDs, window titles, message text, or UIA values.
+Live HWND/PID and row identity are resolved and validated afresh before a
+pin is offered for use.
 """
 
 from __future__ import annotations
@@ -17,7 +18,8 @@ from typing import Optional, Sequence
 
 _APPDATA = os.environ.get("APPDATA") or os.path.expanduser("~")
 _DEFAULT_PATH = os.path.join(_APPDATA, "FloatingBar", "pinned-targets.json")
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
+_SUPPORTED_SCHEMA_VERSIONS = frozenset({1, 2})
 
 
 @dataclass(frozen=True)
@@ -26,6 +28,7 @@ class PinnedTarget:
     adapter_key: str
     process_name: str
     label: str
+    control_identity: tuple[str, ...] | None = None
 
     @property
     def valid(self) -> bool:
@@ -43,15 +46,19 @@ class PinnedTarget:
             self.adapter_key,
             self.process_name.casefold(),
             self.label.casefold(),
+            self.control_identity,
         )
 
-    def to_dict(self) -> dict[str, str]:
-        return {
+    def to_dict(self) -> dict:
+        payload = {
             "kind": self.kind,
             "adapter_key": self.adapter_key,
             "process_name": self.process_name,
             "label": self.label,
         }
+        if self.control_identity:
+            payload["control_identity"] = list(self.control_identity)
+        return payload
 
 
 class PinnedTargetStore:
@@ -102,13 +109,18 @@ class PinnedTargetStore:
         adapter_key: str,
         process_name: str,
         label: str,
+        control_identity: Optional[Sequence[str]] = None,
     ) -> bool:
+        identity = tuple(
+            str(part).strip() for part in (control_identity or ()) if str(part).strip()
+        ) or None
         return self._toggle(
             PinnedTarget(
                 kind="conversation",
                 adapter_key=str(adapter_key),
                 process_name=str(process_name).casefold(),
                 label=str(label).strip(),
+                control_identity=identity,
             )
         )
 
@@ -132,7 +144,7 @@ class PinnedTargetStore:
         except (OSError, ValueError, TypeError):
             self._items = []
             return
-        if not isinstance(payload, dict) or payload.get("version") != _SCHEMA_VERSION:
+        if not isinstance(payload, dict) or payload.get("version") not in _SUPPORTED_SCHEMA_VERSIONS:
             self._items = []
             return
         raw_items = payload.get("pins")
@@ -150,6 +162,15 @@ class PinnedTargetStore:
                     adapter_key=str(raw.get("adapter_key", "")),
                     process_name=str(raw.get("process_name", "")).casefold(),
                     label=str(raw.get("label", "")).strip(),
+                    control_identity=(
+                        tuple(
+                            str(part).strip()
+                            for part in raw.get("control_identity", ())
+                            if str(part).strip()
+                        )
+                        if isinstance(raw.get("control_identity", ()), (list, tuple))
+                        else None
+                    ),
                 )
             except (TypeError, ValueError):
                 continue
