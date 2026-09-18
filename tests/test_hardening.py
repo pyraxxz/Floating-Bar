@@ -57,7 +57,7 @@ class HardeningTests(unittest.TestCase):
         target.compose_click_point.return_value = (77, 88)
         target.scope_matches.return_value = True
 
-        def click(*args):
+        def click(*args, **kwargs):
             events.append("click")
 
         def text(*args):
@@ -202,7 +202,7 @@ class HardeningTests(unittest.TestCase):
             result = injector._submit_invisible(box, 123, False, "compose")
 
         self.assertEqual(result, "posted-click (VERIFIED)")
-        posted.assert_called_once_with(123, 20, 30)
+        posted.assert_called_once_with(123, 20, 30, expected_pid=1)
         self.assertGreaterEqual(sleeping.call_count, 1)
 
     def test_poll_compose_clear_returns_none_when_readback_is_unavailable(self):
