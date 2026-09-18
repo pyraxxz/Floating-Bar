@@ -28,6 +28,26 @@ jobs:
       - name: Compile Python sources
         run: python -m compileall -q .
 
+      - name: Validate PowerShell installer scripts
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD "installer/Install-FloatingBar.ps1"),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD "installer/Uninstall-FloatingBar.ps1"),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Host $_.Message }
+            exit 1
+          }
+
       - name: Run regression tests
         run: python -m unittest discover -s tests -v
 
