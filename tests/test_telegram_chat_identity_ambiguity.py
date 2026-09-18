@@ -21,6 +21,28 @@ class TelegramChatIdentityAmbiguityTests(unittest.TestCase):
                 select_telegram_chat(requested)
         post_click.assert_not_called()
 
+    def test_select_rejects_name_fallback_when_control_identity_disappears(self):
+        requested = TelegramChatItem(
+            100, 200, "Alex", 10, 100, 310, 150,
+            runtime_id=(1, 2, 3),
+            control_identity=("ListItem", "alex", "row", "uia"),
+            container_identity=("ancestor1", "Pane", "workspace-a", "uia"),
+        )
+        replacement = TelegramChatItem(
+            100, 200, "Alex", 10, 100, 310, 150,
+            selected=True,
+            runtime_id=(9, 9, 9),
+            control_identity=("ListItem", "different", "row", "uia"),
+            container_identity=("ancestor1", "Pane", "workspace-a", "uia"),
+        )
+        with patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True), \\
+             patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \\
+             patch("floatingbar.telegram_chats.enumerate_telegram_chats", return_value=(replacement,)), \\
+             patch("floatingbar.telegram_chats.winapi.post_click") as post_click:
+            with self.assertRaisesRegex(RuntimeError, "structural identity disappeared"):
+                select_telegram_chat(requested)
+        post_click.assert_not_called()
+
     def test_chat_identity_matches_uses_container_identity(self):
         requested = TelegramChatItem(
             100, 200, "Alex", 10, 100, 310, 150, True,
