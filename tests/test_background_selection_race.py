@@ -104,6 +104,29 @@ class SelectionRaceTests(unittest.TestCase):
         window._background_typer.bind.assert_not_called()
         window._show_feedback.assert_called_once()
 
+    def test_conversation_finish_rejects_recycled_top_level_class(self):
+        window = self._window()
+        window._background_process_name = "discord.exe"
+        window._background_window_class = "DiscordMainWindow"
+        window._pending_conversation = Mock(hwnd=123, pid=200, name="Chat")
+        window._background_typer.release = Mock()
+        with patch("floatingbar.bound_context_overlay.actionable_adapter_for_process", return_value=Mock(key="discord")), \
+             patch("floatingbar.bound_context_overlay.winapi.get_window_class_name", return_value="DifferentWindow"):
+            window._finish_conversation_selection(window._selection_generation_value())
+        window._background_typer.bind.assert_not_called()
+        window._background_typer.release.assert_called_once()
+
+    def test_telegram_finish_rejects_recycled_top_level_class(self):
+        window = self._window()
+        window._background_process_name = "telegram.exe"
+        window._background_window_class = "TelegramMainWindow"
+        window._pending_chat = Mock(hwnd=123, pid=200, name="Chat")
+        window.target.release = Mock()
+        with patch("floatingbar.bound_context_overlay.winapi.get_window_class_name", return_value="DifferentWindow"):
+            window._finish_telegram_chat_selection(window._selection_generation_value())
+        window.target.select_for_send.assert_not_called()
+        window.target.release.assert_called_once()
+
     def test_failed_conversation_finish_releases_target_lease(self):
         window = self._window()
         window._background_process_name = "discord.exe"
