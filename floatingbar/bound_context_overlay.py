@@ -67,6 +67,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self._generic_attempt_id = 0
         self._background_process_name = ""
         self._background_adapter_key = ""
+        self._background_window_class = ""
         self._generic_retry_scope = None
         self._generic_retry_process_name = ""
         self._generic_retry_adapter_key = ""
@@ -338,6 +339,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self._pending_conversation = None
         self._background_process_name = ""
         self._background_adapter_key = ""
+        self._background_window_class = ""
         self._work_hwnd = 0
         self._generic_attempt_id = 0
         self._update_status()
@@ -361,6 +363,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self._background_typer = target_for_adapter(spec)
         self._background_process_name = item.process_name
         self._background_adapter_key = spec.key
+        self._background_window_class = expected_class
         self._work_hwnd = item.hwnd
         self._generic_attempt_id = 0
 
@@ -417,6 +420,11 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             return
         try:
             spec = actionable_adapter_for_process(self._background_process_name)
+            expected_class = str(getattr(self, "_background_window_class", "") or "").strip()
+            if expected_class:
+                current_class = str(winapi.get_window_class_name(conversation.hwnd) or "").strip()
+                if current_class != expected_class:
+                    raise RuntimeError("selected conversation window changed before binding")
             scope = self._background_typer.bind(conversation.hwnd, conversation.pid)
             self._bind_adapter_metadata(spec)
             if scope.hwnd != self._work_hwnd or scope.pid != conversation.pid:
@@ -469,6 +477,11 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             return
         try:
             self.target.release()
+            expected_class = str(getattr(self, "_background_window_class", "") or "").strip()
+            if expected_class:
+                current_class = str(winapi.get_window_class_name(chat.hwnd) or "").strip()
+                if current_class != expected_class:
+                    raise RuntimeError("Telegram window changed before binding the selected chat")
             selected = self.target.select_for_send(preferred_hwnd=chat.hwnd)
             if selected != chat.hwnd:
                 raise RuntimeError("Telegram selected a different window")
