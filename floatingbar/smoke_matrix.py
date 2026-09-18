@@ -351,8 +351,9 @@ def environment_case_errors(report: Mapping[str, object]) -> tuple[str, ...]:
                         name = str(item_instance.get("process_name", "")).casefold()
                         start = item_instance.get("process_start")
                         recorded_adapter = str(item_instance.get("adapter_key", "")).strip()
+                        adapter_matches = adapter_key == "all" or recorded_adapter == adapter_key
                         if (
-                            recorded_adapter == adapter_key
+                            adapter_matches
                             and name in expected_processes
                             and isinstance(start, int)
                             and not isinstance(start, bool)
