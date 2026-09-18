@@ -32,6 +32,10 @@ Smoke-report validation is additionally protected by a schema version, a SHA-256
 
 The Windows environment snapshot also records executable file versions for observed supported adapters without recording window titles or other UI content. This supplies a content-free application/version trace for the eventual real-desktop acceptance report.
 
+## Recent productization work
+
+A lightweight Settings dialog now exposes per-user Windows startup and the idle-collapse interval. These preferences remain separate from target discovery and are stored without any window, conversation, message, or UI Automation content.
+
 ## Next engineering target
 
 Complete real desktop acceptance for the terminal input-clear contract across Windows Terminal, Terminal Preview, conhost/CMD, and PowerShell Core variants. In parallel, add genuinely app-specific semantic verification only where structural length/clear evidence is insufficient, without weakening the fail-closed/content-free boundary. Then close the remaining multi-monitor, minimized/background, restart, Unicode, repeated-send, and application-version trace cases required for the `v0.2.0` gate.
