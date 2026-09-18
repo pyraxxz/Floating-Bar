@@ -180,3 +180,8 @@ Patch-level fixes, refactors, tests, diagnostics, and small reliability improvem
 ## Lightweight settings and startup behavior
 
 The orb now exposes a small Settings dialog instead of requiring users to edit configuration constants manually. It persists only the idle-collapse preference in a bounded JSON file and manages Windows startup through the current user's Run key. The packaged executable is registered directly; source launches register the Python interpreter plus the current script. No background-app identity or UI content enters the settings store.
+
+
+## Packaging and clean upgrade path
+
+The repository now ships non-elevated PowerShell installer and uninstaller scripts alongside the PyInstaller executable. Upgrades replace only the installed executable, refuse to overwrite a running copy, and preserve %APPDATA%/FloatingBar settings and quick replies. The uninstaller removes the executable and Start-menu shortcut while preserving user data unless -RemoveSettings is explicitly supplied. CI parses both scripts before the Python regression gate, and release builds publish the scripts with the executable.
