@@ -257,7 +257,11 @@ def main() -> int:
             return _record(path, args.case_id, args.result, args.force)
         return _validate(path, args.require_complete)
     except Exception as exc:
-        print(f"Smoke report operation failed safely: {exc}", file=sys.stderr)
+        print(
+            "Smoke report operation failed safely "
+            f"(exception={type(exc).__name__})",
+            file=sys.stderr,
+        )
         return 2
 
 
