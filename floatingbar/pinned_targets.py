@@ -44,10 +44,20 @@ class PinnedTarget:
 
     @property
     def key(self) -> tuple[object, ...]:
-        return (
+        base = (
             self.kind,
             self.adapter_key,
             self.process_name.casefold(),
+        )
+        if self.kind == "conversation" and (
+            self.control_identity is not None or self.container_identity is not None
+        ):
+            return base + (
+                "structural",
+                self.control_identity,
+                self.container_identity,
+            )
+        return base + (
             self.label.casefold(),
             self.control_identity,
             self.window_class,
