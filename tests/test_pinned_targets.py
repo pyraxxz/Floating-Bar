@@ -30,12 +30,29 @@ class PinnedTargetStoreTests(unittest.TestCase):
             path = os.path.join(directory, "pins.json")
             with open(path, "r", encoding="utf-8") as handle:
                 payload = json.load(handle)
-            self.assertEqual(payload["version"], 2)
+            self.assertEqual(payload["version"], 3)
             self.assertEqual(set(payload["pins"][0]), {"kind", "adapter_key", "process_name", "label"})
             self.assertNotIn("hwnd", payload["pins"][0])
             self.assertNotIn("pid", payload["pins"][0])
             reloaded = PinnedTargetStore(path)
             self.assertEqual(reloaded.items(), store.items())
+
+    def test_application_pin_round_trips_window_class_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = self._store(directory)
+            self.assertTrue(
+                store.toggle_application(
+                    adapter_key="discord",
+                    process_name="discord.exe",
+                    label="Discord",
+                    window_class="Chrome_WidgetWin_1",
+                )
+            )
+            reloaded = PinnedTargetStore(os.path.join(directory, "pins.json"))
+            self.assertEqual(reloaded.items()[0].window_class, "Chrome_WidgetWin_1")
+            with open(os.path.join(directory, "pins.json"), "r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+            self.assertEqual(payload["pins"][0]["window_class"], "Chrome_WidgetWin_1")
 
     def test_conversation_pin_round_trips_structural_identity(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -75,6 +92,7 @@ class PinnedTargetStoreTests(unittest.TestCase):
                 )
             store = PinnedTargetStore(path)
             self.assertEqual(store.items()[0].control_identity, None)
+            self.assertEqual(store.items()[0].window_class, None)
 
     def test_toggle_is_idempotent_by_stable_identity(self):
         with tempfile.TemporaryDirectory() as directory:
