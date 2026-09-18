@@ -51,6 +51,8 @@ Complete real desktop acceptance for the terminal input-clear contract across Wi
 
 ## Release gate
 
+Picker, recent-target, conversation, Telegram, and generic-retry paths now preserve and revalidate content-free Windows process-instance identity (PID + process start) where available, closing same-PID restart races before target binding or retry.
+
 Before `v0.2.0`:
 
 1. exact release source passes Windows CI;
