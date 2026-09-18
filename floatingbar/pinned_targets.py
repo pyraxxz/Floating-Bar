@@ -40,7 +40,7 @@ class PinnedTarget:
         )
 
     @property
-    def key(self) -> tuple[str, str, str, str]:
+    def key(self) -> tuple[object, ...]:
         return (
             self.kind,
             self.adapter_key,
