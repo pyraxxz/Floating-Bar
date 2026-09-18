@@ -110,6 +110,8 @@ def _context_transition_stable(
         return False
     if initial.chat_name_fp and final.chat_name_fp != initial.chat_name_fp:
         return False
+    if initial.chat_structure_fp and final.chat_structure_fp != initial.chat_structure_fp:
+        return False
     return True
 
 
