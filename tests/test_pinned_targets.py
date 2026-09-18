@@ -32,12 +32,18 @@ class PinnedTargetStoreTests(unittest.TestCase):
             with open(path, "r", encoding="utf-8") as handle:
                 payload = json.load(handle)
             self.assertEqual(payload["version"], 4)
+            by_kind = {item["kind"]: item for item in payload["pins"]}
             self.assertEqual(
-                set(payload["pins"][0]),
+                set(by_kind["application"]),
                 {"kind", "adapter_key", "process_name", "label", "window_class"},
             )
-            self.assertNotIn("hwnd", payload["pins"][0])
-            self.assertNotIn("pid", payload["pins"][0])
+            self.assertEqual(
+                set(by_kind["conversation"]),
+                {"kind", "adapter_key", "process_name", "label"},
+            )
+            for item in payload["pins"]:
+                self.assertNotIn("hwnd", item)
+                self.assertNotIn("pid", item)
             reloaded = PinnedTargetStore(path)
             self.assertEqual(reloaded.items(), store.items())
 
