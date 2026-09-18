@@ -124,6 +124,15 @@ class BackgroundTypingTarget:
             return TargetScope(0, 0)
         return self._scope
 
+    def select_for_send(self, preferred_hwnd: int = 0) -> int:
+        """Return the already-bound window without silently retargeting."""
+        scope = self._scope
+        if scope is None or not self.available():
+            return 0
+        if preferred_hwnd and int(preferred_hwnd) != scope.hwnd:
+            return 0
+        return scope.hwnd
+
     def scope_matches(self, hwnd: int, pid: int) -> bool:
         scope = self._scope
         if not scope or scope.hwnd != hwnd or scope.pid != pid:
