@@ -136,10 +136,15 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
         error = None
         try:
             strategy = self.injector.send(text, restore_hwnd=restore_hwnd)
-        except (TelegramNotFound, InjectionFailed) as exc:
-            error = str(exc)
+        except TelegramNotFound as exc:
+            trace.trace_exception("worker Telegram target unavailable", exc)
+            error = "Telegram is unavailable or its target could not be inspected safely."
+        except InjectionFailed as exc:
+            trace.trace_exception("worker Telegram injection failed", exc)
+            error = "Telegram could not safely submit the message."
         except Exception as exc:
-            error = f"Unexpected error: {exc}"
+            trace.trace_exception("worker unexpected send failure", exc)
+            error = "Telegram send failed safely due to an unexpected internal error."
         finally:
             if comtypes:
                 try:
@@ -174,21 +179,21 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
         except TransactionRejected as exc:
             lifecycle.block()
             trace.trace(
-                f"transaction: preparation blocked safely: {exc}; "
+                "transaction: preparation blocked safely; "
                 f"state={lifecycle.state.value}"
             )
             self._queue_completion(request.attempt_id, "preflight (blocked)")
             return
         except Exception as exc:
             lifecycle.reject()
-            trace.trace(
-                f"transaction: unexpected preparation failure: {exc}; "
-                f"state={lifecycle.state.value}"
+            trace.trace_exception(
+                f"transaction: unexpected preparation failure; state={lifecycle.state.value}",
+                exc,
             )
             self._queue_completion(
                 request.attempt_id,
                 None,
-                f"Telegram send preflight failed safely: {exc}",
+                "Telegram send preflight failed safely.",
             )
             return
 
