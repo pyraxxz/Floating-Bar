@@ -217,3 +217,8 @@ Conversation runtime IDs and structural control/container identities are now aut
 ## Verification proof scope
 
 Typed submission evidence now carries a content-free `proof_kind`. The current concrete chat and terminal contracts declare `input-acceptance`, meaning the system proved the pinned input/composer accepted and cleared the line. Future app-specific contracts can declare semantic delivery or execution proof independently, and adapter policy rejects a VERIFIED result whose proof scope does not match the contract.
+
+
+## Content-free UI identity hardening
+
+Conversation and Telegram row identities now use a shared structural helper that records only control type, class, framework, bounded ancestor structure, runtime IDs, and geometry. UIA AutomationId is excluded because it may carry user-facing or context-bearing strings. Persistent conversation pins use schema v5; older pin files are loaded without legacy structural/container identities and rewritten in the sanitized format.
