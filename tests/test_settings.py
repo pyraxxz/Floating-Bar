@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from floatingbar.settings import AppSettings, SettingsStore
+from floatingbar.settings import AppSettings, SettingsStore, hotkey_spec_for_name, normalize_hotkey
 
 
 class SettingsStoreTests(unittest.TestCase):
@@ -34,6 +34,30 @@ class SettingsStoreTests(unittest.TestCase):
 
     def test_non_numeric_idle_value_uses_default(self):
         self.assertEqual(AppSettings.normalize_idle("not-a-number"), 4000)
+
+    def test_hotkey_is_bounded_to_known_choices(self):
+        self.assertEqual(normalize_hotkey("Ctrl+Shift+Space"), "Ctrl+Shift+Space")
+        self.assertEqual(normalize_hotkey("not-a-hotkey"), "Ctrl+Alt+Space")
+        self.assertEqual(hotkey_spec_for_name("Ctrl+Alt+Enter"), (0x0002 | 0x0001, 0x0D))
+
+    def test_hotkey_persists_with_schema_v2(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "settings.json"
+            store = SettingsStore(str(path))
+            store.update_summon_hotkey("Ctrl+Shift+Space")
+            reloaded = SettingsStore(str(path))
+            self.assertEqual(reloaded.settings.summon_hotkey, "Ctrl+Shift+Space")
+
+    def test_schema_v1_migrates_to_default_hotkey(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "settings.json"
+            path.write_text(
+                '{"version": 1, "idle_collapse_seconds": 8}',
+                encoding="utf-8",
+            )
+            store = SettingsStore(str(path))
+            self.assertEqual(store.settings.idle_collapse_ms, 8000)
+            self.assertEqual(store.settings.summon_hotkey, "Ctrl+Alt+Space")
 
 
 if __name__ == "__main__":
