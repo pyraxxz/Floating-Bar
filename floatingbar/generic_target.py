@@ -335,7 +335,12 @@ class BackgroundTypingTarget:
             target = self._pinned_target()
         else:
             target = self._focused_target()
-        winapi.post_text(target, text, expected_pid=self.scope().pid)
+        winapi.post_text(
+            target,
+            text,
+            expected_pid=self.scope().pid,
+            expected_process_start=self._bound_process_start,
+        )
         return target
 
     def prepare_submission_verification(self):
@@ -389,7 +394,12 @@ class BackgroundTypingTarget:
                 trace.trace("stage=verification post-injection unavailable")
 
             try:
-                strategy = submit_background_target(self._adapter_spec, target, expected_pid=self.scope().pid)
+                strategy = submit_background_target(
+                    self._adapter_spec,
+                    target,
+                    expected_pid=self.scope().pid,
+                    expected_process_start=self._bound_process_start,
+                )
             except Exception:
                 return self._verification_unavailable_after_submit(target, "submission")
 
