@@ -145,7 +145,7 @@ def enumerate_telegram_chats(hwnd: int, limit: int = 6) -> tuple[TelegramChatIte
             structural_control_identity = control_identity(item.element_info)
             container_identity = ancestor_identity(item)
             key = runtime_id or (
-                control_identity,
+                structural_control_identity,
                 name.casefold(),
                 rect.left,
                 rect.top,
