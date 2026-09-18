@@ -37,6 +37,7 @@ def conversation_picker_identity(item: ConversationItem) -> tuple[object, ...]:
         item.pid,
         item.runtime_id,
         item.control_identity,
+        item.container_identity,
         item.name,
     )
     # Runtime/structural identities survive ordinary UI reflow. Geometry is
