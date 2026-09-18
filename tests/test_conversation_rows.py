@@ -26,7 +26,7 @@ class _Rect:
 
 
 class _Item:
-    def __init__(self, rect, name, selected=False, runtime_id=None, control_identity=None):
+    def __init__(self, rect, name, selected=False, runtime_id=None, control_identity=None, parent=None):
         self._rect = rect
         self.element_info = SimpleNamespace(
             name=name,
@@ -37,12 +37,18 @@ class _Item:
             framework_id=(control_identity[3] if control_identity and len(control_identity) > 3 else ""),
         )
         self._selected = selected
+        self._parent = parent
 
     def rectangle(self):
         return self._rect
 
     def is_selected(self):
         return self._selected
+
+    def parent(self):
+        if self._parent is None:
+            raise RuntimeError("no parent")
+        return self._parent
 
 
 class ConversationRowTests(unittest.TestCase):
@@ -75,6 +81,22 @@ class ConversationRowTests(unittest.TestCase):
         self.assertEqual(rows[0].pid, 200)
         self.assertIsNotNone(rows[0].control_identity)
         self.assertEqual(rows[0].attention.state, AttentionState.SELECTED)
+
+    def test_enumeration_captures_content_free_parent_identity(self):
+        parent = _Item(_Rect(0, 0, 500, 900), "ignored")
+        window = Mock()
+        window.rectangle.return_value = _Rect(0, 0, 1000, 900)
+        window.descendants.side_effect = [[
+            _Item(_Rect(20, 100, 420, 160), "Alice", False, None,
+                  ("ListItem", "alice", "row", "uia"), parent=parent)
+        ], []]
+        with self._app_patch(window), \
+             patch("floatingbar.conversation_rows.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.conversation_rows.winapi.user32.IsWindow", return_value=True):
+            rows = enumerate_conversations(123)
+
+        self.assertEqual(rows[0].container_identity[:1], ("ancestor1",))
+        self.assertIn("ListItem", rows[0].container_identity)
 
     def test_selected_row_is_presented_before_unselected_rows(self):
         window = Mock()
