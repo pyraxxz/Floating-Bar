@@ -38,6 +38,7 @@ class TelegramChatItem:
     control_identity: tuple[str, ...] | None = None
     attention: ConversationAttention = ConversationAttention()
     container_identity: tuple[str, ...] | None = None
+    process_start: int | None = None
 
     @property
     def center(self) -> tuple[int, int]:
@@ -125,6 +126,10 @@ def enumerate_telegram_chats(hwnd: int, limit: int = 6) -> tuple[TelegramChatIte
         pid = winapi.get_window_pid(hwnd)
         if not pid or not winapi.user32.IsWindow(hwnd):
             return ()
+        try:
+            process_start = winapi.get_process_creation_time(pid)
+        except Exception:
+            process_start = None
         app = Application(backend="uia").connect(handle=hwnd)
         window = app.window(handle=hwnd).wrapper_object()
         window_rect = window.rectangle()
@@ -169,12 +174,34 @@ def enumerate_telegram_chats(hwnd: int, limit: int = 6) -> tuple[TelegramChatIte
                     control_identity=structural_control_identity,
                     container_identity=container_identity,
                     attention=_row_attention(item),
+                    process_start=process_start,
                 )
             )
         rows.sort(key=_row_sort_key)
         return tuple(rows[:limit])
     except Exception:
         return ()
+
+
+def _same_process_instance(expected: int | None, actual: int | None) -> bool:
+    """Match a saved process-start identity when both sides are observable."""
+    if expected is None:
+        return True
+    return actual is not None and int(actual) == int(expected)
+
+
+def _post_chat_click(hwnd: int, x: int, y: int, chat: TelegramChatItem) -> None:
+    """Post a chat click with process-instance identity when available."""
+    if chat.process_start is None:
+        winapi.post_click(hwnd, x, y, expected_pid=chat.pid)
+        return
+    winapi.post_click(
+        hwnd,
+        x,
+        y,
+        expected_pid=chat.pid,
+        expected_process_start=chat.process_start,
+    )
 
 
 def _screen_to_client(hwnd: int, x: int, y: int) -> tuple[int, int]:
@@ -191,6 +218,10 @@ def _refresh_selected_row(chat: TelegramChatItem) -> TelegramChatItem:
     """Re-read the chat row immediately before clicking to avoid stale geometry."""
     if winapi.get_window_pid(chat.hwnd) != chat.pid:
         raise RuntimeError("Telegram chat window process changed")
+    if chat.process_start is not None:
+        current_process_start = winapi.get_process_creation_time(chat.pid)
+        if not _same_process_instance(chat.process_start, current_process_start):
+            raise RuntimeError("Telegram chat window process instance changed")
     current_rows = enumerate_telegram_chats(chat.hwnd, limit=24)
 
     if chat.runtime_id is not None:
@@ -273,6 +304,13 @@ def chat_identity_matches(chat: TelegramChatItem) -> bool:
         return False
     if winapi.get_window_pid(chat.hwnd) != chat.pid:
         return False
+    if chat.process_start is not None:
+        try:
+            current_process_start = winapi.get_process_creation_time(chat.pid)
+        except Exception:
+            current_process_start = None
+        if not _same_process_instance(chat.process_start, current_process_start):
+            return False
     current_rows = enumerate_telegram_chats(chat.hwnd, limit=32)
     if chat.runtime_id is not None:
         matches = [row for row in current_rows if row.runtime_id == chat.runtime_id]
@@ -336,7 +374,7 @@ def select_telegram_chat(chat: TelegramChatItem) -> TelegramChatItem:
         raise RuntimeError("Telegram chat window no longer exists")
     current = _refresh_selected_row(chat)
     client_x, client_y = _screen_to_client(chat.hwnd, *current.center)
-    winapi.post_click(chat.hwnd, client_x, client_y, expected_pid=chat.pid)
+    _post_chat_click(chat.hwnd, client_x, client_y, current)
     confirmed = _confirm_selected(current)
     _remember_confirmed_chat(confirmed)
     return confirmed
