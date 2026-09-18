@@ -215,11 +215,21 @@ class ChatComposerTarget(BackgroundTypingTarget):
             )
         result = self._wait_for_length(target_hwnd, lambda length: length == 0)
         if result is True:
+            try:
+                self._verification_target(target_hwnd)
+                if not self._conversation_is_still_selected():
+                    raise RuntimeError("selected conversation changed after clear observation")
+            except Exception:
+                return self._typed_verification_result(
+                    "posted-enter (verification-unavailable)",
+                    EvidenceState.UNAVAILABLE,
+                    "pinned composer or selected conversation changed after clear observation",
+                )
             prefix = strategy.split(" ", 1)[0] if strategy else "posted-enter"
             return self._typed_verification_result(
                 f"{prefix} (VERIFIED)",
                 EvidenceState.VERIFIED,
-                "exact composer observed grow then clear",
+                "exact composer observed grow then clear with stable conversation",
             )
         if result is None:
             return self._typed_verification_result(
