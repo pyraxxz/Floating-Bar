@@ -44,7 +44,7 @@ class SendTransactionCoordinator:
             try:
                 release()
             except Exception as exc:
-                trace.trace(f"transaction: lease release after rejection failed: {exc}")
+                trace.trace_exception("transaction: lease release after rejection failed", exc)
 
     def prepare_request(
         self,
