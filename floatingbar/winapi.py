@@ -221,10 +221,19 @@ def _key_lparam(vk: int, up: bool) -> int:
     return lp
 
 
-def _post(hwnd: int, message: int, wparam: int, lparam: int, label: str) -> None:
-    """Post one message and fail loudly when Windows rejects it."""
+def _post(
+    hwnd: int,
+    message: int,
+    wparam: int,
+    lparam: int,
+    label: str,
+    expected_pid: int = 0,
+) -> None:
+    """Post one message after rechecking the exact target process."""
     if not hwnd or not user32.IsWindow(hwnd):
         raise RuntimeError(f"{label}: target window is invalid")
+    if expected_pid and get_window_pid(hwnd) != int(expected_pid):
+        raise RuntimeError(f"{label}: target window process changed")
     if not user32.PostMessageW(hwnd, message, wparam, lparam):
         error = ctypes.get_last_error()
         raise RuntimeError(
@@ -247,7 +256,7 @@ def get_focused_hwnd(hwnd: int) -> int:
     return hwnd
 
 
-def post_enter(hwnd: int, ctrl: bool = False, target: int = 0) -> None:
+def post_enter(hwnd: int, ctrl: bool = False, target: int = 0, expected_pid: int = 0) -> None:
     """Post an Enter keypress without changing foreground focus.
 
     ``target`` may pin the exact child HWND already validated by the caller;
@@ -258,24 +267,24 @@ def post_enter(hwnd: int, ctrl: bool = False, target: int = 0) -> None:
     if ctrl:
         _post(
             target, WM_KEYDOWN, VK_CONTROL,
-            _key_lparam(VK_CONTROL, False), "Ctrl keydown"
+            _key_lparam(VK_CONTROL, False), "Ctrl keydown", expected_pid
         )
     _post(
         target, WM_KEYDOWN, VK_RETURN,
-        _key_lparam(VK_RETURN, False), "Enter keydown"
+        _key_lparam(VK_RETURN, False), "Enter keydown", expected_pid
     )
     _post(
         target, WM_CHAR, char_code,
-        _key_lparam(VK_RETURN, False), "Enter char"
+        _key_lparam(VK_RETURN, False), "Enter char", expected_pid
     )
     _post(
         target, WM_KEYUP, VK_RETURN,
-        _key_lparam(VK_RETURN, True), "Enter keyup"
+        _key_lparam(VK_RETURN, True), "Enter keyup", expected_pid
     )
     if ctrl:
         _post(
             target, WM_KEYUP, VK_CONTROL,
-            _key_lparam(VK_CONTROL, True), "Ctrl keyup"
+            _key_lparam(VK_CONTROL, True), "Ctrl keyup", expected_pid
         )
 
 
@@ -288,22 +297,22 @@ def _utf16_code_units(text: str) -> list[int]:
     ]
 
 
-def post_text(hwnd: int, text: str) -> None:
+def post_text(hwnd: int, text: str, expected_pid: int = 0) -> None:
     """Post UTF-16 code units and fail if any message is rejected."""
     if not hwnd or not user32.IsWindow(hwnd):
         raise RuntimeError("WM_CHAR text post: target window is invalid")
     for code_unit in _utf16_code_units(text):
-        _post(hwnd, WM_CHAR, code_unit, 0, "WM_CHAR text post")
+        _post(hwnd, WM_CHAR, code_unit, 0, "WM_CHAR text post", expected_pid)
 
 
-def post_click(hwnd: int, client_x: int, client_y: int) -> None:
+def post_click(hwnd: int, client_x: int, client_y: int, expected_pid: int = 0) -> None:
     """Post a background left click without moving the real mouse."""
     if not hwnd or not user32.IsWindow(hwnd):
         raise RuntimeError("mouse click post: target window is invalid")
     lparam = ((client_y & 0xFFFF) << 16) | (client_x & 0xFFFF)
-    _post(hwnd, WM_MOUSEMOVE, 0, lparam, "mouse move")
-    _post(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, lparam, "mouse down")
-    _post(hwnd, WM_LBUTTONUP, 0, lparam, "mouse up")
+    _post(hwnd, WM_MOUSEMOVE, 0, lparam, "mouse move", expected_pid)
+    _post(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, lparam, "mouse down", expected_pid)
+    _post(hwnd, WM_LBUTTONUP, 0, lparam, "mouse up", expected_pid)
 
 
 def is_minimized(hwnd: int) -> bool:
