@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 import ctypes
+import ctypes.wintypes as wintypes
 import platform
 import sys
 from typing import Iterable, Mapping
@@ -100,24 +101,24 @@ def _monitor_observations() -> tuple[MonitorObservation, ...]:
         get_dpi = getattr(shcore, "GetDpiForMonitor", None)
         if enum_monitors is None or get_dpi is None:
             return ()
-        rect_type = ctypes.wintypes.RECT
+        rect_type = wintypes.RECT
         callback_type = ctypes.WINFUNCTYPE(
-            ctypes.wintypes.BOOL,
-            ctypes.wintypes.HMONITOR,
-            ctypes.wintypes.HDC,
+            wintypes.BOOL,
+            wintypes.HMONITOR,
+            wintypes.HDC,
             ctypes.POINTER(rect_type),
-            ctypes.wintypes.LPARAM,
+            wintypes.LPARAM,
         )
         get_dpi.argtypes = [
             ctypes.wintypes.HMONITOR,
             ctypes.c_int,
-            ctypes.POINTER(ctypes.wintypes.UINT),
+            ctypes.POINTER(wintypes.UINT),
             ctypes.POINTER(ctypes.wintypes.UINT),
         ]
         get_dpi.restype = ctypes.c_long
         enum_monitors.argtypes = [
             ctypes.wintypes.HDC,
-            ctypes.wintypes.LPCRECT,
+            wintypes.LPCRECT,
             callback_type,
             ctypes.wintypes.LPARAM,
         ]
