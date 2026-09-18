@@ -8,7 +8,7 @@ python tools/smoke_report.py --init smoke-report.json
 
 ## Matrix identity
 
-The report uses `schema_version: 3` and includes `matrix_fingerprint`.
+The report uses `schema_version: 5` and includes `matrix_fingerprint`.
 
 `matrix_fingerprint` is a SHA-256 digest of the current smoke-case definitions:
 case ID, area, title, application labels, priority, and destructive flag.
@@ -33,6 +33,11 @@ those notes to decide whether a case passed.
 
 Every completed (`PASS`, `FAIL`, or `BLOCKED`) case must also contain a non-empty
 `tested_at` execution timestamp. Pending cases leave `tested_at` empty.
+When a result is recorded on Windows, case-local `evidence` also captures the
+fresh monitor geometry, content-free process-instance identities, and available
+executable file versions observed at the same timestamp. These fields never
+contain window titles, conversation names, message text, input values, or
+clipboard contents.
 
 Critical restart cases (`env.restart`, `telegram.restart`, and `terminal.restart`) also require matching content-free process-instance evidence in the Windows environment snapshot when marked `PASS`.
 
@@ -41,8 +46,9 @@ Critical restart cases (`env.restart`, `telegram.restart`, and `terminal.restart
 A complete release report must also contain a Windows environment snapshot and
 an exact 40-character Git commit SHA in `environment.source_commit`.
 Every completed case must include its `tested_at` execution timestamp.
-The release workflow separately checks that the smoke-report source commit is
-present in the release workspace and is an ancestor of the tagged release.
+The release workflow separately requires a successful Windows CI run for the exact
+release source and checks that the smoke-report source commit is present in the
+release workspace and is an ancestor of the tagged release.
 
 The smoke report contains no window titles, conversation names, message text,
 input values, clipboard contents, or credentials.
