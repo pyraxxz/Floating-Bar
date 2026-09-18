@@ -47,8 +47,8 @@ A complete release report must also contain a Windows environment snapshot and
 an exact 40-character Git commit SHA in `environment.source_commit`.
 Every completed case must include its `tested_at` execution timestamp.
 The release workflow separately requires a successful Windows CI run for the exact
-release source and checks that the smoke-report source commit is present in the
-release workspace and is an ancestor of the tagged release.
+release source and requires `environment.source_commit` in the smoke report to
+exactly match the tagged release commit.
 
 The smoke report contains no window titles, conversation names, message text,
 input values, clipboard contents, or credentials.
