@@ -24,6 +24,9 @@ class InputCandidate:
     focused: bool
     enabled: bool
     visible: bool
+    automation_id: str = ""
+    framework_id: str = ""
+    runtime_id: tuple[int, ...] | None = None
 
     @property
     def width(self) -> int:
@@ -54,8 +57,16 @@ def _candidate_from_element(element, pid: int, top_hwnd: int) -> InputCandidate 
     try:
         rect = element.rectangle()
         hwnd = int(element.handle)
-        control_type = str(element.element_info.control_type or "")
-        class_name = str(element.element_info.class_name or "")
+        info = element.element_info
+        control_type = str(info.control_type or "")
+        class_name = str(info.class_name or "")
+        automation_id = str(getattr(info, "automation_id", "") or "")
+        framework_id = str(getattr(info, "framework_id", "") or "")
+        raw_runtime_id = getattr(info, "runtime_id", None)
+        try:
+            runtime_id = tuple(int(part) for part in raw_runtime_id) or None
+        except (TypeError, ValueError):
+            runtime_id = None
         visible = bool(element.is_visible())
         enabled = bool(element.is_enabled())
         if not hwnd or not visible or not enabled:
@@ -76,6 +87,9 @@ def _candidate_from_element(element, pid: int, top_hwnd: int) -> InputCandidate 
             focused=(winapi.get_focused_hwnd(top_hwnd) == hwnd),
             enabled=enabled,
             visible=visible,
+            automation_id=automation_id,
+            framework_id=framework_id,
+            runtime_id=runtime_id,
         )
     except Exception:
         return None
