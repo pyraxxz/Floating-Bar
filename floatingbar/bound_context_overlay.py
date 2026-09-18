@@ -633,6 +633,8 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             self._background_typer.release()
             self._background_process_name = ""
             self._background_adapter_key = ""
+            self._background_window_class = ""
+            self._work_hwnd = 0
 
 
 __all__ = ["OrbRelayWindow"]
