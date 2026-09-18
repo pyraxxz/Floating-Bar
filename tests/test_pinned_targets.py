@@ -47,6 +47,19 @@ class PinnedTargetStoreTests(unittest.TestCase):
             reloaded = PinnedTargetStore(path)
             self.assertEqual(reloaded.items(), store.items())
 
+    def test_application_pin_serializes_window_class_as_safe_identity(self):
+        pin = PinnedTarget(
+            kind="application",
+            adapter_key="slack",
+            process_name="slack.exe",
+            label="Slack",
+            window_class="SlackWindow",
+        )
+        payload = pin.to_dict()
+        self.assertEqual(payload["window_class"], "SlackWindow")
+        self.assertNotIn("hwnd", payload)
+        self.assertNotIn("pid", payload)
+
     def test_application_pin_round_trips_window_class_identity(self):
         with tempfile.TemporaryDirectory() as directory:
             store = self._store(directory)
