@@ -88,6 +88,14 @@ kernel32.QueryFullProcessImageNameW.argtypes = [
     ctypes.POINTER(wintypes.DWORD)
 ]
 kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
+kernel32.GetProcessTimes.argtypes = [
+    wintypes.HANDLE,
+    ctypes.POINTER(wintypes.FILETIME),
+    ctypes.POINTER(wintypes.FILETIME),
+    ctypes.POINTER(wintypes.FILETIME),
+    ctypes.POINTER(wintypes.FILETIME),
+]
+kernel32.GetProcessTimes.restype = wintypes.BOOL
 kernel32.CreateMutexW.argtypes = [
     wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR
 ]
@@ -155,6 +163,33 @@ def get_process_image_name(pid: int) -> str:
         ):
             return buf.value
         return ""
+    finally:
+        kernel32.CloseHandle(handle)
+
+
+def get_process_creation_time(pid: int) -> int | None:
+    """Return a content-free process-start timestamp, or ``None`` if unavailable."""
+    if not pid:
+        return None
+    handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    if not handle:
+        return None
+    try:
+        created = wintypes.FILETIME()
+        exited = wintypes.FILETIME()
+        kernel = wintypes.FILETIME()
+        user = wintypes.FILETIME()
+        if not kernel32.GetProcessTimes(
+            handle,
+            ctypes.byref(created),
+            ctypes.byref(exited),
+            ctypes.byref(kernel),
+            ctypes.byref(user),
+        ):
+            return None
+        return (int(created.dwHighDateTime) << 32) | int(created.dwLowDateTime)
+    except Exception:
+        return None
     finally:
         kernel32.CloseHandle(handle)
 
