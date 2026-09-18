@@ -264,7 +264,7 @@ class SmokeReportTests(unittest.TestCase):
             path = Path(tmp) / "smoke.json"
             path.write_text(json.dumps(report), encoding="utf-8")
             text = path.read_text(encoding="utf-8")
-            self.assertIn('"schema_version": 2', text)
+            self.assertIn('"schema_version": 3', text)
             self.assertIn('"matrix_fingerprint":', text)
 
 
