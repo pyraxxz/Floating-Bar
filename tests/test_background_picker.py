@@ -58,6 +58,20 @@ class BackgroundPickerTests(unittest.TestCase):
             (PickerItem(10, 20, "Telegram", True, True, "telegram.exe", "telegram"),),
         )
 
+
+    def test_picker_carries_process_instance_identity(self):
+        result = to_picker_items([
+            SimpleNamespace(
+                hwnd=10,
+                pid=20,
+                process_name="telegram.exe",
+                label="telegram.exe",
+                foreground=True,
+                process_start=123,
+            )
+        ])
+        self.assertEqual(result[0].process_start, 123)
+
     def test_multiple_same_app_windows_get_content_free_ordinals(self):
         result = to_picker_items([
             SimpleNamespace(hwnd=10, pid=20, process_name="telegram.exe", label="telegram.exe", foreground=True),

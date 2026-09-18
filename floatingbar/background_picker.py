@@ -34,6 +34,7 @@ class PickerItem:
     recent: bool = False
     pinned: bool = False
     window_class: str = ""
+    process_start: int | None = None
 
 
 @dataclass
@@ -112,6 +113,7 @@ def to_picker_items(windows: Sequence[BackgroundWindow]) -> tuple[PickerItem, ..
                 process_name=item.process_name,
                 adapter_key=spec.key if actionable and spec else "",
                 window_class=str(getattr(item, "window_class", "") or ""),
+                process_start=getattr(item, "process_start", None),
             )
         )
     return tuple(items)

@@ -26,6 +26,50 @@ class RecentTargetHistoryTests(unittest.TestCase):
             [TargetScope(30, 300), TargetScope(10, 100)],
         )
 
+
+    def test_recent_application_captures_process_instance_identity(self):
+        history = RecentTargetHistory()
+        with patch(
+            "floatingbar.recent_targets.winapi.get_window_class_name",
+            return_value="DiscordMainWindow",
+        ), patch(
+            "floatingbar.recent_targets.winapi.get_process_creation_time",
+            return_value=123,
+        ):
+            target = history.record_application(
+                hwnd=44,
+                pid=444,
+                process_name="discord.exe",
+                label="Discord",
+                adapter_key="discord",
+            )
+        self.assertEqual(target.process_start, 123)
+
+    def test_recent_application_rejects_same_pid_after_process_restart(self):
+        history = RecentTargetHistory()
+        with patch(
+            "floatingbar.recent_targets.winapi.get_window_class_name",
+            return_value="DiscordMainWindow",
+        ), patch(
+            "floatingbar.recent_targets.winapi.get_process_creation_time",
+            return_value=123,
+        ):
+            target = history.record_application(
+                hwnd=44,
+                pid=444,
+                process_name="discord.exe",
+                label="Discord",
+                adapter_key="discord",
+            )
+
+        class User32:
+            @staticmethod
+            def IsWindow(hwnd):
+                return hwnd == 44
+
+        with patch("floatingbar.recent_targets.winapi.user32", User32()),              patch("floatingbar.recent_targets.winapi.get_window_pid", return_value=444),              patch("floatingbar.recent_targets.winapi.get_process_creation_time", return_value=456):
+            self.assertFalse(history.application_is_live(target))
+
     def test_recent_application_without_window_class_is_stale(self):
         history = RecentTargetHistory()
         target = history.record_application(

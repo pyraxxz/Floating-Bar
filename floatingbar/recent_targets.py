@@ -106,8 +106,16 @@ class RecentTargetHistory:
             label=str(label or process_name or "Application"),
             scope=TargetScope(int(hwnd), int(pid)),
             window_class=resolved_class or None,
+            process_start=self._process_start_for_pid(pid),
         )
         return self._remember(target)
+
+    @staticmethod
+    def _process_start_for_pid(pid: int) -> int | None:
+        try:
+            return winapi.get_process_creation_time(int(pid))
+        except Exception:
+            return None
 
     @staticmethod
     def _selection_identity_matches(left, right) -> bool:
@@ -198,6 +206,10 @@ class RecentTargetHistory:
             current_pid = winapi.get_window_pid(target.scope.hwnd)
             if current_pid != target.scope.pid:
                 return False
+            if target.process_start is not None:
+                current_process_start = self._process_start_for_pid(current_pid)
+                if current_process_start is None or current_process_start != target.process_start:
+                    return False
             image = winapi.get_process_image_name(current_pid)
             process_name = image.rsplit("\\", 1)[-1].casefold() if image else ""
             if process_name != target.process_name:
