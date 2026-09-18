@@ -167,7 +167,7 @@ class PinnedTargetStore:
                             str(part).strip()
                             for part in raw.get("control_identity", ())
                             if str(part).strip()
-                        )
+                        ) or None
                         if isinstance(raw.get("control_identity", ()), (list, tuple))
                         else None
                     ),
