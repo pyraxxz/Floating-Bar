@@ -10,10 +10,16 @@ import traceback
 def main() -> None:
     import config
     from floatingbar import dpi
+    from floatingbar.settings import SettingsStore, hotkey_spec_for_name
     from floatingbar import winapi  # raises ImportError on non-Windows
 
     if not winapi.acquire_single_instance(config.SINGLE_INSTANCE_MUTEX):
         sys.exit(0)  # already running — stay quiet
+
+    saved_settings = SettingsStore()
+    config.HOTKEY_MODIFIERS, config.HOTKEY_VIRTUAL_KEY = hotkey_spec_for_name(
+        saved_settings.settings.summon_hotkey
+    )
 
     # Establish DPI awareness before Tk creates any windows so UIA geometry,
     # Tk coordinates, and posted client clicks stay on the same scale across
