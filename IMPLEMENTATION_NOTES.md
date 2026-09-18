@@ -185,3 +185,5 @@ The orb now exposes a small Settings dialog instead of requiring users to edit c
 ## Packaging and clean upgrade path
 
 The repository now ships non-elevated PowerShell installer and uninstaller scripts alongside the PyInstaller executable. Upgrades replace only the installed executable, refuse to overwrite a running copy, and preserve %APPDATA%/FloatingBar settings and quick replies. The uninstaller removes the executable and Start-menu shortcut while preserving user data unless -RemoveSettings is explicitly supplied. CI parses both scripts before the Python regression gate, and release builds publish the scripts with the executable.
+
+The installer copies the bundled uninstaller into the install directory when available, keeping the installed copy self-contained for later removal.
