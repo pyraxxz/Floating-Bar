@@ -38,6 +38,16 @@ class TerminalVerificationTests(unittest.TestCase):
             result = target.finish_submission_verification(301, 0, "posted-enter (unverified)")
         self.assertEqual(result, "posted-enter (VERIFIED)")
 
+
+    def test_target_change_after_clear_cannot_claim_verified(self):
+        target = self._target()
+        with self._candidate_patch(target), \
+             patch.object(target, "available", return_value=True), \
+             patch.object(target, "_verification_target", side_effect=RuntimeError("changed")), \
+             patch.object(target, "_wait_for_length", return_value=True):
+            result = target.finish_submission_verification(301, 0, "posted-enter (unverified)")
+        self.assertEqual(result, "posted-enter (verification-unavailable)")
+
     def test_missing_value_pattern_is_verification_unavailable(self):
         target = self._target()
         with self._candidate_patch(target), \
