@@ -274,6 +274,11 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
                     item for item in matches
                     if item.control_identity == pin.control_identity
                 ]
+            if pin.container_identity is not None:
+                matches = [
+                    item for item in matches
+                    if item.container_identity == pin.container_identity
+                ]
             if len(matches) == 1:
                 rows.append(matches[0])
         return tuple(rows)
@@ -298,6 +303,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             process_name=self._background_process_name,
             label=conversation.name,
             control_identity=conversation.control_identity,
+            container_identity=conversation.container_identity,
         )
 
     def _remember_bound_application(self, spec, hwnd: int, pid: int, window_class: str = "") -> None:
