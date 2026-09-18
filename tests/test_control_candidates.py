@@ -61,6 +61,30 @@ class ControlCandidateTests(unittest.TestCase):
         self.assertEqual(candidate.framework_id, "uia")
         self.assertEqual(candidate.runtime_id, (7, 8, 9))
 
+    def test_conflicting_wrappers_for_one_hwnd_are_discarded(self):
+        first = InputCandidate(
+            300, 200, "Edit", "Edit", 0, 0, 400, 40, True, True, True,
+            automation_id="composer", framework_id="uia", runtime_id=(1, 2, 3),
+        )
+        conflicting = InputCandidate(
+            300, 200, "Edit", "Edit", 0, 0, 400, 40, True, True, True,
+            automation_id="search", framework_id="uia", runtime_id=(4, 5, 6),
+        )
+        with patch("floatingbar.control_candidates.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.control_candidates.winapi.get_window_pid", return_value=200), \
+             patch(
+                 "floatingbar.control_candidates._candidate_from_element",
+                 side_effect=[first, conflicting],
+             ):
+            with patch("pywinauto.Desktop") as desktop:
+                root = desktop.return_value.window.return_value
+                element_a = object()
+                element_b = object()
+                root.descendants.side_effect = [[], [element_a, element_b]]
+                result = enumerate_input_candidates(100)
+
+        self.assertEqual(result, ())
+
     def test_generic_target_exposes_structural_candidates_without_sending(self):
         target = BackgroundTypingTarget(100, 200)
         candidate = InputCandidate(300, 200, "Edit", "Edit", 0, 0, 100, 40, True, True, True)
