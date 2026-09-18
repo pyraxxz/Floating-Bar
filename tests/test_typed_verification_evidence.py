@@ -29,6 +29,7 @@ class TypedVerificationEvidenceTests(unittest.TestCase):
         self.assertIsInstance(result, EvidenceStrategy)
         self.assertEqual(result, "posted-enter (VERIFIED)")
         self.assertEqual(result.submission_evidence.state, EvidenceState.VERIFIED)
+        self.assertEqual(result.submission_evidence.proof_kind, "input-acceptance")
         self.assertIn("contract=whatsapp-compose-clear", result.submission_evidence.detail)
 
     def test_terminal_unverified_result_carries_submitted_typed_evidence(self):
@@ -51,6 +52,7 @@ class TypedVerificationEvidenceTests(unittest.TestCase):
         self.assertIsInstance(result, EvidenceStrategy)
         self.assertEqual(result, "posted-enter (unverified)")
         self.assertEqual(result.submission_evidence.state, EvidenceState.SUBMITTED)
+        self.assertEqual(result.submission_evidence.proof_kind, "input-acceptance")
         self.assertIn("contract=terminal-input-clear", result.submission_evidence.detail)
 
     def test_unverified_or_generic_adapter_still_returns_legacy_strategy(self):

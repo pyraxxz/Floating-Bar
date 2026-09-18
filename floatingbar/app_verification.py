@@ -18,6 +18,7 @@ class VerificationContract:
     adapter_keys: frozenset[str]
     target_mode: str
     submit_mode: str
+    proof_kind: str = "input-acceptance"
     allows_verified: bool = True
 
 
@@ -70,6 +71,7 @@ _CONTRACTS = (
 )
 
 _BY_MODE = {contract.mode: contract for contract in _CONTRACTS}
+_SUPPORTED_PROOF_KINDS = frozenset({"input-acceptance", "semantic-delivery", "semantic-execution"})
 
 # Backward-compatible family aliases used by older callers/tests. They are
 # intentionally not adapter-registry modes and never identify a concrete app.
@@ -114,6 +116,10 @@ def registry_validation_errors(adapter_specs) -> tuple[str, ...]:
             continue
         actual_target_mode = str(getattr(spec, "target_mode", "") or "")
         actual_submit_mode = str(getattr(spec, "submit_mode", "") or "")
+        if contract.proof_kind not in _SUPPORTED_PROOF_KINDS:
+            errors.append(
+                f"unsupported verification proof kind: {key}/{contract.proof_kind}"
+            )
         if actual_target_mode != contract.target_mode:
             errors.append(
                 f"verification target contract mismatch: {key}/{actual_target_mode}"
@@ -123,6 +129,14 @@ def registry_validation_errors(adapter_specs) -> tuple[str, ...]:
                 f"verification submit contract mismatch: {key}/{actual_submit_mode}"
             )
     return tuple(errors)
+
+
+def verification_proof_kind(spec) -> Optional[str]:
+    """Return the exact proof scope authorized by the adapter contract."""
+    contract = verification_contract(spec)
+    if contract is None:
+        return None
+    return contract.proof_kind
 
 
 def is_chat_compose_verification(spec) -> bool:
@@ -151,6 +165,7 @@ __all__ = [
     "VerificationContract",
     "is_chat_compose_verification",
     "is_terminal_input_verification",
+    "verification_proof_kind",
     "registry_validation_errors",
     "verification_contract",
 ]

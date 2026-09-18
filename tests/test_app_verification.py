@@ -6,6 +6,7 @@ from floatingbar.app_verification import (
     is_terminal_input_verification,
     registry_validation_errors,
     verification_contract,
+    verification_proof_kind,
 )
 
 
@@ -45,6 +46,7 @@ class AppVerificationContractTests(unittest.TestCase):
                 self.assertEqual(contract.mode, mode)
                 self.assertEqual(contract.family, "chat-compose-clear")
                 self.assertTrue(is_chat_compose_verification(spec))
+                self.assertEqual(verification_proof_kind(spec), "input-acceptance")
 
     def test_terminal_contract_covers_all_terminal_adapters(self):
         for key in ("terminal", "cmd", "powershell"):
@@ -54,6 +56,24 @@ class AppVerificationContractTests(unittest.TestCase):
                 self.assertIsNotNone(contract)
                 self.assertEqual(contract.family, "terminal-input-clear")
                 self.assertTrue(is_terminal_input_verification(spec))
+                self.assertEqual(verification_proof_kind(spec), "input-acceptance")
+
+    def test_contract_rejects_unsupported_proof_scope(self):
+        from floatingbar.app_verification import VerificationContract
+
+        spec = self._spec("discord", "discord-compose-clear")
+        contract = verification_contract(spec)
+        self.assertEqual(contract.proof_kind, "input-acceptance")
+
+        invalid = VerificationContract(
+            mode="future",
+            family="future",
+            adapter_keys=frozenset({"discord"}),
+            target_mode="chat-structured-focus",
+            submit_mode="enter",
+            proof_kind="terminal-output",
+        )
+        self.assertNotIn(invalid.proof_kind, {"input-acceptance", "semantic-delivery", "semantic-execution"})
 
     def test_wrong_app_key_cannot_borrow_another_apps_contract(self):
         spec = self._spec("discord", "whatsapp-compose-clear")

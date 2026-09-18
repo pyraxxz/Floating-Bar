@@ -212,3 +212,8 @@ The Settings dialog now persists one of four predefined global summon shortcuts.
 ## Content-free conversation identity hardening
 
 Conversation runtime IDs and structural control/container identities are now authoritative for picker, recent-target, and pinned-target identity. Visible conversation names remain display labels and are only used as an identity fallback when no stronger UI identity is available. Strongly identified rows may therefore be renamed or relabeled without becoming a new target, while runtime/control/container drift continues to fail closed.
+
+
+## Verification proof scope
+
+Typed submission evidence now carries a content-free `proof_kind`. The current concrete chat and terminal contracts declare `input-acceptance`, meaning the system proved the pinned input/composer accepted and cleared the line. Future app-specific contracts can declare semantic delivery or execution proof independently, and adapter policy rejects a VERIFIED result whose proof scope does not match the contract.

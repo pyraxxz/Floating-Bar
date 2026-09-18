@@ -24,6 +24,16 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(result.detail, "producer could not verify")
         self.assertFalse(result.confirmed)
 
+    def test_proof_scope_round_trips_with_typed_evidence(self):
+        typed = SubmissionEvidence(
+            state=EvidenceState.VERIFIED,
+            strategy="posted-enter",
+            proof_kind="input-acceptance",
+        )
+        strategy = EvidenceStrategy("posted-enter (VERIFIED)", typed)
+        result = from_result(strategy)
+        self.assertEqual(result.proof_kind, "input-acceptance")
+
     def test_verification_unavailable_is_uncertain(self):
         result = from_result("posted-click (verification-unavailable)")
         self.assertEqual(result.state, EvidenceState.UNAVAILABLE)

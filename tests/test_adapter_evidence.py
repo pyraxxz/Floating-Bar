@@ -19,6 +19,7 @@ class AdapterEvidenceTests(unittest.TestCase):
         evidence = evidence_for_adapter(spec, strategy="posted-enter (VERIFIED)")
         self.assertEqual(evidence.state, EvidenceState.VERIFIED)
         self.assertTrue(evidence.confirmed)
+        self.assertEqual(evidence.proof_kind, "input-acceptance")
 
     def test_each_chat_contract_allows_verified_evidence(self):
         for process_name in (
@@ -33,6 +34,7 @@ class AdapterEvidenceTests(unittest.TestCase):
                 evidence = evidence_for_adapter(spec, strategy="posted-enter (VERIFIED)")
                 self.assertEqual(evidence.state, EvidenceState.VERIFIED)
                 self.assertTrue(evidence.confirmed)
+                self.assertEqual(evidence.proof_kind, "input-acceptance")
 
     def test_typed_evidence_wins_over_conflicting_strategy_text(self):
         spec = adapter_for_process("telegram.exe")
@@ -50,6 +52,18 @@ class AdapterEvidenceTests(unittest.TestCase):
         self.assertFalse(evidence.confirmed)
         self.assertEqual(evidence.detail, typed.detail)
 
+    def test_typed_verified_proof_scope_must_match_adapter_contract(self):
+        spec = adapter_for_process("wt.exe")
+        typed = SubmissionEvidence(
+            state=EvidenceState.VERIFIED,
+            strategy="posted-enter",
+            proof_kind="semantic-execution",
+        )
+        evidence = evidence_for_adapter(spec, submission_evidence=typed)
+        self.assertEqual(evidence.state, EvidenceState.SUBMITTED)
+        self.assertFalse(evidence.confirmed)
+        self.assertIsNone(evidence.proof_kind)
+
     def test_typed_terminal_verification_is_preserved(self):
         spec = adapter_for_process("wt.exe")
         typed = SubmissionEvidence(
@@ -59,6 +73,7 @@ class AdapterEvidenceTests(unittest.TestCase):
         evidence = evidence_for_adapter(spec, submission_evidence=typed)
         self.assertEqual(evidence.state, EvidenceState.VERIFIED)
         self.assertTrue(evidence.confirmed)
+        self.assertEqual(evidence.proof_kind, "input-acceptance")
 
     def test_failed_send_remains_failed_for_any_adapter(self):
         spec = adapter_for_process("wt.exe")
