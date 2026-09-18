@@ -127,7 +127,7 @@ class WindowsValidationTests(unittest.TestCase):
             SimpleNamespace(pid=200, process_name="telegram.exe"),
             SimpleNamespace(pid=300, process_name="discord.exe"),
         )
-        with patch("floatingbar.windows_validation.platform.win32_ver", return_value=("11", "10.0.26100", "")),              patch("floatingbar.windows_validation.enumerate_background_windows", return_value=windows),              patch("floatingbar.windows_validation._monitor_observations", return_value=()),              patch("floatingbar.windows_validation._monitor_count", return_value=1),              patch("floatingbar.windows_validation._dpi_awareness", return_value="per-monitor"),              patch("floatingbar.windows_validation._process_file_version", return_value="1.0.0"),              patch("floatingbar.windows_validation.winapi", SimpleNamespace(
+        with patch("floatingbar.windows_validation.platform.win32_ver", return_value=("11", "10.0.26100", "", "")),              patch("floatingbar.windows_validation.enumerate_background_windows", return_value=windows),              patch("floatingbar.windows_validation._monitor_observations", return_value=()),              patch("floatingbar.windows_validation._monitor_count", return_value=1),              patch("floatingbar.windows_validation._dpi_awareness", return_value="per-monitor"),              patch("floatingbar.windows_validation._process_file_version", return_value="1.0.0"),              patch("floatingbar.windows_validation.winapi", SimpleNamespace(
                  get_process_image_name=lambda _pid: r"C:\app.exe",
                  get_process_creation_time=lambda pid: {200: 123, 300: 456}[pid],
              )):
