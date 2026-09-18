@@ -202,3 +202,8 @@ The Windows validation snapshot now records bounded per-monitor geometry and eff
 ## Smoke-report environment integrity
 
 The release-gate validator now cross-checks critical PASS cases against the report's content-free environment snapshot. Mixed-DPI PASS requires at least two monitors with distinct effective DPI values, and critical Telegram/terminal acceptance PASS cases require the matching supported process family to have been observed in that same snapshot. This prevents a completed report from silently mixing manual results with unrelated environment evidence.
+
+
+## Configurable summon hotkey
+
+The Settings dialog now persists one of four predefined global summon shortcuts. The choice is normalized against a fixed allowlist and loaded before hotkey registration at startup. Changing it intentionally requires an application restart so the current global registration is never torn down or replaced unexpectedly while the app is in use.
