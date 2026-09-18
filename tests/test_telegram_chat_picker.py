@@ -155,7 +155,7 @@ class TelegramChatPickerTests(unittest.TestCase):
         ])
         self.assertEqual(enumerate_rows.call_count, 2)
         to_client.assert_called_once_with(100, 210, 240)
-        post_click.assert_called_once_with(100, 120, 140)
+        post_click.assert_called_once_with(100, 120, 140, expected_pid=200)
 
     def test_select_chat_waits_for_selection_after_background_click(self):
         chat = TelegramChatItem(100, 200, "Alice", 100, 200, 300, 260, False, (1, 1), ("ListItem", "alice", "row", "uia"))
@@ -170,7 +170,7 @@ class TelegramChatPickerTests(unittest.TestCase):
             result = select_telegram_chat(chat)
         self.assertEqual(result, selected)
         self.assertEqual(confirmed_telegram_chat_for_scope(100, 200), selected)
-        post_click.assert_called_once_with(100, 120, 140)
+        post_click.assert_called_once_with(100, 120, 140, expected_pid=200)
         self.assertEqual(sleep.call_count, 1)
         self.assertEqual(enumerate_rows.call_count, 3)
 
@@ -185,7 +185,7 @@ class TelegramChatPickerTests(unittest.TestCase):
              patch("floatingbar.telegram_chats.winapi.post_click") as post_click:
             with self.assertRaisesRegex(RuntimeError, "was not selected"):
                 select_telegram_chat(chat)
-        post_click.assert_called_once_with(100, 120, 140)
+        post_click.assert_called_once_with(100, 120, 140, expected_pid=200)
         self.assertEqual(sleep.call_count, 4)
 
     def test_select_chat_rejects_runtime_identity_change(self):
