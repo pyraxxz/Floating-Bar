@@ -40,7 +40,7 @@ finally {
 }
 
 if ($CreateStartMenuShortcut) {
-    $startMenu = Join-Path $env:APPDATA "MicrosoftWindowsStart MenuPrograms"
+    $startMenu = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"
     New-Item -ItemType Directory -Path $startMenu -Force | Out-Null
     $shortcutPath = Join-Path $startMenu "Floating Bar.lnk"
     $shell = New-Object -ComObject WScript.Shell
