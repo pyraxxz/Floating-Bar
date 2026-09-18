@@ -34,12 +34,13 @@ class PinnedTarget:
 
     @property
     def valid(self) -> bool:
-        return (
-            self.kind in {"application", "conversation"}
-            and bool(self.adapter_key)
-            and bool(self.process_name)
-            and bool(self.label)
-        )
+        if self.kind not in {"application", "conversation"}:
+            return False
+        if not self.adapter_key or not self.process_name or not self.label:
+            return False
+        if self.kind == "application" and not str(self.window_class or "").strip():
+            return False
+        return True
 
     @property
     def key(self) -> tuple[object, ...]:
