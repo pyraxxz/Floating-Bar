@@ -235,6 +235,51 @@ class SmokeReportTests(unittest.TestCase):
             errors,
         )
 
+    def test_high_priority_chat_pass_requires_case_process_instance_evidence(self):
+        report = build_report(environment={
+            "adapters": [
+                {
+                    "key": "whatsapp",
+                    "open_window_count": 1,
+                    "observed_processes": ["whatsapp.exe"],
+                    "observed_process_instances": [
+                        {"process_name": "whatsapp.exe", "process_start": 123}
+                    ],
+                },
+            ]
+        })
+        for item in report["cases"]:
+            if item["case_id"] == "chat.whatsapp":
+                item["result"] = RESULT_PASS
+        errors = environment_case_errors(report)
+        self.assertIn(
+            "environment case evidence missing for chat.whatsapp (whatsapp)",
+            errors,
+        )
+
+    def test_case_local_process_evidence_timestamp_mismatch_is_rejected(self):
+        report = build_report()
+        for item in report["cases"]:
+            if item["case_id"] == "telegram.send":
+                item["result"] = RESULT_PASS
+                item["tested_at"] = "2026-09-18T12:00:00Z"
+                item["evidence"] = {
+                    "recorded_at": "2026-09-18T12:01:00Z",
+                    "adapters": [
+                        {
+                            "key": "telegram",
+                            "observed_process_instances": [
+                                {"process_name": "telegram.exe", "process_start": 123}
+                            ],
+                        }
+                    ],
+                }
+        errors = environment_case_errors(report)
+        self.assertIn(
+            "environment case evidence timestamp mismatch for telegram.send (telegram)",
+            errors,
+        )
+
     def test_terminal_acceptance_matrix_has_each_supported_variant_case(self):
         report = build_report()
         case_ids = {item["case_id"] for item in report["cases"]}
