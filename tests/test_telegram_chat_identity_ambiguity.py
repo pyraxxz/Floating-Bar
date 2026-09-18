@@ -25,7 +25,7 @@ class TelegramChatIdentityAmbiguityTests(unittest.TestCase):
         requested = TelegramChatItem(
             100, 200, "Alex", 10, 100, 310, 150, True,
             None, ("ListItem", "shared", "row", "uia"),
-            ("ancestor1", "Pane", "workspace-a", "uia"),
+            container_identity=("ancestor1", "Pane", "workspace-a", "uia"),
         )
         correct = TelegramChatItem(
             100, 200, "Alex", 12, 102, 312, 152, True,
@@ -35,7 +35,7 @@ class TelegramChatIdentityAmbiguityTests(unittest.TestCase):
         other = TelegramChatItem(
             100, 200, "Alex", 12, 202, 312, 252, True,
             None, ("ListItem", "shared", "row", "uia"),
-            ("ancestor1", "Pane", "workspace-b", "uia"),
+            container_identity=("ancestor1", "Pane", "workspace-b", "uia"),
         )
         with patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
              patch("floatingbar.telegram_chats.enumerate_telegram_chats", return_value=(correct, other)):
