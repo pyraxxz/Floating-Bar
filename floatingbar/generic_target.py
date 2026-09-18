@@ -137,6 +137,9 @@ class BackgroundTypingTarget:
             int(candidate.pid),
             str(getattr(candidate, "control_type", "")),
             str(getattr(candidate, "class_name", "")),
+            str(getattr(candidate, "automation_id", "")),
+            str(getattr(candidate, "framework_id", "")),
+            getattr(candidate, "runtime_id", None),
         )
 
     def _pin_candidate(self, candidate: InputCandidate) -> InputCandidate:
