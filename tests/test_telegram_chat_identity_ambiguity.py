@@ -35,9 +35,9 @@ class TelegramChatIdentityAmbiguityTests(unittest.TestCase):
             control_identity=("ListItem", "different", "row", "uia"),
             container_identity=("ancestor1", "Pane", "workspace-a", "uia"),
         )
-        with patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True), \\
-             patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \\
-             patch("floatingbar.telegram_chats.enumerate_telegram_chats", return_value=(replacement,)), \\
+        with patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.telegram_chats.enumerate_telegram_chats", return_value=(replacement,)), \
              patch("floatingbar.telegram_chats.winapi.post_click") as post_click:
             with self.assertRaisesRegex(RuntimeError, "structural identity disappeared"):
                 select_telegram_chat(requested)
@@ -52,7 +52,7 @@ class TelegramChatIdentityAmbiguityTests(unittest.TestCase):
             100, 200, "Alex", 10, 100, 310, 150, True,
             runtime_id=(9, 9, 9),
         )
-        with patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \\
+        with patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
              patch("floatingbar.telegram_chats.enumerate_telegram_chats", return_value=(replacement,)):
             self.assertFalse(chat_identity_matches(requested))
 
