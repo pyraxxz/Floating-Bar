@@ -15,6 +15,7 @@ from pywinauto import Application
 from . import winapi
 from .conversation_attention import AttentionState, ConversationAttention
 from .telegram_attention import telegram_badge_attention
+from .ui_identity import ancestor_identity, control_identity
 
 
 _SELECTION_CONFIRM_ATTEMPTS = 5
@@ -83,44 +84,6 @@ def _runtime_id(item) -> tuple[int, ...] | None:
     return result or None
 
 
-def _control_identity(item) -> tuple[str, ...] | None:
-    """Return stable structural metadata for runtimes without runtime IDs."""
-    try:
-        info = item.element_info
-        values = (
-            getattr(info, "control_type", None),
-            getattr(info, "automation_id", None),
-            getattr(info, "class_name", None),
-            getattr(info, "framework_id", None),
-        )
-    except Exception:
-        return None
-    normalized = tuple(str(value).strip() for value in values if value not in (None, ""))
-    return normalized or None
-
-
-def _ancestor_identity(item, max_depth: int = 3) -> tuple[str, ...] | None:
-    """Return bounded, content-free UIA ancestor structure."""
-    parts: list[str] = []
-    current = item
-    for depth in range(1, max(1, int(max_depth)) + 1):
-        try:
-            current = current.parent()
-            info = current.element_info
-            values = (
-                getattr(info, "control_type", None),
-                getattr(info, "automation_id", None),
-                getattr(info, "class_name", None),
-                getattr(info, "framework_id", None),
-            )
-        except Exception:
-            break
-        normalized = tuple(str(value).strip() for value in values if value not in (None, ""))
-        if normalized:
-            parts.extend((f"ancestor{depth}", *normalized))
-    return tuple(parts) or None
-
-
 def _selected(item) -> bool:
     try:
         return bool(item.is_selected())
@@ -179,10 +142,10 @@ def enumerate_telegram_chats(hwnd: int, limit: int = 6) -> tuple[TelegramChatIte
             if rect.left >= cutoff or rect.top < window_rect.top or rect.bottom > window_rect.bottom:
                 continue
             runtime_id = _runtime_id(item)
-            control_identity = _control_identity(item)
-            container_identity = _ancestor_identity(item)
+            structural_control_identity = control_identity(item.element_info)
+            container_identity = ancestor_identity(item)
             key = runtime_id or (
-                control_identity,
+                structural_control_identity,
                 name.casefold(),
                 rect.left,
                 rect.top,
@@ -203,7 +166,7 @@ def enumerate_telegram_chats(hwnd: int, limit: int = 6) -> tuple[TelegramChatIte
                     bottom=rect.bottom,
                     selected=_selected(item),
                     runtime_id=runtime_id,
-                    control_identity=control_identity,
+                    control_identity=structural_control_identity,
                     container_identity=container_identity,
                     attention=_row_attention(item),
                 )

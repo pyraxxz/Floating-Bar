@@ -82,13 +82,29 @@ class ConversationRowTests(unittest.TestCase):
         self.assertIsNotNone(rows[0].control_identity)
         self.assertEqual(rows[0].attention.state, AttentionState.SELECTED)
 
+    def test_enumeration_excludes_automation_id_from_control_identity(self):
+        window = Mock()
+        window.rectangle.return_value = _Rect(0, 0, 1000, 900)
+        window.descendants.side_effect = [[
+            _Item(
+                _Rect(20, 100, 420, 160),
+                "Alice",
+                False,
+                None,
+                ("ListItem", "Alice", "ChatRow", "uia"),
+            )
+        ], []]
+        with self._app_patch(window),              patch("floatingbar.conversation_rows.winapi.get_window_pid", return_value=200),              patch("floatingbar.conversation_rows.winapi.user32.IsWindow", return_value=True):
+            rows = enumerate_conversations(123)
+        self.assertEqual(rows[0].control_identity, ("ListItem", "ChatRow", "uia"))
+
     def test_enumeration_captures_content_free_parent_identity(self):
         parent = _Item(_Rect(0, 0, 500, 900), "ignored")
         window = Mock()
         window.rectangle.return_value = _Rect(0, 0, 1000, 900)
         window.descendants.side_effect = [[
             _Item(_Rect(20, 100, 420, 160), "Alice", False, None,
-                  ("ListItem", "alice", "row", "uia"), parent=parent)
+                  ("ListItem", "row", "uia"), parent=parent)
         ], []]
         with self._app_patch(window), \
              patch("floatingbar.conversation_rows.winapi.get_window_pid", return_value=200), \
@@ -154,7 +170,7 @@ class ConversationRowTests(unittest.TestCase):
         self.assertFalse(rows[0].needs_attention)
 
     def test_selection_revalidates_row_before_background_click(self):
-        item = ConversationItem(123, 200, "Alice", 20, 100, 420, 160, True, (1, 10), ("ListItem", "alice", "row", "uia"))
+        item = ConversationItem(123, 200, "Alice", 20, 100, 420, 160, True, (1, 10), ("ListItem", "row", "uia"))
         fresh = ConversationItem(123, 200, "Alice", 24, 104, 424, 164, True, (1, 10), ("ListItem", "alice", "row", "uia"))
         with patch("floatingbar.conversation_rows.winapi.get_window_pid", return_value=200), \
              patch("floatingbar.conversation_rows.winapi.user32.IsWindow", return_value=True), \

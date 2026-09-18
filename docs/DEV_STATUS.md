@@ -21,6 +21,7 @@ Verification evidence also carries a bounded `proof_kind`. Current concrete chat
 Terminal, CMD, and PowerShell adapters have a bounded `terminal-input-clear` verification hook. When the exact pinned input control exposes a readable UI Automation value, the path observes only value length: it requires post-injection growth and a return to zero after Enter. It never stores, logs, or compares command content, and it cannot claim command execution semantics.
 
 The chat adapters now have explicit verification contracts bound to their concrete adapter keys (`telegram`, `whatsapp`, `discord`, `slack`, and `teams`). The underlying checks remain content-free, but a Discord path cannot borrow the WhatsApp contract and an unsupported/generic executable cannot inherit a verified chat contract. This makes future app-specific semantic refinements additive instead of widening another adapter's evidence policy.
+Conversation row structural identities are now built centrally without UIA AutomationId. Persistent conversation pins use a versioned migration that drops legacy structural/container identities from older schemas before rewriting them, preserving the display-label fallback without carrying potentially user-facing AutomationId values forward.
 
 The release workflow now requires a completed `smoke-report.json` with a valid Windows environment snapshot before packaging a milestone release. The report must also have every smoke case resolved to PASS, FAIL, or BLOCKED; FAIL or unresolved cases stop the release gate.
 

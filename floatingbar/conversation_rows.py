@@ -14,6 +14,7 @@ from typing import Optional
 
 from . import winapi
 from .conversation_attention import AttentionDetector, AttentionState, ConversationAttention, safe_detect
+from .ui_identity import ancestor_identity, control_identity
 
 
 @dataclass(frozen=True)
@@ -81,48 +82,6 @@ def _runtime_id(item) -> tuple[int, ...] | None:
     return result or None
 
 
-def _control_identity(item) -> tuple[str, ...] | None:
-    """Return stable structural UI metadata for runtimes without runtime_id."""
-    try:
-        info = item.element_info
-        values = (
-            getattr(info, "control_type", None),
-            getattr(info, "automation_id", None),
-            getattr(info, "class_name", None),
-            getattr(info, "framework_id", None),
-        )
-    except Exception:
-        return None
-    normalized = tuple(str(value).strip() for value in values if value not in (None, ""))
-    return normalized or None
-
-
-def _ancestor_identity(item, max_depth: int = 3) -> tuple[str, ...] | None:
-    """Return bounded, content-free UIA ancestor structure for row disambiguation."""
-    parts: list[str] = []
-    current = item
-    for depth in range(1, max(1, int(max_depth)) + 1):
-        try:
-            current = current.parent()
-            info = current.element_info
-            values = (
-                getattr(info, "control_type", None),
-                getattr(info, "automation_id", None),
-                getattr(info, "class_name", None),
-                getattr(info, "framework_id", None),
-            )
-        except Exception:
-            break
-        normalized = tuple(
-            str(value).strip()
-            for value in values
-            if value not in (None, "")
-        )
-        if normalized:
-            parts.extend((f"ancestor{depth}", *normalized))
-    return tuple(parts) or None
-
-
 def _left_pane_cutoff(window_rect, fraction: float = 0.68) -> int:
     return window_rect.left + int(max(1, window_rect.width()) * fraction)
 
@@ -188,11 +147,11 @@ def enumerate_conversations(
                 if rect.left >= cutoff or rect.top < window_rect.top or rect.bottom > window_rect.bottom:
                     continue
                 runtime_id = _runtime_id(item)
-                control_identity = _control_identity(item)
-                container_identity = _ancestor_identity(item)
+                structural_control_identity = control_identity(item.element_info)
+                container_identity = ancestor_identity(item)
                 attention = safe_detect(item, attention_detector)
                 key = runtime_id or (
-                    control_identity,
+                    structural_control_identity,
                     name.casefold(),
                     rect.left,
                     rect.top,
@@ -213,7 +172,7 @@ def enumerate_conversations(
                         bottom=rect.bottom,
                         selected=_selected_compat(item),
                         runtime_id=runtime_id,
-                        control_identity=control_identity,
+                        control_identity=structural_control_identity,
                         attention=attention,
                         container_identity=container_identity,
                     )

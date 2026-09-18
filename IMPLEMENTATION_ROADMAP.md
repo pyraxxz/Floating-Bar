@@ -93,6 +93,7 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Session recent targets and persistent pinning for common applications/conversations
 - [x] Saved quick replies that insert drafts without automatically sending
 - [x] Strong conversation identity is content-free when runtime/structural UI identity exists; visible names remain display-only labels
+- [x] Conversation structural identities exclude UIA AutomationId; legacy persistent pin identities are safely migrated to the sanitized schema
 
 ## Phase 3 — Real application adapters
 

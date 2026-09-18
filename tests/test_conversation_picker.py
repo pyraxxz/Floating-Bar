@@ -86,7 +86,7 @@ class ConversationPickerRowTests(unittest.TestCase):
         original = ConversationItem(
             100, 200, "Alice", 0, 100, 300, 150,
             runtime_id=(1, 42),
-            control_identity=("ListItem", "alice", "row", "uia"),
+            control_identity=("ListItem", "row", "uia"),
         )
         moved = ConversationItem(
             100, 200, "Alice", 80, 500, 400, 560,
@@ -99,7 +99,7 @@ class ConversationPickerRowTests(unittest.TestCase):
         original = ConversationItem(
             100, 200, "general", 0, 100, 300, 150,
             runtime_id=(9, 9),
-            control_identity=("ListItem", "same", "row", "uia"),
+            control_identity=("ListItem", "row", "uia"),
         )
         renamed = ConversationItem(
             100, 200, "general renamed", 0, 100, 300, 150,
