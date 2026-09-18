@@ -192,10 +192,11 @@ class RecentTargetHistory:
             if process_name != target.process_name:
                 return False
             expected_class = str(target.window_class or "").strip()
-            if expected_class:
-                current_class = str(winapi.get_window_class_name(target.scope.hwnd) or "").strip()
-                if current_class != expected_class:
-                    return False
+            if not expected_class:
+                return False
+            current_class = str(winapi.get_window_class_name(target.scope.hwnd) or "").strip()
+            if current_class != expected_class:
+                return False
             spec = actionable_adapter_for_process(process_name)
             return bool(spec and spec.implemented and spec.key == target.adapter_key)
         except Exception:
