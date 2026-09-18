@@ -30,7 +30,7 @@ class PinnedTargetStoreTests(unittest.TestCase):
             path = os.path.join(directory, "pins.json")
             with open(path, "r", encoding="utf-8") as handle:
                 payload = json.load(handle)
-            self.assertEqual(payload["version"], 3)
+            self.assertEqual(payload["version"], 4)
             self.assertEqual(set(payload["pins"][0]), {"kind", "adapter_key", "process_name", "label"})
             self.assertNotIn("hwnd", payload["pins"][0])
             self.assertNotIn("pid", payload["pins"][0])
@@ -68,9 +68,28 @@ class PinnedTargetStoreTests(unittest.TestCase):
             )
             reloaded = PinnedTargetStore(os.path.join(directory, "pins.json"))
             self.assertEqual(reloaded.items()[0].control_identity, identity)
+            self.assertIsNone(reloaded.items()[0].container_identity)
             with open(os.path.join(directory, "pins.json"), "r", encoding="utf-8") as handle:
                 payload = json.load(handle)
             self.assertEqual(payload["pins"][0]["control_identity"], list(identity))
+
+    def test_conversation_pin_round_trips_container_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = self._store(directory)
+            identity = ("ancestor1", "Pane", "workspace", "uia")
+            self.assertTrue(
+                store.toggle_conversation(
+                    adapter_key="slack",
+                    process_name="slack.exe",
+                    label="Project Chat",
+                    container_identity=identity,
+                )
+            )
+            reloaded = PinnedTargetStore(os.path.join(directory, "pins.json"))
+            self.assertEqual(reloaded.items()[0].container_identity, identity)
+            with open(os.path.join(directory, "pins.json"), "r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+            self.assertEqual(payload["pins"][0]["container_identity"], list(identity))
 
     def test_schema_one_conversation_pin_loads_without_structural_identity(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -92,6 +111,7 @@ class PinnedTargetStoreTests(unittest.TestCase):
                 )
             store = PinnedTargetStore(path)
             self.assertEqual(store.items()[0].control_identity, None)
+            self.assertEqual(store.items()[0].container_identity, None)
             self.assertEqual(store.items()[0].window_class, None)
 
     def test_toggle_is_idempotent_by_stable_identity(self):
