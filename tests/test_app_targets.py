@@ -55,8 +55,8 @@ class AppTargetTests(unittest.TestCase):
             result = target.send("dir")
 
         self.assertEqual(result, "posted-enter (unverified)")
-        post_text.assert_called_once_with(400, "dir", expected_pid=200)
-        post_enter.assert_called_once_with(400, target=400, expected_pid=200)
+        post_text.assert_called_once_with(400, "dir", expected_pid=200, expected_process_start=None)
+        post_enter.assert_called_once_with(400, target=400, expected_pid=200, expected_process_start=None)
 
     def test_chat_apps_use_composer_target(self):
         for process in ("whatsapp.exe", "discord.exe", "slack.exe", "teams.exe"):
@@ -93,8 +93,8 @@ class AppTargetTests(unittest.TestCase):
             result = target.send("hello")
 
         self.assertEqual(result, "posted-enter (unverified)")
-        post_text.assert_called_once_with(400, "hello", expected_pid=200)
-        post_enter.assert_called_once_with(400, target=400, expected_pid=200)
+        post_text.assert_called_once_with(400, "hello", expected_pid=200, expected_process_start=None)
+        post_enter.assert_called_once_with(400, target=400, expected_pid=200, expected_process_start=None)
 
     def test_chat_send_requires_structural_candidate_for_focused_child(self):
         target = ChatComposerTarget(100, 200)
@@ -122,8 +122,8 @@ class AppTargetTests(unittest.TestCase):
              patch("floatingbar.generic_target.winapi.post_enter") as post_enter:
             result = target.send("hello")
         self.assertEqual(result, "posted-enter (unverified)")
-        post_text.assert_called_once_with(300, "hello", expected_pid=200)
-        post_enter.assert_called_once_with(300, target=300, expected_pid=200)
+        post_text.assert_called_once_with(300, "hello", expected_pid=200, expected_process_start=None)
+        post_enter.assert_called_once_with(300, target=300, expected_pid=200, expected_process_start=None)
 
     def test_chat_send_rejects_non_edit_role(self):
         target = ChatComposerTarget(100, 200)
