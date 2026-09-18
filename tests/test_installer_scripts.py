@@ -14,9 +14,12 @@ class InstallerScriptTests(unittest.TestCase):
             REPO_ROOT / "installer" / "Uninstall-FloatingBar.ps1"
         ).read_text(encoding="utf-8")
 
-        expected = 'Microsoft\\Windows\\Start Menu\\Programs\\Floating Bar.lnk'
-        self.assertIn(expected, installer)
-        self.assertIn(expected, uninstaller)
+        expected_directory = 'Microsoft\\Windows\\Start Menu\\Programs'
+        expected_filename = 'Floating Bar.lnk'
+        self.assertIn(expected_directory, installer)
+        self.assertIn(expected_filename, installer)
+        self.assertIn(expected_directory, uninstaller)
+        self.assertIn(expected_filename, uninstaller)
 
     def test_uninstaller_shortcut_path_is_not_a_concatenated_literal(self) -> None:
         uninstaller = (
