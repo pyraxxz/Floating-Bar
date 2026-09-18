@@ -230,7 +230,7 @@ Every adapter should eventually produce one of:
 
 ## Phase 7 — Real Windows validation
 
-- [x] Content-free Windows environment snapshot tooling
+- [x] Content-free Windows environment snapshot tooling, including per-monitor geometry/effective-DPI evidence
 - [x] Declarative smoke matrix covering environment, fidelity, picker, Telegram, chat, terminal, and privacy cases
 - [x] Machine-readable smoke report generation and validation
 - [x] Practical operator checklist for executing the real Windows smoke matrix
