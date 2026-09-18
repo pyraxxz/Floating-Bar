@@ -75,6 +75,15 @@ def _record_case_evidence(snapshot, tested_at: str) -> dict:
             for name, start in adapter.observed_process_instances
             if isinstance(start, int) and not isinstance(start, bool) and int(start) > 0
         ]
+        evidence["executable_versions"] = [
+            {
+                "adapter_key": str(adapter.key),
+                "version": str(version).strip(),
+            }
+            for adapter in snapshot.adapters
+            for version in adapter.observed_versions
+            if str(version).strip()
+        ]
     except Exception:
         # Keep the timestamp so a later release-gate check can distinguish
         # attempted evidence capture from missing case evidence.
