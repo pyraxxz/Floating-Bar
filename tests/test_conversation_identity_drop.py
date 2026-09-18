@@ -46,7 +46,7 @@ class ConversationIdentityDropTests(unittest.TestCase):
             160,
             False,
             None,
-            ("ListItem", "alice", "row", "uia"),
+            ("ListItem", "row", "uia"),
         )
         same_name = ConversationItem(
             123,
