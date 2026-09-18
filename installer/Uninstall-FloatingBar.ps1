@@ -12,7 +12,7 @@ if ($null -ne $running) {
     throw "Floating Bar is running. Close it before uninstalling."
 }
 
-$shortcutPath = Join-Path $env:APPDATA "MicrosoftWindowsStart MenuProgramsFloating Bar.lnk"
+$shortcutPath = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Floating Bar.lnk"
 if (Test-Path -LiteralPath $shortcutPath) {
     Remove-Item -LiteralPath $shortcutPath -Force
 }
