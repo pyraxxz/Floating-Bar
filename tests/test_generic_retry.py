@@ -55,6 +55,8 @@ class GenericRetryTests(unittest.TestCase):
         window._background_typer.release.assert_called_once_with()
         self.assertEqual(window._background_process_name, "")
         self.assertEqual(window._background_adapter_key, "")
+        self.assertEqual(window._background_window_class, "")
+        self.assertEqual(window._work_hwnd, 0)
 
     def test_generic_retry_rebinds_original_scope_instead_of_foreground_path(self):
         window = self._window()
