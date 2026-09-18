@@ -25,6 +25,30 @@ class SelectionRaceTests(unittest.TestCase):
         window.target = Mock()
         return window
 
+    def test_invalid_new_background_selection_clears_previous_retry_context(self):
+        window = self._window()
+        window._generic_retry_scope = TargetScope(410, 811)
+        window._generic_retry_process_name = "discord.exe"
+        window._generic_retry_adapter_key = "discord"
+        window._generic_retry_window_class = "DiscordMainWindow"
+        item = Mock(
+            hwnd=123,
+            pid=200,
+            process_name="discord.exe",
+            actionable=True,
+            window_class="DifferentWindow",
+        )
+        with patch("floatingbar.bound_context_overlay.target_for_adapter", return_value=window._background_typer), \
+             patch("floatingbar.bound_context_overlay.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.bound_context_overlay.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.bound_context_overlay.winapi.get_window_class_name", return_value="DiscordMainWindow"):
+            window._select_background_window(item)
+        self.assertIsNone(window._generic_retry_scope)
+        self.assertEqual(window._generic_retry_process_name, "")
+        self.assertEqual(window._generic_retry_adapter_key, "")
+        self.assertEqual(window._generic_retry_window_class, "")
+        window._background_typer.bind.assert_not_called()
+
     def test_background_selection_rejects_recycled_same_process_window(self):
         window = self._window()
         item = Mock(
