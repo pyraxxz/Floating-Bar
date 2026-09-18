@@ -14,6 +14,7 @@ This document records the current validation infrastructure on `main`. It is sep
 - Release-gate checks for a Windows environment snapshot, valid source commit ancestry, and an execution timestamp for every completed smoke case.
 - Content-free Windows environment snapshots covering Windows build, Python version, architecture, monitor count, DPI-awareness, observed supported-app windows, and observed executable file versions.
 - Adapter-registry consistency checks for duplicate keys, executable alias collisions, malformed aliases, unsupported capabilities, and inconsistent chat/type metadata.
+- Generic background-target leases can add a content-free process-start identity to HWND/PID validation, rejecting rare PID-reuse cases while degrading safely to the existing scope checks when the metadata cannot be queried.
 
 ## Real Windows validation still required
 
