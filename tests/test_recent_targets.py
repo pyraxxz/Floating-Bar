@@ -51,6 +51,16 @@ class RecentTargetHistoryTests(unittest.TestCase):
                         "floatingbar.recent_targets.actionable_adapter_for_process",
                         return_value=SimpleNamespace(implemented=True, key="demo"),
                     ):
+                        with patch(
+                            "floatingbar.recent_targets.winapi.get_window_class_name",
+                            return_value="DemoWindow",
+                        ):
+                            target = history.record_application(
+                                hwnd=44, pid=444, process_name="demo.exe",
+                                label="Demo", adapter_key="demo",
+                                window_class="DemoWindow",
+                            )
+                            self.assertTrue(history.application_is_live(target))
                         self.assertTrue(history.application_is_live(target))
                 self.assertFalse(history.application_is_live(target)) if False else None
 
