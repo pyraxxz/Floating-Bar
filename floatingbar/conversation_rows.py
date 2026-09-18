@@ -29,6 +29,10 @@ class ConversationItem:
     runtime_id: tuple[int, ...] | None = None
     control_identity: tuple[str, ...] | None = None
     attention: ConversationAttention = ConversationAttention()
+    # Content-free ancestor metadata helps distinguish duplicate rows in
+    # Teams/Discord/Slack-style nested navigation panes when runtime IDs are
+    # unavailable or recycled.
+    container_identity: tuple[str, ...] | None = None
 
     @property
     def center(self) -> tuple[int, int]:
@@ -91,6 +95,32 @@ def _control_identity(item) -> tuple[str, ...] | None:
         return None
     normalized = tuple(str(value).strip() for value in values if value not in (None, ""))
     return normalized or None
+
+
+def _ancestor_identity(item, max_depth: int = 3) -> tuple[str, ...] | None:
+    """Return bounded, content-free UIA ancestor structure for row disambiguation."""
+    parts: list[str] = []
+    current = item
+    for depth in range(1, max(1, int(max_depth)) + 1):
+        try:
+            current = current.parent()
+            info = current.element_info
+            values = (
+                getattr(info, "control_type", None),
+                getattr(info, "automation_id", None),
+                getattr(info, "class_name", None),
+                getattr(info, "framework_id", None),
+            )
+        except Exception:
+            break
+        normalized = tuple(
+            str(value).strip()
+            for value in values
+            if value not in (None, "")
+        )
+        if normalized:
+            parts.extend((f"ancestor{depth}", *normalized))
+    return tuple(parts) or None
 
 
 def _left_pane_cutoff(window_rect, fraction: float = 0.68) -> int:
@@ -159,6 +189,7 @@ def enumerate_conversations(
                     continue
                 runtime_id = _runtime_id(item)
                 control_identity = _control_identity(item)
+                container_identity = _ancestor_identity(item)
                 attention = safe_detect(item, attention_detector)
                 key = runtime_id or (
                     control_identity,
@@ -184,6 +215,7 @@ def enumerate_conversations(
                         runtime_id=runtime_id,
                         control_identity=control_identity,
                         attention=attention,
+                        container_identity=container_identity,
                     )
                 )
         rows.sort(key=_row_sort_key)
