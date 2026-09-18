@@ -71,7 +71,6 @@ def _structural_fingerprint(item) -> str:
             info = current.element_info
             values = (
                 getattr(info, "control_type", None),
-                getattr(info, "automation_id", None),
                 getattr(info, "class_name", None),
                 getattr(info, "framework_id", None),
             )
@@ -104,7 +103,7 @@ def _normalize_chat_anchor(value):
 def _selected_chat_anchor(hwnd: int):
     """Return a unique selected left-pane chat anchor when UIA exposes one."""
     if not hwnd:
-        return (), "", ""
+        return (), ""
     try:
         from pywinauto import Application
 
