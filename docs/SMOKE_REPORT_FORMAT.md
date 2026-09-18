@@ -34,6 +34,8 @@ those notes to decide whether a case passed.
 Every completed (`PASS`, `FAIL`, or `BLOCKED`) case must also contain a non-empty
 `tested_at` execution timestamp. Pending cases leave `tested_at` empty.
 
+Critical restart cases (`env.restart`, `telegram.restart`, and `terminal.restart`) also require matching content-free process-instance evidence in the Windows environment snapshot when marked `PASS`.
+
 ## Release gate
 
 A complete release report must also contain a Windows environment snapshot and

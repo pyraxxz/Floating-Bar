@@ -242,6 +242,23 @@ def environment_case_errors(report: Mapping[str, object]) -> tuple[str, ...]:
         "terminal.acceptance.conhost": (("terminal", "cmd"), {"conhost.exe", "cmd.exe"}),
         "terminal.acceptance.pwsh": (("powershell",), {"pwsh.exe"}),
     }
+    restart_process_requirements = {
+        "env.restart": {
+            "all": {"telegram.exe", "whatsapp.exe", "discord.exe", "slack.exe", "teams.exe", "msteams.exe", "ms-teams.exe", "windowsterminal.exe", "windowsterminalpreview.exe", "conhost.exe", "cmd.exe", "pwsh.exe"},
+        },
+        "telegram.restart": {"telegram": {"telegram.exe"}},
+        "chat.restart": {
+            "whatsapp": {"whatsapp.exe"},
+            "discord": {"discord.exe"},
+            "slack": {"slack.exe"},
+            "teams": {"teams.exe", "msteams.exe", "ms-teams.exe"},
+        },
+        "terminal.restart": {
+            "terminal": {"windowsterminal.exe", "wt.exe", "windowsterminalpreview.exe", "conhost.exe"},
+            "cmd": {"cmd.exe"},
+            "powershell": {"pwsh.exe"},
+        },
+    }
     adapter_cases = {
         "telegram": {"telegram"},
         "whatsapp": {"whatsapp"},
@@ -273,6 +290,37 @@ def environment_case_errors(report: Mapping[str, object]) -> tuple[str, ...]:
                         observed.update(str(value).casefold() for value in raw_observed)
             if not (observed & expected_processes):
                 errors.append(f"environment evidence missing for {case_id}")
+            continue
+
+        restart_requirement = restart_process_requirements.get(case_id)
+        if restart_requirement:
+            for adapter_key, expected_processes in restart_requirement.items():
+                if adapter_key == "all":
+                    relevant = {
+                        key: spec
+                        for key, spec in adapters.items()
+                        if isinstance(spec, Mapping)
+                    }
+                else:
+                    spec = adapters.get(adapter_key)
+                    relevant = {adapter_key: spec} if spec is not None else {}
+                instances = set()
+                for spec in relevant.values():
+                    raw_instances = spec.get("observed_process_instances", ())
+                    if isinstance(raw_instances, (list, tuple)):
+                        for item_instance in raw_instances:
+                            if isinstance(item_instance, Mapping):
+                                name = str(item_instance.get("process_name", "")).casefold()
+                                start = item_instance.get("process_start")
+                            elif isinstance(item_instance, (list, tuple)) and len(item_instance) == 2:
+                                name = str(item_instance[0]).casefold()
+                                start = item_instance[1]
+                            else:
+                                continue
+                            if name in expected_processes and isinstance(start, int) and not isinstance(start, bool) and start > 0:
+                                instances.add((name, start))
+                if not instances:
+                    errors.append(f"environment process-instance evidence missing for {case_id} ({adapter_key})")
             continue
 
         adapter_key = next(
