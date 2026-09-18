@@ -328,7 +328,7 @@ def select_conversation(item: ConversationItem) -> ConversationItem:
         raise RuntimeError("conversation window no longer exists")
     fresh = refresh_conversation(item)
     client_x, client_y = _screen_to_client(item.hwnd, *fresh.center)
-    winapi.post_click(item.hwnd, client_x, client_y)
+    winapi.post_click(item.hwnd, client_x, client_y, expected_pid=item.pid)
     confirmed = _confirm_selected(fresh)
     _remember_selected_conversation(confirmed)
     return confirmed
