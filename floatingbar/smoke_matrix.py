@@ -237,10 +237,10 @@ def environment_case_errors(report: Mapping[str, object]) -> tuple[str, ...]:
             errors.append("env.dpi PASS requires at least two monitors with distinct effective DPI values")
 
     required_processes = {
-        "terminal.acceptance.wt": {"windowsterminal.exe", "wt.exe"},
-        "terminal.acceptance.preview": {"windowsterminalpreview.exe"},
-        "terminal.acceptance.conhost": {"conhost.exe", "cmd.exe"},
-        "terminal.acceptance.pwsh": {"pwsh.exe"},
+        "terminal.acceptance.wt": (("terminal",), {"windowsterminal.exe", "wt.exe"}),
+        "terminal.acceptance.preview": (("terminal",), {"windowsterminalpreview.exe"}),
+        "terminal.acceptance.conhost": (("terminal", "cmd"), {"conhost.exe", "cmd.exe"}),
+        "terminal.acceptance.pwsh": (("powershell",), {"pwsh.exe"}),
     }
     adapter_cases = {
         "telegram": {"telegram"},
@@ -257,11 +257,12 @@ def environment_case_errors(report: Mapping[str, object]) -> tuple[str, ...]:
         if not isinstance(item, Mapping) or str(item.get("result", RESULT_PENDING)) != RESULT_PASS:
             continue
         case_id = str(item.get("case_id", "")).strip()
-        expected_processes = required_processes.get(case_id)
-        if expected_processes:
+        process_requirement = required_processes.get(case_id)
+        if process_requirement:
+            adapter_keys, expected_processes = process_requirement
             observed = set()
-            for key in expected_processes:
-                spec = adapters.get("terminal" if key in {"windowsterminal.exe", "wt.exe", "windowsterminalpreview.exe", "conhost.exe", "cmd.exe", "pwsh.exe"} else key)
+            for adapter_key in adapter_keys:
+                spec = adapters.get(adapter_key)
                 if spec is not None:
                     raw_observed = spec.get("observed_processes", ())
                     if isinstance(raw_observed, (list, tuple)):
