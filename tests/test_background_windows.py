@@ -17,6 +17,7 @@ class BackgroundWindowCatalogTests(unittest.TestCase):
              patch("floatingbar.background_windows.winapi.get_foreground_window", return_value=100), \
              patch("floatingbar.background_windows.winapi.get_window_pid", side_effect=lambda hwnd: hwnd // 10), \
              patch("floatingbar.background_windows.winapi.get_process_image_name", return_value=r"C:\Apps\App.exe"), \
+             patch("floatingbar.background_windows.winapi.get_process_creation_time", side_effect=lambda pid: pid + 1000), \
              patch("floatingbar.background_windows.winapi.get_window_rect_area", side_effect=lambda hwnd: hwnd), \
              patch("floatingbar.background_windows.winapi.get_window_class_name", side_effect=lambda hwnd: f"Class{hwnd}"):
             result = enumerate_background_windows(exclude_hwnds={300})
@@ -24,6 +25,7 @@ class BackgroundWindowCatalogTests(unittest.TestCase):
         self.assertEqual([item.hwnd for item in result], [100])
         self.assertTrue(result[0].foreground)
         self.assertEqual(result[0].window_class, "Class100")
+        self.assertEqual(result[0].process_start, 1010)
 
     def test_production_can_include_minimized_background_windows(self):
         windows = [100, 200]
