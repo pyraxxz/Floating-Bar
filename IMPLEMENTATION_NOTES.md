@@ -192,3 +192,8 @@ The installer copies the bundled uninstaller into the install directory when ava
 ## Release update notification
 
 The orb menu now exposes an explicit update check. It queries only the public latest-release metadata for the GitHub repository, uses a bounded network timeout, never checks on startup, and runs off the Tk UI thread. A newer release opens a small local dialog with an explicit release-page action; a failed check exposes only a generic UI state while the detailed exception remains content-free in trace diagnostics.
+
+
+## Multi-monitor/DPI validation evidence
+
+The Windows validation snapshot now records bounded per-monitor geometry and effective DPI alongside the process DPI-awareness mode. It intentionally omits display-device names and any UI content, making mixed-DPI and multi-monitor acceptance reports more reproducible without adding machine-identifying display metadata.

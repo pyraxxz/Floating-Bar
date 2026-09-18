@@ -3,6 +3,7 @@ import unittest
 from floatingbar.app_adapters import adapter_for_process
 from floatingbar.windows_validation import (
     AdapterObservation,
+    MonitorObservation,
     WindowsValidationSnapshot,
     _observe_adapters,
     format_report,
@@ -33,7 +34,7 @@ class WindowsValidationTests(unittest.TestCase):
 
     def test_snapshot_serialization_is_content_free(self):
         snapshot = WindowsValidationSnapshot(
-            schema_version=1,
+            schema_version=2,
             platform="Windows",
             windows_release="11",
             windows_version="10.0.26100",
@@ -52,16 +53,22 @@ class WindowsValidationTests(unittest.TestCase):
                     ("telegram.exe",),
                 ),
             ),
+            monitors=(
+                MonitorObservation(0, 1920, 1080, 96, 96),
+                MonitorObservation(1, 2560, 1440, 144, 144),
+            ),
         )
         payload = snapshot.to_dict()
         self.assertNotIn("title", str(payload).lower())
         self.assertNotIn("message", str(payload).lower())
         self.assertEqual(payload["monitor_count"], 2)
+        self.assertEqual(len(payload["monitors"]), 2)
+        self.assertEqual(payload["monitors"][1]["dpi_x"], 144)
         self.assertEqual(payload["adapters"][0]["open_window_count"], 2)
 
     def test_report_uses_adapter_labels_not_window_titles(self):
         snapshot = WindowsValidationSnapshot(
-            1,
+            2,
             "Windows",
             "11",
             "10.0.26100",

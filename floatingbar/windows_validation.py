@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 import ctypes
+import ctypes.wintypes as wintypes
 import platform
 import sys
 from typing import Iterable, Mapping
@@ -21,7 +22,16 @@ from .background_windows import enumerate_background_windows
 from .dpi import enable_per_monitor_awareness
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+
+
+@dataclass(frozen=True)
+class MonitorObservation:
+    index: int
+    width: int
+    height: int
+    dpi_x: int
+    dpi_y: int
 
 
 @dataclass(frozen=True)
@@ -47,6 +57,7 @@ class WindowsValidationSnapshot:
     dpi_awareness: str
     observed_window_count: int
     adapters: tuple[AdapterObservation, ...]
+    monitors: tuple[MonitorObservation, ...] = ()
 
     def to_dict(self) -> dict:
         """Return a JSON-safe, content-free representation."""
@@ -60,6 +71,10 @@ class WindowsValidationSnapshot:
             "python_version": self.python_version,
             "monitor_count": self.monitor_count,
             "dpi_awareness": self.dpi_awareness,
+            "monitors": [
+                {"index": m.index, "width": m.width, "height": m.height, "dpi_x": m.dpi_x, "dpi_y": m.dpi_y}
+                for m in self.monitors
+            ],
             "observed_window_count": self.observed_window_count,
             "adapters": [
                 {
@@ -73,6 +88,72 @@ class WindowsValidationSnapshot:
                 for item in self.adapters
             ],
         }
+
+
+def _monitor_observations() -> tuple[MonitorObservation, ...]:
+    """Return content-free per-monitor geometry and effective DPI."""
+    if sys.platform != "win32":
+        return ()
+    try:
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        shcore = ctypes.WinDLL("shcore", use_last_error=True)
+        enum_monitors = getattr(user32, "EnumDisplayMonitors", None)
+        get_dpi = getattr(shcore, "GetDpiForMonitor", None)
+        if enum_monitors is None or get_dpi is None:
+            return ()
+        rect_type = wintypes.RECT
+        callback_type = ctypes.WINFUNCTYPE(
+            wintypes.BOOL,
+            wintypes.HMONITOR,
+            wintypes.HDC,
+            ctypes.POINTER(rect_type),
+            wintypes.LPARAM,
+        )
+        get_dpi.argtypes = [
+            ctypes.wintypes.HMONITOR,
+            ctypes.c_int,
+            ctypes.POINTER(wintypes.UINT),
+            ctypes.POINTER(ctypes.wintypes.UINT),
+        ]
+        get_dpi.restype = ctypes.c_long
+        enum_monitors.argtypes = [
+            ctypes.wintypes.HDC,
+            wintypes.LPCRECT,
+            callback_type,
+            ctypes.wintypes.LPARAM,
+        ]
+        enum_monitors.restype = ctypes.wintypes.BOOL
+        observations = []
+
+        @callback_type
+        def callback(handle, _hdc, rect_ptr, _data):
+            try:
+                rect = rect_ptr.contents
+                x = ctypes.wintypes.UINT(0)
+                y = ctypes.wintypes.UINT(0)
+                result = int(get_dpi(handle, 0, ctypes.byref(x), ctypes.byref(y)))
+                if result != 0:
+                    x.value = 0
+                    y.value = 0
+                observations.append(
+                    MonitorObservation(
+                        index=len(observations),
+                        width=max(0, int(rect.right) - int(rect.left)),
+                        height=max(0, int(rect.bottom) - int(rect.top)),
+                        dpi_x=int(x.value),
+                        dpi_y=int(y.value),
+                    )
+                )
+            except Exception:
+                observations.append(
+                    MonitorObservation(len(observations), 0, 0, 0, 0)
+                )
+            return True
+
+        enum_monitors(0, 0, callback, 0)
+        return tuple(observations)
+    except Exception:
+        return ()
 
 
 def _monitor_count() -> int:
@@ -201,6 +282,8 @@ def capture_snapshot() -> WindowsValidationSnapshot:
         process_names = ()
         observed_window_count = 0
 
+    monitors = _monitor_observations()
+
     return WindowsValidationSnapshot(
         schema_version=SCHEMA_VERSION,
         platform=platform.system() or "Windows",
@@ -209,8 +292,9 @@ def capture_snapshot() -> WindowsValidationSnapshot:
         windows_service_pack=service_pack or "",
         architecture=platform.machine() or "",
         python_version=platform.python_version(),
-        monitor_count=_monitor_count(),
+        monitor_count=max(_monitor_count(), len(monitors)),
         dpi_awareness=_dpi_awareness(),
+        monitors=monitors,
         observed_window_count=observed_window_count,
         adapters=_observe_adapters(process_names, versions),
     )
@@ -229,9 +313,12 @@ def format_report(snapshot: WindowsValidationSnapshot) -> str:
         f"  python_version={snapshot.python_version}",
         f"  monitor_count={snapshot.monitor_count}",
         f"  dpi_awareness={snapshot.dpi_awareness}",
+        f"  monitors={len(snapshot.monitors)}",
         f"  observed_window_count={snapshot.observed_window_count}",
         "  adapters:",
     ]
+    for monitor in snapshot.monitors:
+        lines.append(f"    - monitor {monitor.index}: {monitor.width}x{monitor.height} dpi={monitor.dpi_x}x{monitor.dpi_y}")
     for adapter in snapshot.adapters:
         observed = ",".join(adapter.observed_processes) or "none"
         versions = ",".join(adapter.observed_versions) or "unknown"
@@ -244,6 +331,7 @@ def format_report(snapshot: WindowsValidationSnapshot) -> str:
 
 __all__ = [
     "AdapterObservation",
+    "MonitorObservation",
     "SCHEMA_VERSION",
     "WindowsValidationSnapshot",
     "capture_snapshot",
