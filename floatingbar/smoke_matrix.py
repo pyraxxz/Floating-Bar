@@ -192,6 +192,53 @@ def validate_report(report: Mapping[str, object]) -> tuple[str, ...]:
         result = str(item.get("result", RESULT_PENDING))
         if result not in RESULTS:
             errors.append(f"invalid result for {case_id}: {result}")
+        evidence = item.get("evidence")
+        if evidence is not None and evidence != {}:
+            if not isinstance(evidence, Mapping):
+                errors.append(f"invalid evidence for {case_id}: evidence must be an object")
+            else:
+                recorded_at = str(evidence.get("recorded_at", "")).strip()
+                tested_at = str(item.get("tested_at", "")).strip()
+                if recorded_at and tested_at and recorded_at != tested_at:
+                    errors.append(f"case evidence timestamp mismatch for {case_id}")
+                elif "recorded_at" not in evidence and tested_at:
+                    errors.append(f"case evidence timestamp missing for {case_id}")
+
+                raw_instances = evidence.get("process_instances")
+                if raw_instances is not None:
+                    if not isinstance(raw_instances, list):
+                        errors.append(f"invalid process_instances evidence for {case_id}")
+                    else:
+                        for instance in raw_instances:
+                            if not isinstance(instance, Mapping):
+                                errors.append(f"invalid process instance evidence for {case_id}")
+                                break
+                            if not str(instance.get("adapter_key", "")).strip():
+                                errors.append(f"process instance adapter missing for {case_id}")
+                                break
+                            if not str(instance.get("process_name", "")).strip():
+                                errors.append(f"process instance name missing for {case_id}")
+                                break
+                            start = instance.get("process_start")
+                            if not isinstance(start, int) or isinstance(start, bool) or start <= 0:
+                                errors.append(f"process instance start missing for {case_id}")
+                                break
+
+                raw_versions = evidence.get("executable_versions")
+                if raw_versions is not None:
+                    if not isinstance(raw_versions, list):
+                        errors.append(f"invalid executable_versions evidence for {case_id}")
+                    else:
+                        for version in raw_versions:
+                            if not isinstance(version, Mapping):
+                                errors.append(f"invalid executable version evidence for {case_id}")
+                                break
+                            if not str(version.get("adapter_key", "")).strip():
+                                errors.append(f"executable version adapter missing for {case_id}")
+                                break
+                            if not str(version.get("version", "")).strip():
+                                errors.append(f"executable version value missing for {case_id}")
+                                break
 
     missing = sorted(set(expected_cases) - seen)
     errors.extend(f"missing case_id: {case_id}" for case_id in missing)
