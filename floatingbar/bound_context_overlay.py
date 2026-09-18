@@ -342,6 +342,12 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             if not winapi.user32.IsWindow(item.hwnd):
                 self._show_feedback("That background app is no longer available.")
                 return
+            expected_process_start = getattr(item, "process_start", None)
+            if expected_process_start is not None:
+                current_process_start = winapi.get_process_creation_time(item.pid)
+                if current_process_start is None or current_process_start != expected_process_start:
+                    self._show_feedback("That background app restarted before it could be selected.")
+                    return
             raw_class = getattr(item, "window_class", "")
             expected_class = raw_class.strip() if isinstance(raw_class, str) else ""
             if expected_class:
