@@ -248,6 +248,10 @@ def refresh_conversation(item: ConversationItem) -> ConversationItem:
             fresh = identity_matches[0]
             if fresh.name != item.name:
                 raise RuntimeError("conversation row identity changed")
+            if item.control_identity is not None and fresh.control_identity != item.control_identity:
+                raise RuntimeError("conversation row control identity changed")
+            if item.container_identity is not None and fresh.container_identity != item.container_identity:
+                raise RuntimeError("conversation row container identity changed")
             if abs(fresh.left - item.left) + abs(fresh.top - item.top) > 24:
                 raise RuntimeError("conversation row moved before selection")
             return fresh
