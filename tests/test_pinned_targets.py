@@ -18,6 +18,7 @@ class PinnedTargetStoreTests(unittest.TestCase):
                     adapter_key="slack",
                     process_name="slack.exe",
                     label="Slack",
+                    window_class="SlackWindow",
                 )
             )
             self.assertTrue(
@@ -31,7 +32,10 @@ class PinnedTargetStoreTests(unittest.TestCase):
             with open(path, "r", encoding="utf-8") as handle:
                 payload = json.load(handle)
             self.assertEqual(payload["version"], 4)
-            self.assertEqual(set(payload["pins"][0]), {"kind", "adapter_key", "process_name", "label"})
+            self.assertEqual(
+                set(payload["pins"][0]),
+                {"kind", "adapter_key", "process_name", "label", "window_class"},
+            )
             self.assertNotIn("hwnd", payload["pins"][0])
             self.assertNotIn("pid", payload["pins"][0])
             reloaded = PinnedTargetStore(path)
