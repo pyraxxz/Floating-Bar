@@ -18,8 +18,8 @@ from typing import Optional, Sequence
 
 _APPDATA = os.environ.get("APPDATA") or os.path.expanduser("~")
 _DEFAULT_PATH = os.path.join(_APPDATA, "FloatingBar", "pinned-targets.json")
-_SCHEMA_VERSION = 3
-_SUPPORTED_SCHEMA_VERSIONS = frozenset({1, 2, 3})
+_SCHEMA_VERSION = 4
+_SUPPORTED_SCHEMA_VERSIONS = frozenset({1, 2, 3, 4})
 
 
 @dataclass(frozen=True)
@@ -30,6 +30,7 @@ class PinnedTarget:
     label: str
     control_identity: tuple[str, ...] | None = None
     window_class: str | None = None
+    container_identity: tuple[str, ...] | None = None
 
     @property
     def valid(self) -> bool:
@@ -49,6 +50,7 @@ class PinnedTarget:
             self.label.casefold(),
             self.control_identity,
             self.window_class,
+            self.container_identity,
         )
 
     def to_dict(self) -> dict:
@@ -62,6 +64,8 @@ class PinnedTarget:
             payload["control_identity"] = list(self.control_identity)
         if self.window_class:
             payload["window_class"] = self.window_class
+        if self.container_identity:
+            payload["container_identity"] = list(self.container_identity)
         return payload
 
 
@@ -116,9 +120,13 @@ class PinnedTargetStore:
         process_name: str,
         label: str,
         control_identity: Optional[Sequence[str]] = None,
+        container_identity: Optional[Sequence[str]] = None,
     ) -> bool:
         identity = tuple(
             str(part).strip() for part in (control_identity or ()) if str(part).strip()
+        ) or None
+        container = tuple(
+            str(part).strip() for part in (container_identity or ()) if str(part).strip()
         ) or None
         return self._toggle(
             PinnedTarget(
@@ -127,6 +135,7 @@ class PinnedTargetStore:
                 process_name=str(process_name).casefold(),
                 label=str(label).strip(),
                 control_identity=identity,
+                container_identity=container,
             )
         )
 
@@ -178,6 +187,15 @@ class PinnedTargetStore:
                         else None
                     ),
                     window_class=str(raw.get("window_class", "")).strip() or None,
+                    container_identity=(
+                        tuple(
+                            str(part).strip()
+                            for part in raw.get("container_identity", ())
+                            if str(part).strip()
+                        ) or None
+                        if isinstance(raw.get("container_identity", ()), (list, tuple))
+                        else None
+                    ),
                 )
             except (TypeError, ValueError):
                 continue
