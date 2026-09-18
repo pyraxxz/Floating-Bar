@@ -88,6 +88,27 @@ class SelectionRaceTests(unittest.TestCase):
         window._background_typer.bind.assert_not_called()
         window._show_feedback.assert_called_once()
 
+
+    def test_background_selection_rejects_same_pid_after_process_restart(self):
+        window = self._window()
+        item = Mock(
+            hwnd=123,
+            pid=200,
+            process_name="discord.exe",
+            actionable=True,
+            window_class="DiscordMainWindow",
+            process_start=123,
+        )
+        with patch("floatingbar.bound_context_overlay.target_for_adapter", return_value=window._background_typer), \
+             patch("floatingbar.bound_context_overlay.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.bound_context_overlay.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.bound_context_overlay.winapi.get_process_creation_time", return_value=456):
+            window._select_background_window(item)
+        window._background_typer.bind.assert_not_called()
+        window._show_feedback.assert_called_once_with(
+            "That background app restarted before it could be selected."
+        )
+
     def test_background_selection_rejects_replaced_process_before_binding(self):
         window = self._window()
         item = Mock(
