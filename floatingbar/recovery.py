@@ -72,7 +72,7 @@ class ScopeGuardedRecoveryInjector(HardenedTelegramInjector):
                 return
             winapi.set_foreground_window(prev_hwnd)
         except Exception as exc:
-            trace.trace(f"recovery: foreground restore skipped safely: {exc}")
+            trace.trace_exception("recovery: foreground restore skipped safely", exc)
 
     def _submit_focus_steal(self, box, hwnd: int, primary_ctrl: bool,
                             restore_hwnd: int) -> bool:
@@ -121,7 +121,7 @@ class ScopeGuardedRecoveryInjector(HardenedTelegramInjector):
         except InjectionFailed:
             raise
         except Exception as exc:
-            trace.trace(f"scope-guarded focus-steal submit failed: {exc}")
+            trace.trace_exception("scope-guarded focus-steal submit failed", exc)
             return False
         finally:
             if prev:
@@ -209,7 +209,7 @@ class ScopeGuardedRecoveryInjector(HardenedTelegramInjector):
         except InjectionFailed:
             raise
         except Exception as exc:
-            trace.trace(f"scope-guarded clipboard recovery failed: {exc}")
+            trace.trace_exception("scope-guarded clipboard recovery failed", exc)
             return False
         finally:
             if prev:

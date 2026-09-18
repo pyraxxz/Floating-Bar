@@ -40,6 +40,17 @@ def reset_session(version: str) -> None:
         pass
 
 
+def exception_name(exc: BaseException) -> str:
+    """Return only an exception type name for content-free diagnostics."""
+    name = type(exc).__name__
+    return name if name.isidentifier() else "Exception"
+
+
+def trace_exception(stage: str, exc: BaseException) -> None:
+    """Trace an exception without recording its message text."""
+    trace(f"{stage}: exception={exception_name(exc)}")
+
+
 def trace(message: str) -> None:
     """Append one trace line. Best-effort: never raises into the caller."""
     try:

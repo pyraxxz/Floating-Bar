@@ -36,7 +36,7 @@ def enable_per_monitor_awareness() -> bool:
                 f"request (last_error={ctypes.get_last_error()})"
             )
     except Exception as exc:
-        trace.trace(f"DPI: modern awareness API unavailable: {exc}")
+        trace.trace_exception("DPI: modern awareness API unavailable", exc)
 
     try:
         shcore = ctypes.WinDLL("shcore", use_last_error=True)
@@ -55,6 +55,6 @@ def enable_per_monitor_awareness() -> bool:
                 return True
             trace.trace(f"DPI: Shcore SetProcessDpiAwareness returned {result:#x}")
     except Exception as exc:
-        trace.trace(f"DPI: legacy awareness API unavailable: {exc}")
+        trace.trace_exception("DPI: legacy awareness API unavailable", exc)
 
     return False
