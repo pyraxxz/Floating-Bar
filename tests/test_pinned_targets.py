@@ -146,7 +146,7 @@ class PinnedTargetStoreTests(unittest.TestCase):
         )
         renamed = type("Row", (), {
             "name": "renamed-general",
-            "control_identity": ("ListItem", "channel-42", "row", "uia"),
+            "control_identity": ("ListItem", "row", "uia"),
             "container_identity": None,
         })()
         self.assertTrue(pin.matches_conversation(renamed))
@@ -157,7 +157,7 @@ class PinnedTargetStoreTests(unittest.TestCase):
             adapter_key="discord",
             process_name="discord.exe",
             label="general",
-            control_identity=("ListItem", "channel-42", "row", "uia"),
+            control_identity=("ListItem", "row", "uia"),
         )
         changed = type("Row", (), {
             "name": "general",
