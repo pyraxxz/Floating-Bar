@@ -475,6 +475,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self._pending_chat = None
         if chat is None or self._sending:
             return
+        bind_attempted = False
         try:
             self.target.release()
             expected_class = str(getattr(self, "_background_window_class", "") or "").strip()
@@ -482,6 +483,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
                 current_class = str(winapi.get_window_class_name(chat.hwnd) or "").strip()
                 if current_class != expected_class:
                     raise RuntimeError("Telegram window changed before binding the selected chat")
+            bind_attempted = True
             selected = self.target.select_for_send(preferred_hwnd=chat.hwnd)
             if selected != chat.hwnd:
                 raise RuntimeError("Telegram selected a different window")
@@ -505,10 +507,11 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             if self._state != "bar":
                 self._show_bar()
         except Exception as exc:
-            try:
-                self.target.release()
-            except Exception:
-                pass
+            if bind_attempted:
+                try:
+                    self.target.release()
+                except Exception:
+                    pass
             trace.trace(f"telegram chat context recapture failed safely: {exc}")
             self._show_feedback("Telegram changed before the selected chat could be guarded.")
 
