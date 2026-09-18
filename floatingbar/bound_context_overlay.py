@@ -348,7 +348,8 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             if not winapi.user32.IsWindow(item.hwnd):
                 self._show_feedback("That background app is no longer available.")
                 return
-            expected_class = str(getattr(item, "window_class", "") or "").strip()
+            raw_class = getattr(item, "window_class", "")
+            expected_class = raw_class.strip() if isinstance(raw_class, str) else ""
             if expected_class:
                 current_class = str(winapi.get_window_class_name(item.hwnd) or "").strip()
                 if current_class != expected_class:
