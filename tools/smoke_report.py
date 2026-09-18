@@ -65,20 +65,15 @@ def _record_case_evidence(snapshot, tested_at: str) -> dict:
             }
             for monitor in snapshot.monitors
         ]
-        evidence["adapters"] = [
+        evidence["process_instances"] = [
             {
-                "key": str(adapter.key),
-                "observed_process_instances": [
-                    {
-                        "adapter_key": str(adapter.key),
-                        "process_name": str(name).casefold(),
-                        "process_start": int(start),
-                    }
-                    for name, start in adapter.observed_process_instances
-                    if isinstance(start, int) and not isinstance(start, bool) and int(start) > 0
-                ],
+                "adapter_key": str(adapter.key),
+                "process_name": str(name).casefold(),
+                "process_start": int(start),
             }
             for adapter in snapshot.adapters
+            for name, start in adapter.observed_process_instances
+            if isinstance(start, int) and not isinstance(start, bool) and int(start) > 0
         ]
     except Exception:
         # Keep the timestamp so a later release-gate check can distinguish
