@@ -24,6 +24,7 @@ The current implementation includes:
 * a global `Ctrl+Alt+Space` summon hotkey;
 * a lightweight Settings dialog for Windows startup and idle-collapse behavior;
 * an on-demand release update check that uses public version metadata only;
+* a Settings-controlled summon hotkey with a bounded set of safe combinations;
 * a first-run mini-tutorial and content-free background-target feedback;
 * machine-readable Windows smoke-test tooling and a 33-case declarative desktop smoke matrix.
 
