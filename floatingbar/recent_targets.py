@@ -25,6 +25,7 @@ class RecentTarget:
     scope: TargetScope
     runtime_id: tuple[int, ...] | None = None
     control_identity: tuple[str, ...] | None = None
+    window_class: str | None = None
     left: int = 0
     top: int = 0
     right: int = 0
@@ -85,6 +86,7 @@ class RecentTargetHistory:
         process_name: str,
         label: str,
         adapter_key: str,
+        window_class: str | None = None,
     ) -> RecentTarget:
         """Remember a successfully bound application target."""
         target = RecentTarget(
@@ -93,6 +95,7 @@ class RecentTargetHistory:
             process_name=str(process_name).casefold(),
             label=str(label or process_name or "Application"),
             scope=TargetScope(int(hwnd), int(pid)),
+            window_class=str(window_class or "").strip() or None,
         )
         return self._remember(target)
 
@@ -179,6 +182,11 @@ class RecentTargetHistory:
             process_name = image.rsplit("\\", 1)[-1].casefold() if image else ""
             if process_name != target.process_name:
                 return False
+            expected_class = str(target.window_class or "").strip()
+            if expected_class:
+                current_class = str(winapi.get_window_class_name(target.scope.hwnd) or "").strip()
+                if current_class != expected_class:
+                    return False
             spec = actionable_adapter_for_process(process_name)
             return bool(spec and spec.implemented and spec.key == target.adapter_key)
         except Exception:
