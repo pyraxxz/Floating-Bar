@@ -212,6 +212,42 @@ class RecentTargetHistoryTests(unittest.TestCase):
         self.assertEqual(target.bottom, 56)
         self.assertEqual(target.runtime_id, (1, 2, 3))
 
+    def test_live_conversation_revalidation_accepts_renamed_strongly_identified_row(self):
+        history = RecentTargetHistory()
+        conversation = SimpleNamespace(
+            hwnd=55, pid=555, name="Project Chat",
+            runtime_id=(1, 2, 3),
+            control_identity=("ListItem", "conversation"),
+            left=10, top=20, right=250, bottom=52,
+        )
+        target = history.record_conversation(
+            conversation,
+            adapter_key="slack",
+            process_name="slack.exe",
+        )
+
+        class User32:
+            @staticmethod
+            def IsWindow(hwnd):
+                return hwnd == 55
+
+        replacement = SimpleNamespace(
+            hwnd=55, pid=555, name="Renamed Project Chat",
+            runtime_id=(1, 2, 3),
+            control_identity=("ListItem", "conversation"),
+            left=10, top=20, right=250, bottom=52,
+        )
+        with patch("floatingbar.recent_targets.winapi.user32", User32()),              patch("floatingbar.recent_targets.winapi.get_window_pid", return_value=555),              patch("floatingbar.recent_targets.winapi.get_process_image_name", return_value=r"C:\slack.exe"),              patch(
+                 "floatingbar.recent_targets.actionable_adapter_for_process",
+                 return_value=SimpleNamespace(implemented=True, key="slack"),
+             ),              patch(
+                 "floatingbar.conversation_rows.enumerate_conversations",
+                 return_value=(replacement,),
+             ):
+            live = history.live_conversations()
+        self.assertEqual(live[0][1].name, "Renamed Project Chat")
+        self.assertEqual(history.items()[0], target)
+
     def test_live_conversation_revalidation_removes_replaced_row(self):
         history = RecentTargetHistory()
         conversation = SimpleNamespace(

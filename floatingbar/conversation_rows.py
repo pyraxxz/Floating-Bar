@@ -246,8 +246,6 @@ def refresh_conversation(item: ConversationItem) -> ConversationItem:
             raise RuntimeError("conversation row runtime identity is ambiguous")
         if identity_matches:
             fresh = identity_matches[0]
-            if fresh.name != item.name:
-                raise RuntimeError("conversation row identity changed")
             if item.control_identity is not None and fresh.control_identity != item.control_identity:
                 raise RuntimeError("conversation row control identity changed")
             if abs(fresh.left - item.left) + abs(fresh.top - item.top) > 24:
@@ -259,7 +257,7 @@ def refresh_conversation(item: ConversationItem) -> ConversationItem:
     if item.control_identity is not None:
         structural_matches = [
             row for row in current
-            if row.control_identity == item.control_identity and row.name == item.name
+            if row.control_identity == item.control_identity
         ]
         if item.container_identity is not None:
             structural_matches = [
@@ -278,7 +276,7 @@ def refresh_conversation(item: ConversationItem) -> ConversationItem:
     if item.container_identity is not None:
         structural_matches = [
             row for row in current
-            if row.container_identity == item.container_identity and row.name == item.name
+            if row.container_identity == item.container_identity
         ]
         if len(structural_matches) == 1:
             fresh = structural_matches[0]

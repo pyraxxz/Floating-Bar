@@ -114,6 +114,28 @@ class PinnedTargetStoreTests(unittest.TestCase):
                 payload = json.load(handle)
             self.assertEqual(payload["pins"][0]["container_identity"], list(identity))
 
+    def test_structural_conversation_pin_deduplicates_across_display_name_changes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = self._store(directory)
+            identity = ("ListItem", "channel-42", "row", "uia")
+            self.assertTrue(
+                store.toggle_conversation(
+                    adapter_key="discord",
+                    process_name="discord.exe",
+                    label="general",
+                    control_identity=identity,
+                )
+            )
+            self.assertFalse(
+                store.toggle_conversation(
+                    adapter_key="discord",
+                    process_name="discord.exe",
+                    label="general-renamed",
+                    control_identity=identity,
+                )
+            )
+            self.assertEqual(len(store), 0)
+
     def test_schema_one_conversation_pin_loads_without_structural_identity(self):
         with tempfile.TemporaryDirectory() as directory:
             path = os.path.join(directory, "pins.json")
