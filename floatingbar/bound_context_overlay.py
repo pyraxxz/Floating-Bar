@@ -328,6 +328,22 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         spec = actionable_adapter_for_process(item.process_name)
         if spec is None or not spec.implemented or not spec.supports_background_type:
             return
+        try:
+            if winapi.user32.IsWindow(item.hwnd) and winapi.get_window_pid(item.hwnd) != item.pid:
+                self._show_feedback("That background app changed before it could be selected.")
+                return
+            if not winapi.user32.IsWindow(item.hwnd):
+                self._show_feedback("That background app is no longer available.")
+                return
+            expected_class = str(getattr(item, "window_class", "") or "").strip()
+            if expected_class:
+                current_class = str(winapi.get_window_class_name(item.hwnd) or "").strip()
+                if current_class != expected_class:
+                    self._show_feedback("That background app changed before it could be selected.")
+                    return
+        except Exception:
+            self._show_feedback("That background app could not be verified safely.")
+            return
         self._advance_selection_generation()
         self._background_typer.release()
         self._background_typer = target_for_adapter(spec)
