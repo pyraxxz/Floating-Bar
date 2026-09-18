@@ -142,6 +142,38 @@ class SmokeReportTests(unittest.TestCase):
 
         self.assertIn("adapter registry: verification contract mismatch: example", errors)
 
+    def test_validate_report_rejects_detached_case_evidence(self):
+        report = build_report()
+        selected = report["cases"][0]
+        selected["result"] = RESULT_PASS
+        selected["tested_at"] = "2026-09-18T12:00:00Z"
+        selected["evidence"] = {
+            "recorded_at": "2026-09-18T12:01:00Z",
+            "process_instances": [],
+        }
+
+        errors = validate_report(report)
+
+        self.assertIn(
+            f"case evidence timestamp mismatch for {selected['case_id']}",
+            errors,
+        )
+
+    def test_validate_report_rejects_malformed_case_process_evidence(self):
+        report = build_report()
+        selected = report["cases"][0]
+        selected["evidence"] = {
+            "recorded_at": "2026-09-18T12:00:00Z",
+            "process_instances": [{"adapter_key": "telegram", "process_name": "telegram.exe", "process_start": 0}],
+        }
+
+        errors = validate_report(report)
+
+        self.assertIn(
+            f"process instance start missing for {selected['case_id']}",
+            errors,
+        )
+
     def test_summary_counts_results_without_reading_notes(self):
         report = build_report()
         report["cases"][0]["result"] = RESULT_PASS
