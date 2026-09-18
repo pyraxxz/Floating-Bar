@@ -14,7 +14,7 @@ This document records the current validation infrastructure on `main`. It is sep
 - Release-gate checks for a Windows environment snapshot, valid source commit ancestry, execution timestamps for every completed smoke case, and matching environment evidence for critical PASS cases.
 - Content-free Windows environment snapshots covering Windows build, Python version, architecture, monitor count, process DPI-awareness, per-monitor geometry/effective DPI, observed supported-app windows, observed executable file versions, and content-free process-instance identities (process name + process-start timestamp).
 - Adapter-registry consistency checks for duplicate keys, executable alias collisions, malformed aliases, unsupported capabilities, and inconsistent chat/type metadata.
-- Generic background-target leases can add a content-free process-start identity to HWND/PID validation, rejecting rare PID-reuse cases while degrading safely to the existing scope checks when the metadata cannot be queried.
+- Generic background-target leases, recent application targets, conversation rows, Telegram chat rows, retries, and the hover picker preserve content-free process-start identity alongside HWND/PID where available, rejecting same-PID process replacement before reuse.
 - Verification cannot claim `VERIFIED` solely from an observed clear: the exact pinned control is revalidated afterward, and chat targets additionally revalidate the selected conversation before publishing verified evidence.
 
 ## Real Windows validation still required
