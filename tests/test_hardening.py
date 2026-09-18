@@ -61,6 +61,18 @@ class HardeningTests(unittest.TestCase):
         ):
             self.assertEqual(injector._expected_target_pid(123, "test"), 10)
 
+
+    def test_expected_target_identity_uses_saved_process_instance(self):
+        target = Mock()
+        target.scope_matches.return_value = True
+        target.bound_process_start = 123
+        injector = HardenedTelegramInjector(target)
+        with patch("floatingbar.hardening.winapi.get_window_pid", return_value=10):
+            self.assertEqual(
+                injector._expected_target_identity(123, "test"),
+                (10, 123),
+            )
+
     def test_land_clicks_compose_before_posting_text_and_uses_focused_child(self):
         events = []
         target = Mock()
@@ -99,7 +111,7 @@ class HardeningTests(unittest.TestCase):
             with self.assertRaises(InjectionFailed) as raised:
                 injector._land_text(SimpleNamespace(), 123, "danger")
 
-        click.assert_called_once_with(123, 77, 88, expected_pid=10)
+        click.assert_called_once_with(123, 77, 88, expected_pid=10, expected_process_start=None)
         post_text.assert_not_called()
         self.assertIn("focused safely", str(raised.exception))
 
@@ -166,7 +178,7 @@ class HardeningTests(unittest.TestCase):
             result = injector._submit_invisible(object(), 123, False, "unknown")
 
         self.assertEqual(result, "posted-click (unverified-explicit-send)")
-        posted.assert_called_once_with(123, 20, 30, expected_pid=1)
+        posted.assert_called_once_with(123, 20, 30, expected_pid=1, expected_process_start=None)
 
     def test_unverified_voice_button_raises_and_never_clicks(self):
         target = Mock()
@@ -212,7 +224,7 @@ class HardeningTests(unittest.TestCase):
             result = injector._submit_invisible(box, 123, False, "compose")
 
         self.assertEqual(result, "posted-click (VERIFIED)")
-        posted.assert_called_once_with(123, 20, 30, expected_pid=1)
+        posted.assert_called_once_with(123, 20, 30, expected_pid=1, expected_process_start=None)
         self.assertGreaterEqual(sleeping.call_count, 1)
 
     def test_poll_compose_clear_returns_none_when_readback_is_unavailable(self):
