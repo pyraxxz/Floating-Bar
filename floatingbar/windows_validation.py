@@ -279,7 +279,10 @@ def capture_snapshot() -> WindowsValidationSnapshot:
     if sys.platform != "win32":
         raise RuntimeError("Windows validation is only supported on Windows")
 
-    release, version, service_pack = platform.win32_ver()
+    win32_info = tuple(platform.win32_ver() or ())
+    release = str(win32_info[0]) if len(win32_info) > 0 else ""
+    version = str(win32_info[1]) if len(win32_info) > 1 else ""
+    service_pack = str(win32_info[2]) if len(win32_info) > 2 else ""
     versions: dict[str, set[str]] = {}
     instances: dict[str, set[int]] = {}
     try:
