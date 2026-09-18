@@ -213,12 +213,12 @@ class TelegramChatPickerTests(unittest.TestCase):
 
     def test_select_chat_rejects_runtime_identity_change(self):
         chat = TelegramChatItem(100, 200, "Alice", 100, 200, 300, 260, False, (1, 2))
-        replacement = TelegramChatItem(100, 200, "Bob", 100, 200, 300, 260, False, (1, 2))
+        replacement = TelegramChatItem(100, 200, "Bob", 100, 200, 300, 260, False, (9, 9))
         with patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True), \
              patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
              patch("floatingbar.telegram_chats.enumerate_telegram_chats", return_value=(replacement,)), \
              patch("floatingbar.telegram_chats.winapi.post_click") as post_click:
-            with self.assertRaisesRegex(RuntimeError, "identity changed"):
+            with self.assertRaisesRegex(RuntimeError, "runtime identity disappeared"):
                 select_telegram_chat(chat)
         post_click.assert_not_called()
 

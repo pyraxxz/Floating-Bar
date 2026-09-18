@@ -199,8 +199,6 @@ def _refresh_selected_row(chat: TelegramChatItem) -> TelegramChatItem:
             raise RuntimeError("Telegram chat row runtime identity is ambiguous")
         if identity_matches:
             current = identity_matches[0]
-            if current.name != chat.name:
-                raise RuntimeError("Telegram chat row identity changed")
             if chat.control_identity is not None and current.control_identity != chat.control_identity:
                 raise RuntimeError("Telegram chat row control identity changed")
             if abs(current.left - chat.left) + abs(current.top - chat.top) > 24:
@@ -213,7 +211,7 @@ def _refresh_selected_row(chat: TelegramChatItem) -> TelegramChatItem:
         structural_matches = [
             row
             for row in current_rows
-            if row.control_identity == chat.control_identity and row.name == chat.name
+            if row.control_identity == chat.control_identity
         ]
         if chat.container_identity is not None:
             structural_matches = [
@@ -233,7 +231,7 @@ def _refresh_selected_row(chat: TelegramChatItem) -> TelegramChatItem:
         container_matches = [
             row
             for row in current_rows
-            if row.container_identity == chat.container_identity and row.name == chat.name
+            if row.container_identity == chat.container_identity
         ]
         if len(container_matches) == 1:
             current = container_matches[0]
@@ -280,11 +278,7 @@ def chat_identity_matches(chat: TelegramChatItem) -> bool:
         matches = [row for row in current_rows if row.runtime_id == chat.runtime_id]
         if len(matches) == 1:
             current = matches[0]
-            if current.name != chat.name:
-                return False
             if chat.control_identity is not None and current.control_identity != chat.control_identity:
-                return False
-            if chat.container_identity is not None and current.container_identity != chat.container_identity:
                 return False
             return bool(current.selected)
         if len(matches) > 1:
@@ -293,7 +287,7 @@ def chat_identity_matches(chat: TelegramChatItem) -> bool:
         matches = [
             row
             for row in current_rows
-            if row.control_identity == chat.control_identity and row.name == chat.name
+            if row.control_identity == chat.control_identity
         ]
         if chat.container_identity is not None:
             matches = [
@@ -309,7 +303,7 @@ def chat_identity_matches(chat: TelegramChatItem) -> bool:
         matches = [
             row
             for row in current_rows
-            if row.container_identity == chat.container_identity and row.name == chat.name
+            if row.container_identity == chat.container_identity
         ]
         if len(matches) == 1:
             return bool(matches[0].selected)
