@@ -322,6 +322,8 @@ def chat_identity_matches(chat: TelegramChatItem) -> bool:
             return False
         if chat.runtime_id is not None:
             return False
+    if chat.runtime_id is not None:
+        return False
     candidates = [
         row
         for row in current_rows
