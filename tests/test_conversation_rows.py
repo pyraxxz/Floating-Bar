@@ -114,7 +114,7 @@ class ConversationRowTests(unittest.TestCase):
             True, (1, 10), ("ListItem", "row", "uia"),
             process_start=123,
         )
-        with patch("floatingbar.conversation_rows.refresh_conversation", return_value=fresh),              patch("floatingbar.conversation_rows._screen_to_client", return_value=(220, 134)),              patch("floatingbar.conversation_rows.winapi.post_click") as post_click:
+        with patch("floatingbar.conversation_rows.winapi.user32.IsWindow", return_value=True),              patch("floatingbar.conversation_rows.refresh_conversation", return_value=fresh),              patch("floatingbar.conversation_rows._screen_to_client", return_value=(220, 134)),              patch("floatingbar.conversation_rows.winapi.post_click") as post_click:
             confirmed = select_conversation(item)
         self.assertEqual(confirmed, fresh)
         post_click.assert_called_once_with(
