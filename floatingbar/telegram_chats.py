@@ -35,8 +35,8 @@ class TelegramChatItem:
     selected: bool = False
     runtime_id: tuple[int, ...] | None = None
     control_identity: tuple[str, ...] | None = None
-    container_identity: tuple[str, ...] | None = None
     attention: ConversationAttention = ConversationAttention()
+    container_identity: tuple[str, ...] | None = None
 
     @property
     def center(self) -> tuple[int, int]:
