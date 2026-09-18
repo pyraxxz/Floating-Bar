@@ -236,8 +236,15 @@ class RecentTargetHistory:
             rows = enumerate_conversations(target.scope.hwnd, limit=32)
             if target.runtime_id is not None:
                 matches = [row for row in rows if row.runtime_id == target.runtime_id]
-                if len(matches) == 1 and matches[0].name == target.label:
-                    return matches[0]
+                if len(matches) == 1:
+                    row = matches[0]
+                    if row.name != target.label:
+                        return None
+                    if target.control_identity is not None and row.control_identity != target.control_identity:
+                        return None
+                    if target.container_identity is not None and row.container_identity != target.container_identity:
+                        return None
+                    return row
                 return None
             if target.control_identity is not None:
                 matches = [
