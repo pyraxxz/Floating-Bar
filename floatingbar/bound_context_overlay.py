@@ -420,7 +420,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             return
         try:
             spec = actionable_adapter_for_process(self._background_process_name)
-            expected_class = str(getattr(self, "_background_window_class", "") or "").strip()
+            expected_class = str(self.__dict__.get("_background_window_class", "") or "").strip()
             if expected_class:
                 current_class = str(winapi.get_window_class_name(conversation.hwnd) or "").strip()
                 if current_class != expected_class:
