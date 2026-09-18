@@ -94,6 +94,7 @@ class RecentTargetHistoryTests(unittest.TestCase):
             name="Project Chat",
             runtime_id=(1, 2, 3),
             control_identity=("ListItem", "conversation"),
+            container_identity=("ancestor1", "Pane", "workspace", "uia"),
             left=10,
             top=20,
             right=250,
@@ -111,6 +112,7 @@ class RecentTargetHistoryTests(unittest.TestCase):
         self.assertEqual(target.scope, TargetScope(55, 555))
         self.assertEqual(target.runtime_id, (1, 2, 3))
         self.assertEqual(target.control_identity, ("ListItem", "conversation"))
+        self.assertEqual(target.container_identity, ("ancestor1", "Pane", "workspace", "uia"))
         self.assertEqual(target.left, 10)
         self.assertEqual(target.bottom, 52)
 
@@ -122,6 +124,7 @@ class RecentTargetHistoryTests(unittest.TestCase):
             name="Project Chat",
             runtime_id=(1, 2, 3),
             control_identity=("ListItem", "conversation"),
+            container_identity=("ancestor1", "Pane", "workspace", "uia"),
             left=10,
             top=20,
             right=250,
@@ -133,6 +136,7 @@ class RecentTargetHistoryTests(unittest.TestCase):
             name="Project Chat",
             runtime_id=(1, 2, 3),
             control_identity=("ListItem", "conversation"),
+            container_identity=("ancestor1", "Pane", "workspace", "uia"),
             left=14,
             top=24,
             right=254,
