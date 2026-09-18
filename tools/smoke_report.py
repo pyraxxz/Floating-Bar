@@ -8,8 +8,10 @@ Run from the repository root on Windows:
 
 The initializer combines the content-free Windows environment snapshot with
 the declarative smoke matrix. Use --record to stamp a completed case without
-hand-editing timestamps. It never reads or stores window titles,
-conversation names, message bodies, input values, or clipboard contents.
+hand-editing timestamps; on Windows, --record also captures a fresh,
+content-free case-local environment snapshot for release-gate evidence. It
+never reads or stores window titles, conversation names, message bodies, input
+values, or clipboard contents.
 """
 
 from __future__ import annotations
