@@ -145,7 +145,7 @@ class SelectionRaceTests(unittest.TestCase):
         window.target.release = Mock()
         window.target.select_for_send.side_effect = RuntimeError("scope changed")
         window._finish_telegram_chat_selection(window._selection_generation_value())
-        window.target.release.assert_called_once()
+        self.assertEqual(window.target.release.call_count, 2)
 
     def test_stale_generic_selection_callback_cannot_bind_newer_conversation(self):
         window = self._window()
