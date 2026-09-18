@@ -31,7 +31,7 @@ class PinnedTargetStoreTests(unittest.TestCase):
             path = os.path.join(directory, "pins.json")
             with open(path, "r", encoding="utf-8") as handle:
                 payload = json.load(handle)
-            self.assertEqual(payload["version"], 4)
+            self.assertEqual(payload["version"], 5)
             by_kind = {item["kind"]: item for item in payload["pins"]}
             self.assertEqual(
                 set(by_kind["application"]),
@@ -80,7 +80,7 @@ class PinnedTargetStoreTests(unittest.TestCase):
     def test_conversation_pin_round_trips_structural_identity(self):
         with tempfile.TemporaryDirectory() as directory:
             store = self._store(directory)
-            identity = ("ListItem", "channel-42", "row", "uia")
+            identity = ("ListItem", "row", "uia")
             self.assertTrue(
                 store.toggle_conversation(
                     adapter_key="discord",
@@ -185,6 +185,35 @@ class PinnedTargetStoreTests(unittest.TestCase):
         })()
         self.assertTrue(pin.matches_conversation(same))
         self.assertFalse(pin.matches_conversation(renamed))
+
+    def test_schema_four_conversation_pin_drops_legacy_structural_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "pins.json")
+            with open(path, "w", encoding="utf-8") as handle:
+                json.dump(
+                    {
+                        "version": 4,
+                        "pins": [
+                            {
+                                "kind": "conversation",
+                                "adapter_key": "discord",
+                                "process_name": "discord.exe",
+                                "label": "general",
+                                "control_identity": ["ListItem", "general", "row", "uia"],
+                                "container_identity": ["ancestor1", "Pane", "general", "uia"],
+                            }
+                        ],
+                    },
+                    handle,
+                )
+            store = PinnedTargetStore(path)
+            self.assertIsNone(store.items()[0].control_identity)
+            self.assertIsNone(store.items()[0].container_identity)
+            with open(path, "r", encoding="utf-8") as handle:
+                rewritten = json.load(handle)
+            self.assertEqual(rewritten["version"], 5)
+            self.assertNotIn("control_identity", rewritten["pins"][0])
+            self.assertNotIn("container_identity", rewritten["pins"][0])
 
     def test_schema_one_conversation_pin_loads_without_structural_identity(self):
         with tempfile.TemporaryDirectory() as directory:
