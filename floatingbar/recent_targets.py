@@ -238,8 +238,7 @@ class RecentTargetHistory:
                 matches = [row for row in rows if row.runtime_id == target.runtime_id]
                 if len(matches) == 1 and matches[0].name == target.label:
                     return matches[0]
-                if matches:
-                    return None
+                return None
             if target.control_identity is not None:
                 matches = [
                     row
@@ -253,8 +252,7 @@ class RecentTargetHistory:
                     ]
                 if len(matches) == 1:
                     return matches[0]
-                if len(matches) > 1:
-                    return None
+                return None
             elif target.container_identity is not None:
                 matches = [
                     row for row in rows
@@ -262,8 +260,9 @@ class RecentTargetHistory:
                 ]
                 if len(matches) == 1:
                     return matches[0]
-                if len(matches) > 1:
-                    return None
+                return None
+            if target.control_identity is not None or target.container_identity is not None:
+                return None
             candidates = [row for row in rows if row.name == target.label]
             if len(candidates) != 1:
                 return None
