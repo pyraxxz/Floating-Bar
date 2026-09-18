@@ -39,12 +39,11 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         )
         self.assertNotIn("git merge-base --is-ancestor", workflow)
 
-    def test_release_workflow_keeps_release_source_ancestry_guard(self):
+    def test_release_workflow_keeps_release_source_identity_fields(self):
         workflow = (
             REPO_ROOT / ".github" / "workflows" / "build-exe.yml"
         ).read_text(encoding="utf-8")
 
-        self.assertIn("git merge-base --is-ancestor", workflow)
         self.assertIn("$sourceCommit", workflow)
         self.assertIn("$env:EXPECTED_SHA", workflow)
 
