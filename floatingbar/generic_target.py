@@ -84,7 +84,7 @@ class BackgroundTypingTarget:
                 return False
             return winapi.get_window_pid(scope.hwnd) == scope.pid
         except Exception as exc:
-            trace.trace(f"background bind liveness check failed safely: {exc}")
+            trace.trace_exception("background bind liveness check failed safely", exc)
             return False
 
     def bind_adapter(self, spec) -> None:
