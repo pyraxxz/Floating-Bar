@@ -31,6 +31,7 @@ class RecentTarget:
     top: int = 0
     right: int = 0
     bottom: int = 0
+    process_start: int | None = None
 
     @property
     def valid(self) -> bool:
@@ -115,6 +116,11 @@ class RecentTargetHistory:
             return False
         if int(getattr(left, "pid", 0) or 0) != int(getattr(right, "pid", 0) or 0):
             return False
+        left_process = getattr(left, "process_start", None)
+        right_process = getattr(right, "process_start", None)
+        if left_process is not None or right_process is not None:
+            if left_process != right_process:
+                return False
         left_runtime = getattr(left, "runtime_id", None)
         right_runtime = getattr(right, "runtime_id", None)
         if left_runtime is not None or right_runtime is not None:
@@ -163,6 +169,7 @@ class RecentTargetHistory:
             label=str(getattr(conversation, "name", "Conversation") or "Conversation"),
             scope=TargetScope(int(conversation.hwnd), int(conversation.pid)),
             runtime_id=getattr(conversation, "runtime_id", None),
+            process_start=getattr(conversation, "process_start", None),
             control_identity=getattr(conversation, "control_identity", None),
             container_identity=getattr(conversation, "container_identity", None),
             left=int(getattr(conversation, "left", 0)),
@@ -235,6 +242,13 @@ class RecentTargetHistory:
                 return None
             if winapi.get_window_pid(target.scope.hwnd) != target.scope.pid:
                 return None
+            if target.process_start is not None:
+                try:
+                    current_process_start = winapi.get_process_creation_time(target.scope.pid)
+                except Exception:
+                    current_process_start = None
+                if current_process_start is None or current_process_start != target.process_start:
+                    return None
             process = self._process_name_for_pid(target.scope.pid)
             if process != target.process_name:
                 return None

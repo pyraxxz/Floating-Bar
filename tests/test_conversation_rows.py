@@ -82,6 +82,49 @@ class ConversationRowTests(unittest.TestCase):
         self.assertIsNotNone(rows[0].control_identity)
         self.assertEqual(rows[0].attention.state, AttentionState.SELECTED)
 
+
+    def test_enumeration_captures_process_instance_identity(self):
+        window = Mock()
+        window.rectangle.return_value = _Rect(0, 0, 1000, 900)
+        window.descendants.side_effect = [[
+            _Item(_Rect(20, 100, 420, 160), "Alice", True, (1, 10)),
+        ], []]
+        with self._app_patch(window),              patch("floatingbar.conversation_rows.winapi.get_window_pid", return_value=200),              patch("floatingbar.conversation_rows.winapi.get_process_creation_time", return_value=123),              patch("floatingbar.conversation_rows.winapi.user32.IsWindow", return_value=True):
+            rows = enumerate_conversations(123)
+        self.assertEqual(rows[0].process_start, 123)
+
+    def test_selection_rejects_same_pid_after_process_restart(self):
+        item = ConversationItem(
+            123, 200, "Alice", 20, 100, 420, 160,
+            process_start=123,
+        )
+        with patch("floatingbar.conversation_rows.winapi.get_window_pid", return_value=200),              patch("floatingbar.conversation_rows.winapi.get_process_creation_time", return_value=456),              patch("floatingbar.conversation_rows.winapi.user32.IsWindow", return_value=True):
+            with self.assertRaisesRegex(RuntimeError, "process instance changed"):
+                from floatingbar.conversation_rows import _refresh_row
+                _refresh_row(item)
+
+    def test_selection_forwards_process_instance_identity_to_click(self):
+        item = ConversationItem(
+            123, 200, "Alice", 20, 100, 420, 160,
+            True, (1, 10), ("ListItem", "row", "uia"),
+            process_start=123,
+        )
+        fresh = ConversationItem(
+            123, 200, "Alice", 24, 104, 424, 164,
+            True, (1, 10), ("ListItem", "row", "uia"),
+            process_start=123,
+        )
+        with patch("floatingbar.conversation_rows.winapi.user32.IsWindow", return_value=True),              patch("floatingbar.conversation_rows.refresh_conversation", return_value=fresh),              patch("floatingbar.conversation_rows._screen_to_client", return_value=(220, 134)),              patch("floatingbar.conversation_rows.winapi.post_click") as post_click:
+            confirmed = select_conversation(item)
+        self.assertEqual(confirmed, fresh)
+        post_click.assert_called_once_with(
+            123,
+            220,
+            134,
+            expected_pid=200,
+            expected_process_start=123,
+        )
+
     def test_enumeration_excludes_automation_id_from_control_identity(self):
         window = Mock()
         window.rectangle.return_value = _Rect(0, 0, 1000, 900)

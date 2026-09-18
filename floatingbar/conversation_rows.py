@@ -34,6 +34,7 @@ class ConversationItem:
     # Teams/Discord/Slack-style nested navigation panes when runtime IDs are
     # unavailable or recycled.
     container_identity: tuple[str, ...] | None = None
+    process_start: int | None = None
 
     @property
     def center(self) -> tuple[int, int]:
@@ -129,6 +130,10 @@ def enumerate_conversations(
         pid = winapi.get_window_pid(hwnd)
         if not pid or not winapi.user32.IsWindow(hwnd):
             return ()
+        try:
+            process_start = winapi.get_process_creation_time(pid)
+        except Exception:
+            process_start = None
         app = Application(backend="uia").connect(handle=hwnd)
         window = app.window(handle=hwnd).wrapper_object()
         window_rect = window.rectangle()
@@ -175,12 +180,34 @@ def enumerate_conversations(
                         control_identity=structural_control_identity,
                         attention=attention,
                         container_identity=container_identity,
+                        process_start=process_start,
                     )
                 )
         rows.sort(key=_row_sort_key)
         return tuple(rows[:limit])
     except Exception:
         return ()
+
+
+def _same_process_instance(expected: int | None, actual: int | None) -> bool:
+    """Match a saved process-start identity when both sides are observable."""
+    if expected is None:
+        return True
+    return actual is not None and int(actual) == int(expected)
+
+
+def _post_conversation_click(item: ConversationItem, x: int, y: int) -> None:
+    """Post a row click with the saved process instance when available."""
+    if item.process_start is None:
+        winapi.post_click(item.hwnd, x, y, expected_pid=item.pid)
+        return
+    winapi.post_click(
+        item.hwnd,
+        x,
+        y,
+        expected_pid=item.pid,
+        expected_process_start=item.process_start,
+    )
 
 
 def _screen_to_client(hwnd: int, x: int, y: int) -> tuple[int, int]:
@@ -197,6 +224,10 @@ def refresh_conversation(item: ConversationItem) -> ConversationItem:
     """Revalidate one conversation row without selecting it or reading content."""
     if winapi.get_window_pid(item.hwnd) != item.pid:
         raise RuntimeError("conversation window process changed")
+    if item.process_start is not None:
+        current_process_start = winapi.get_process_creation_time(item.pid)
+        if not _same_process_instance(item.process_start, current_process_start):
+            raise RuntimeError("conversation window process instance changed")
     current = enumerate_conversations(item.hwnd, limit=32)
 
     if item.runtime_id is not None:
@@ -285,7 +316,7 @@ def select_conversation(item: ConversationItem) -> ConversationItem:
         raise RuntimeError("conversation window no longer exists")
     fresh = refresh_conversation(item)
     client_x, client_y = _screen_to_client(item.hwnd, *fresh.center)
-    winapi.post_click(item.hwnd, client_x, client_y, expected_pid=item.pid)
+    _post_conversation_click(fresh, client_x, client_y)
     confirmed = _confirm_selected(fresh)
     _remember_selected_conversation(confirmed)
     return confirmed
