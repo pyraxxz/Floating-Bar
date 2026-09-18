@@ -150,17 +150,30 @@ class BackgroundTypingTarget:
         scope = self._scope
         if scope is None:
             return False
+        if not self._bind_verified:
+            # A failed bind must be revalidated before this lease can become
+            # usable again. This preserves fail-closed behavior during
+            # transient window/process replacement races.
+            self._bind_verified = self._verify_bound_scope(
+                scope,
+                expected_process_start=self._bound_process_start,
+            )
+            if not self._bind_verified:
+                return False
         if not winapi.user32.IsWindow(scope.hwnd):
             return False
         if not winapi.user32.IsWindowVisible(scope.hwnd):
             return False
         if winapi.get_window_pid(scope.hwnd) != scope.pid:
+            self._bind_verified = False
             return False
         if self._bound_process_start is not None:
             current_process_start = winapi.get_process_creation_time(scope.pid)
             if current_process_start is None:
+                self._bind_verified = False
                 return False
             if current_process_start != self._bound_process_start:
+                self._bind_verified = False
                 return False
         return True
 
