@@ -195,6 +195,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
                     adapter_key=spec.key,
                     recent=True,
                     window_class=str(target.window_class or ""),
+                    process_start=target.process_start,
                 )
             )
         return tuple(items)
