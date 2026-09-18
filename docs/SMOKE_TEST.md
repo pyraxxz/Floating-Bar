@@ -46,6 +46,8 @@ A safety-critical failure while re-inspecting an anchor is **not** treated as de
 
 The command must not change foreground focus, type, click, or touch the clipboard.
 
+When recording a completed smoke case with `python tools/smoke_report.py --record ...`, the Windows runner captures a fresh content-free evidence snapshot at the same timestamp as the case result. That snapshot contains only process-instance identities and monitor geometry; it never stores window titles, conversation names, message bodies, input values, or clipboard content.
+
 ## 2. Basic invisible send — Telegram
 
 Open Telegram to a harmless test chat. Click the Floating Bar orb, enter a short test message, and press Enter.
