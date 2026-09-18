@@ -307,3 +307,6 @@ continues on `main` without public version bumps for individual fixes.
 The next public release will be cut only after a meaningful milestone is
 complete and the accumulated Windows regression suite plus the applicable
 real-desktop smoke tests pass.
+
+
+The installer also copies the bundled uninstaller into the install directory when both scripts are distributed together, so normal uninstall does not depend on the original download directory.
