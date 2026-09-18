@@ -60,6 +60,36 @@ jobs:
           "sha=$sha" >> $env:GITHUB_OUTPUT
           Write-Host "Release workspace locked to commit $sha"
 
+      - name: Require successful main Windows CI for exact release source
+        uses: actions/github-script@v9
+        env:
+          EXPECTED_SHA: ${{ steps.source.outputs.sha }}
+        with:
+          script: |
+            const expectedSha = process.env.EXPECTED_SHA;
+            const { owner, repo } = context.repo;
+            const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
+              owner,
+              repo,
+              workflow_id: 'ci.yml',
+              head_sha: expectedSha,
+              status: 'success',
+              per_page: 100,
+            });
+            const matching = runs.find((run) =>
+              run.conclusion === 'success' &&
+              run.event === 'push' &&
+              run.head_branch === 'main' &&
+              run.head_sha === expectedSha
+            );
+            if (!matching) {
+              throw new Error(
+                `No successful main push Windows CI run was found for release source ${expectedSha}.`
+              );
+            }
+            core.info(
+              `Verified Windows CI run #${matching.run_number} (${matching.id}) for main source ${expectedSha}.`
+            );
       - name: Check tag, source commit, and package version
         id: release
         uses: actions/github-script@v9
