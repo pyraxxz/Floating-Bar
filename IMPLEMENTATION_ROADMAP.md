@@ -232,7 +232,7 @@ Every adapter should eventually produce one of:
 
 - [x] Content-free Windows environment snapshot tooling, including per-monitor geometry/effective-DPI evidence
 - [x] Declarative smoke matrix covering environment, fidelity, picker, Telegram, chat, terminal, and privacy cases
-- [x] Machine-readable smoke report generation and validation
+- [x] Machine-readable smoke report generation, validation, and critical-case environment evidence checks
 - [x] Practical operator checklist for executing the real Windows smoke matrix
 - [ ] Windows 10 real desktop smoke tests
 - [ ] Windows 11 real desktop smoke tests
