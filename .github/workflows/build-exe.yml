@@ -163,11 +163,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "The smoke report source commit $sourceCommit is not present in the release workspace."
           }
-          git merge-base --is-ancestor $sourceCommit $env:EXPECTED_SHA
-          if ($LASTEXITCODE -ne 0) {
-            throw "The smoke report was generated from $sourceCommit, which is not an ancestor of the tagged release source $env:EXPECTED_SHA."
+          if ($sourceCommit.ToLowerInvariant() -ne $env:EXPECTED_SHA.ToLowerInvariant()) {
+            throw "The smoke report was generated from $sourceCommit, but the tagged release source is $env:EXPECTED_SHA."
           }
-          Write-Host "Smoke report source $sourceCommit is an ancestor of release source $env:EXPECTED_SHA"
+          Write-Host "Smoke report source exactly matches release source $env:EXPECTED_SHA"
 
       - name: Set up Python
         if: steps.release.outputs.publish == 'true'
