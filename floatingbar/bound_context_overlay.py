@@ -336,6 +336,11 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self._generic_retry_window_class = ""
         self._pending_chat = None
         self._pending_conversation = None
+        self._background_process_name = ""
+        self._background_adapter_key = ""
+        self._work_hwnd = 0
+        self._generic_attempt_id = 0
+        self._update_status()
         try:
             if winapi.user32.IsWindow(item.hwnd) and winapi.get_window_pid(item.hwnd) != item.pid:
                 self._show_feedback("That background app changed before it could be selected.")
