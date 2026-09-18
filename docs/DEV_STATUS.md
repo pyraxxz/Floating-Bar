@@ -40,7 +40,7 @@ The orb now has an on-demand release update check. It is opt-in from the menu, d
 Packaging now includes a clean PowerShell install/upgrade/uninstall path. The installed executable lives under %LOCALAPPDATA%\\FloatingBar, while user settings remain under %APPDATA%\\FloatingBar and survive normal upgrades.
 
 
-A lightweight Settings dialog now exposes per-user Windows startup and the idle-collapse interval. These preferences remain separate from target discovery and are stored without any window, conversation, message, or UI Automation content.
+A lightweight Settings dialog now exposes per-user Windows startup, the idle-collapse interval, and a bounded summon-hotkey choice that applies after restart. These preferences remain separate from target discovery and are stored without any window, conversation, message, or UI Automation content.
 
 ## Next engineering target
 
