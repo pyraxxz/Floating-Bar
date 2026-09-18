@@ -28,6 +28,43 @@ class BoundTargetTests(unittest.TestCase):
             self.assertTrue(target.is_available())
             self.assertEqual(target.scope(), TargetScope(100, 7))
 
+
+    def test_preferred_selection_captures_process_instance_identity(self):
+        inner = self._inner()
+        target = BoundTelegramTarget(inner)
+        with patch("floatingbar.bound_target.winapi.user32.IsWindow", return_value=True),              patch("floatingbar.bound_target.winapi.get_window_pid", return_value=7),              patch("floatingbar.bound_target.winapi.get_process_creation_time", return_value=123):
+            selected = target.select_for_send(preferred_hwnd=100)
+            self.assertEqual(selected, 100)
+            self.assertEqual(target.bound_process_start, 123)
+
+    def test_bound_target_rejects_same_pid_after_process_restart(self):
+        inner = self._inner()
+        target = BoundTelegramTarget(inner)
+        with patch("floatingbar.bound_target.winapi.user32.IsWindow", return_value=True),              patch("floatingbar.bound_target.winapi.get_window_pid", return_value=7),              patch("floatingbar.bound_target.winapi.get_process_creation_time", return_value=123):
+            self.assertEqual(target.select_for_send(preferred_hwnd=100), 100)
+
+        with patch("floatingbar.bound_target.winapi.user32.IsWindow", return_value=True),              patch("floatingbar.bound_target.winapi.get_window_pid", return_value=7),              patch("floatingbar.bound_target.winapi.get_process_creation_time", return_value=456):
+            self.assertFalse(target.is_available())
+            self.assertEqual(target.scope(), TargetScope(0, 0))
+            with self.assertRaises(TelegramNotFound):
+                target.compose_box()
+
+    def test_bound_target_rejects_unreadable_process_instance(self):
+        inner = self._inner()
+        target = BoundTelegramTarget(inner)
+        with patch("floatingbar.bound_target.winapi.user32.IsWindow", return_value=True),              patch("floatingbar.bound_target.winapi.get_window_pid", return_value=7),              patch("floatingbar.bound_target.winapi.get_process_creation_time", return_value=123):
+            self.assertEqual(target.select_for_send(preferred_hwnd=100), 100)
+
+        with patch("floatingbar.bound_target.winapi.user32.IsWindow", return_value=True),              patch("floatingbar.bound_target.winapi.get_window_pid", return_value=7),              patch("floatingbar.bound_target.winapi.get_process_creation_time", return_value=None):
+            self.assertFalse(target.is_available())
+
+    def test_release_clears_bound_process_instance_identity(self):
+        target = BoundTelegramTarget(self._inner())
+        target._bound_scope = TargetScope(100, 7)
+        target._bound_process_start = 123
+        target.release()
+        self.assertIsNone(target.bound_process_start)
+
     def test_preferred_selection_rejects_silent_retarget(self):
         inner = self._inner()
         inner.select_for_send.return_value = 200
