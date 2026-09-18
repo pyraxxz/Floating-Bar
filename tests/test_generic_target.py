@@ -164,8 +164,8 @@ class BackgroundTypingTargetTests(unittest.TestCase):
             result = self.target.send("hello")
 
         self.assertEqual(result, "posted-enter (unverified)")
-        post_text.assert_called_once_with(300, "hello")
-        post_enter.assert_called_once_with(300, target=300)
+        post_text.assert_called_once_with(300, "hello", expected_pid=200)
+        post_enter.assert_called_once_with(300, target=300, expected_pid=200)
         self.assertIsNotNone(self.target.last_post_send_check)
         self.assertTrue(self.target.last_post_send_check.healthy)
 
@@ -179,8 +179,8 @@ class BackgroundTypingTargetTests(unittest.TestCase):
             result = self.target.send("hello")
 
         self.assertEqual(result, "posted-enter (verification-unavailable)")
-        post_text.assert_called_once_with(300, "hello")
-        post_enter.assert_called_once_with(300, target=300)
+        post_text.assert_called_once_with(300, "hello", expected_pid=200)
+        post_enter.assert_called_once_with(300, target=300, expected_pid=200)
         self.assertIsNotNone(self.target.last_post_send_check)
         self.assertFalse(self.target.last_post_send_check.healthy)
         self.assertEqual(self.target.last_post_send_check.reason, "scope-changed")
@@ -199,8 +199,8 @@ class BackgroundTypingTargetTests(unittest.TestCase):
             result = self.target.send("hello")
 
         self.assertEqual(result, "posted-enter (unverified)")
-        post_text.assert_called_once_with(301, "hello")
-        post_enter.assert_called_once_with(301, target=301)
+        post_text.assert_called_once_with(301, "hello", expected_pid=200)
+        post_enter.assert_called_once_with(301, target=301, expected_pid=200)
         self.assertEqual(self.target.pinned_hwnd, 0)
         self.assertIsNotNone(self.target.last_post_send_check)
 
@@ -248,8 +248,8 @@ class BackgroundTypingTargetTests(unittest.TestCase):
             self.target.pin_best_input()
             result = self.target.send("hello")
         self.assertEqual(result, "posted-enter (unverified)")
-        post_text.assert_called_once_with(301, "hello")
-        post_enter.assert_called_once_with(301, target=301)
+        post_text.assert_called_once_with(301, "hello", expected_pid=200)
+        post_enter.assert_called_once_with(301, target=301, expected_pid=200)
 
     def test_pinned_child_must_still_exist_in_structural_inventory(self):
         self.target._pinned_hwnd = 301
