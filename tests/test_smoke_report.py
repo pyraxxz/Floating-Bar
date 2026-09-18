@@ -40,6 +40,10 @@ class SmokeReportTests(unittest.TestCase):
                 {"key": "terminal", "open_window_count": 1, "observed_processes": ["windowsterminal.exe", "windowsterminalpreview.exe", "conhost.exe"], "observed_process_instances": [{"process_name": "windowsterminal.exe", "process_start": 1002}]},
                 {"key": "powershell", "open_window_count": 1, "observed_processes": ["pwsh.exe"], "observed_process_instances": [{"process_name": "pwsh.exe", "process_start": 1003}]},
                 {"key": "cmd", "open_window_count": 1, "observed_processes": ["cmd.exe"], "observed_process_instances": [{"process_name": "cmd.exe", "process_start": 1004}]},
+                {"key": "whatsapp", "open_window_count": 1, "observed_processes": ["whatsapp.exe"], "observed_process_instances": [{"process_name": "whatsapp.exe", "process_start": 1005}]},
+                {"key": "discord", "open_window_count": 1, "observed_processes": ["discord.exe"], "observed_process_instances": [{"process_name": "discord.exe", "process_start": 1006}]},
+                {"key": "slack", "open_window_count": 1, "observed_processes": ["slack.exe"], "observed_process_instances": [{"process_name": "slack.exe", "process_start": 1007}]},
+                {"key": "teams", "open_window_count": 1, "observed_processes": ["msteams.exe"], "observed_process_instances": [{"process_name": "msteams.exe", "process_start": 1008}]},
             ],
         }
 
@@ -104,6 +108,48 @@ class SmokeReportTests(unittest.TestCase):
         )
         self.assertEqual(validate_report(report), ())
 
+
+    def test_critical_telegram_pass_requires_process_instance_evidence(self):
+        report = build_report(environment={
+            "adapters": [
+                {
+                    "key": "telegram",
+                    "open_window_count": 1,
+                    "observed_processes": ["telegram.exe"],
+                    "observed_process_instances": [],
+                },
+            ]
+        })
+        for item in report["cases"]:
+            if item["case_id"] == "telegram.send":
+                item["result"] = RESULT_PASS
+        errors = environment_case_errors(report)
+        self.assertIn(
+            "environment process-instance evidence missing for telegram.send (telegram)",
+            errors,
+        )
+
+    def test_critical_telegram_pass_accepts_process_instance_evidence(self):
+        report = build_report(environment={
+            "adapters": [
+                {
+                    "key": "telegram",
+                    "open_window_count": 1,
+                    "observed_processes": ["telegram.exe"],
+                    "observed_process_instances": [
+                        {"process_name": "telegram.exe", "process_start": 123}
+                    ],
+                },
+            ]
+        })
+        for item in report["cases"]:
+            if item["case_id"] == "telegram.send":
+                item["result"] = RESULT_PASS
+        errors = environment_case_errors(report)
+        self.assertNotIn(
+            "environment process-instance evidence missing for telegram.send (telegram)",
+            errors,
+        )
 
     def test_restart_pass_requires_process_instance_evidence(self):
         report = build_report(environment={

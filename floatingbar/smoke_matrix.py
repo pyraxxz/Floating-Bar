@@ -269,6 +269,25 @@ def environment_case_errors(report: Mapping[str, object]) -> tuple[str, ...]:
         "cmd": {"cmd"},
         "powershell": {"powershell"},
     }
+    critical_app_process_requirements = {
+        "telegram.send": {"telegram": {"telegram.exe"}},
+        "telegram.multiwindow": {"telegram": {"telegram.exe"}},
+        "telegram.context": {"telegram": {"telegram.exe"}},
+        "telegram.unverified": {"telegram": {"telegram.exe"}},
+        "telegram.retry": {"telegram": {"telegram.exe"}},
+        "chat.whatsapp": {"whatsapp": {"whatsapp.exe"}},
+        "chat.discord": {"discord": {"discord.exe"}},
+        "chat.slack": {"slack": {"slack.exe"}},
+        "chat.teams": {"teams": {"teams.exe", "msteams.exe", "ms-teams.exe"}},
+        "terminal.submit": {
+            "terminal": {
+                "windowsterminal.exe",
+                "wt.exe",
+                "windowsterminalpreview.exe",
+                "conhost.exe",
+            }
+        },
+    }
 
     expected_case_map = {case.case_id: case for case in default_cases()}
     for item in raw_cases:
@@ -321,6 +340,36 @@ def environment_case_errors(report: Mapping[str, object]) -> tuple[str, ...]:
                                 instances.add((name, start))
                 if not instances:
                     errors.append(f"environment process-instance evidence missing for {case_id} ({adapter_key})")
+            continue
+
+        critical_requirement = critical_app_process_requirements.get(case_id)
+        if critical_requirement:
+            for adapter_key, expected_processes in critical_requirement.items():
+                spec = adapters.get(adapter_key)
+                instances = set()
+                if spec is not None:
+                    raw_instances = spec.get("observed_process_instances", ())
+                    if isinstance(raw_instances, (list, tuple)):
+                        for item_instance in raw_instances:
+                            if isinstance(item_instance, Mapping):
+                                name = str(item_instance.get("process_name", "")).casefold()
+                                start = item_instance.get("process_start")
+                            elif isinstance(item_instance, (list, tuple)) and len(item_instance) == 2:
+                                name = str(item_instance[0]).casefold()
+                                start = item_instance[1]
+                            else:
+                                continue
+                            if (
+                                name in expected_processes
+                                and isinstance(start, int)
+                                and not isinstance(start, bool)
+                                and start > 0
+                            ):
+                                instances.add((name, start))
+                if not instances:
+                    errors.append(
+                        f"environment process-instance evidence missing for {case_id} ({adapter_key})"
+                    )
             continue
 
         adapter_key = next(
