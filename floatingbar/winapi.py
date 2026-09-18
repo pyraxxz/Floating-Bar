@@ -128,6 +128,19 @@ def get_window_pid(hwnd: int) -> int:
     user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
     return pid.value
 
+def get_window_class_name(hwnd: int) -> str:
+    """Return the top-level Win32 class name without reading window content."""
+    if not hwnd or not user32.IsWindow(hwnd):
+        return ""
+    try:
+        user32.GetClassNameW.argtypes = [wintypes.HWND, wintypes.LPWSTR, wintypes.INT]
+        user32.GetClassNameW.restype = wintypes.INT
+        buf = ctypes.create_unicode_buffer(256)
+        length = user32.GetClassNameW(hwnd, buf, len(buf))
+        return buf.value[: max(0, int(length))]
+    except Exception:
+        return ""
+
 
 def get_process_image_name(pid: int) -> str:
     """Full path of the process image, or '' if it can't be queried."""
