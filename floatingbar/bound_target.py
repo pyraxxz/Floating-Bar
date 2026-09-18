@@ -166,14 +166,24 @@ class BoundTelegramTarget:
             )
         return self._inner.scope_matches(hwnd, pid)
 
-    def select_for_send(self, preferred_hwnd: int = 0) -> int:
-        """Select normally while unbound; bind strictly when a preferred HWND exists."""
+    def select_for_send(
+        self,
+        preferred_hwnd: int = 0,
+        expected_process_start: Optional[int] = None,
+    ) -> int:
+        """Select or retain a Telegram window, optionally requiring one exact process instance."""
         if self._bound_scope is not None:
             bound = self._validate_bound()
             if not bound.valid:
                 return 0
             if preferred_hwnd and preferred_hwnd != bound.hwnd:
                 return 0
+            if expected_process_start is not None:
+                if (
+                    self._bound_process_start is None
+                    or int(self._bound_process_start) != int(expected_process_start)
+                ):
+                    return 0
             return bound.hwnd
 
         selected = self._inner.select_for_send(preferred_hwnd=preferred_hwnd)
@@ -185,12 +195,16 @@ class BoundTelegramTarget:
                 return 0
             pid = self._inner.scope().pid
             candidate = TargetScope(selected, pid)
-            if not self._raw_scope(candidate):
+            if not self._raw_scope(candidate, expected_process_start=expected_process_start):
                 return 0
             try:
-                self._bound_process_start = winapi.get_process_creation_time(candidate.pid)
+                process_start = winapi.get_process_creation_time(candidate.pid)
             except Exception:
-                self._bound_process_start = None
+                process_start = None
+            if expected_process_start is not None:
+                if process_start is None or int(process_start) != int(expected_process_start):
+                    return 0
+            self._bound_process_start = process_start
             self._bound_scope = candidate
         return selected
 

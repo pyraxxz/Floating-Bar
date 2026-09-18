@@ -37,6 +37,51 @@ class BoundTargetTests(unittest.TestCase):
             self.assertEqual(selected, 100)
             self.assertEqual(target.bound_process_start, 123)
 
+    def test_preferred_selection_accepts_matching_expected_process_instance(self):
+        inner = self._inner()
+        target = BoundTelegramTarget(inner)
+        with patch("floatingbar.bound_target.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.bound_target.winapi.get_window_pid", return_value=7), \
+             patch("floatingbar.bound_target.winapi.get_process_creation_time", return_value=123):
+            selected = target.select_for_send(
+                preferred_hwnd=100,
+                expected_process_start=123,
+            )
+
+        self.assertEqual(selected, 100)
+        self.assertEqual(target.bound_process_start, 123)
+
+    def test_preferred_selection_rejects_replacement_process_before_binding(self):
+        inner = self._inner()
+        target = BoundTelegramTarget(inner)
+        with patch("floatingbar.bound_target.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.bound_target.winapi.get_window_pid", return_value=7), \
+             patch("floatingbar.bound_target.winapi.get_process_creation_time", return_value=456):
+            selected = target.select_for_send(
+                preferred_hwnd=100,
+                expected_process_start=123,
+            )
+
+        self.assertEqual(selected, 0)
+        self.assertIsNone(target.bound_scope)
+        self.assertIsNone(target.bound_process_start)
+
+    def test_bound_selection_rejects_expected_process_identity_mismatch(self):
+        inner = self._inner()
+        target = BoundTelegramTarget(inner)
+        target._bound_scope = TargetScope(100, 7)
+        target._bound_process_start = 456
+        with patch("floatingbar.bound_target.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.bound_target.winapi.get_window_pid", return_value=7), \
+             patch("floatingbar.bound_target.winapi.get_process_creation_time", return_value=456):
+            self.assertEqual(
+                target.select_for_send(
+                    preferred_hwnd=100,
+                    expected_process_start=123,
+                ),
+                0,
+            )
+
     def test_bound_target_rejects_same_pid_after_process_restart(self):
         inner = self._inner()
         target = BoundTelegramTarget(inner)

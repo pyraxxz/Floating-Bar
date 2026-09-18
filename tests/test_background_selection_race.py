@@ -230,8 +230,8 @@ class SelectionRaceTests(unittest.TestCase):
 
     def test_stale_telegram_selection_callback_cannot_rebind_newer_chat(self):
         window = self._window()
-        older = Mock(hwnd=123, pid=200, name="Older")
-        newer = Mock(hwnd=123, pid=200, name="Newer")
+        older = Mock(hwnd=123, pid=200, name="Older", process_start=111)
+        newer = Mock(hwnd=123, pid=200, name="Newer", process_start=222)
         callbacks = []
         window.after = lambda _delay, callback: callbacks.append(callback)
         with patch("floatingbar.bound_context_overlay.select_telegram_chat"), \
@@ -245,7 +245,10 @@ class SelectionRaceTests(unittest.TestCase):
         window.target.select_for_send.assert_not_called()
         self.assertIs(window._pending_chat, newer)
         second()
-        window.target.select_for_send.assert_called_once_with(preferred_hwnd=123)
+        window.target.select_for_send.assert_called_once_with(
+            preferred_hwnd=123,
+            expected_process_start=222,
+        )
 
     def test_switching_background_window_invalidates_pending_selection(self):
         window = self._window()
