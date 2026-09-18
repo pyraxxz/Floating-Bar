@@ -70,6 +70,7 @@ def _record_case_evidence(snapshot, tested_at: str) -> dict:
                 "key": str(adapter.key),
                 "observed_process_instances": [
                     {
+                        "adapter_key": str(adapter.key),
                         "process_name": str(name).casefold(),
                         "process_start": int(start),
                     }
