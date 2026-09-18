@@ -117,7 +117,7 @@ class PinnedTargetStoreTests(unittest.TestCase):
     def test_structural_conversation_pin_deduplicates_across_display_name_changes(self):
         with tempfile.TemporaryDirectory() as directory:
             store = self._store(directory)
-            identity = ("ListItem", "channel-42", "row", "uia")
+            identity = ("ListItem", "row", "uia")
             self.assertTrue(
                 store.toggle_conversation(
                     adapter_key="discord",
