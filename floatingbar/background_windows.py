@@ -22,6 +22,7 @@ class BackgroundWindow:
     process_name: str
     area: int
     foreground: bool = False
+    window_class: str = ""
 
     @property
     def label(self) -> str:
@@ -65,6 +66,7 @@ def enumerate_background_windows(
                     process_name=process_name,
                     area=winapi.get_window_rect_area(hwnd),
                     foreground=(hwnd == foreground),
+                    window_class=str(winapi.get_window_class_name(hwnd) or "").strip(),
                 )
             )
         except Exception:
