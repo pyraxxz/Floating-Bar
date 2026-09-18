@@ -12,7 +12,7 @@ This document records the current validation infrastructure on `main`. It is sep
 - Field-level validation of immutable smoke-case definitions.
 - Explicit handling for malformed schema versions, duplicate IDs, unknown IDs, invalid results, and missing cases.
 - Release-gate checks for a Windows environment snapshot, valid source commit ancestry, and an execution timestamp for every completed smoke case.
-- Content-free Windows environment snapshots covering Windows build, Python version, architecture, monitor count, DPI-awareness, observed supported-app windows, and observed executable file versions.
+- Content-free Windows environment snapshots covering Windows build, Python version, architecture, monitor count, process DPI-awareness, per-monitor geometry/effective DPI, observed supported-app windows, and observed executable file versions.
 - Adapter-registry consistency checks for duplicate keys, executable alias collisions, malformed aliases, unsupported capabilities, and inconsistent chat/type metadata.
 - Generic background-target leases can add a content-free process-start identity to HWND/PID validation, rejecting rare PID-reuse cases while degrading safely to the existing scope checks when the metadata cannot be queried.
 - Verification cannot claim `VERIFIED` solely from an observed clear: the exact pinned control is revalidated afterward, and chat targets additionally revalidate the selected conversation before publishing verified evidence.
