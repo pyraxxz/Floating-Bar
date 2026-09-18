@@ -19,6 +19,7 @@ from typing import Iterable, Mapping
 
 from .app_adapters import AppAdapterSpec
 from .background_windows import enumerate_background_windows
+from . import winapi
 from .dpi import enable_per_monitor_awareness
 
 
@@ -287,8 +288,6 @@ def capture_snapshot() -> WindowsValidationSnapshot:
         for item in windows:
             image_path = ""
             try:
-                from . import winapi
-
                 image_path = winapi.get_process_image_name(item.pid)
             except Exception:
                 pass
@@ -296,8 +295,6 @@ def capture_snapshot() -> WindowsValidationSnapshot:
             if file_version:
                 versions.setdefault(item.process_name.casefold(), set()).add(file_version)
             try:
-                from . import winapi
-
                 process_start = winapi.get_process_creation_time(item.pid)
             except Exception:
                 process_start = None
