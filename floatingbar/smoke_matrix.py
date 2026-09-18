@@ -303,7 +303,7 @@ def environment_case_errors(report: Mapping[str, object]) -> tuple[str, ...]:
             continue
         case_id = str(item.get("case_id", "")).strip()
         expected_case = expected_case_map.get(case_id)
-        if expected_case is None or expected_case.priority != "critical":
+        if expected_case is None:
             continue
         process_requirement = required_processes.get(case_id)
         if process_requirement:
