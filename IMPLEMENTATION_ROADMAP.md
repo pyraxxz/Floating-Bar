@@ -252,7 +252,7 @@ Every adapter should eventually produce one of:
 - [x] Core user documentation and troubleshooting guidance
 - [ ] Signed executable and installer packaging
 - [x] On-demand release update notification using public release metadata
-- [x] Lightweight settings UI for safe application preferences
+- [x] Lightweight settings UI for safe application preferences, including configurable summon hotkey
 - [ ] Meaningful milestone release after real desktop validation
 
 ## Adoption/product track
