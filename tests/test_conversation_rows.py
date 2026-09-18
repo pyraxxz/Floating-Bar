@@ -104,7 +104,7 @@ class ConversationRowTests(unittest.TestCase):
         window.rectangle.return_value = _Rect(0, 0, 1000, 900)
         window.descendants.side_effect = [[
             _Item(_Rect(20, 100, 420, 160), "Alice", False, None,
-                  ("ListItem", "alice", "row", "uia"), parent=parent)
+                  ("ListItem", "row", "uia"), parent=parent)
         ], []]
         with self._app_patch(window), \
              patch("floatingbar.conversation_rows.winapi.get_window_pid", return_value=200), \
