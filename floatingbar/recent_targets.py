@@ -26,6 +26,7 @@ class RecentTarget:
     runtime_id: tuple[int, ...] | None = None
     control_identity: tuple[str, ...] | None = None
     window_class: str | None = None
+    container_identity: tuple[str, ...] | None = None
     left: int = 0
     top: int = 0
     right: int = 0
@@ -75,6 +76,7 @@ class RecentTargetHistory:
             target.scope.pid,
             target.runtime_id,
             target.control_identity,
+            target.container_identity,
             target.label if target.kind != "application" else "",
         )
 
@@ -115,7 +117,12 @@ class RecentTargetHistory:
         left_control = getattr(left, "control_identity", None)
         right_control = getattr(right, "control_identity", None)
         if left_control is not None or right_control is not None:
-            return left_control == right_control
+            if left_control != right_control:
+                return False
+        left_container = getattr(left, "container_identity", None)
+        right_container = getattr(right, "container_identity", None)
+        if left_container is not None or right_container is not None:
+            return left_container == right_container
         return True
 
     @staticmethod
@@ -152,6 +159,7 @@ class RecentTargetHistory:
             scope=TargetScope(int(conversation.hwnd), int(conversation.pid)),
             runtime_id=getattr(conversation, "runtime_id", None),
             control_identity=getattr(conversation, "control_identity", None),
+            container_identity=getattr(conversation, "container_identity", None),
             left=int(getattr(conversation, "left", 0)),
             top=int(getattr(conversation, "top", 0)),
             right=int(getattr(conversation, "right", 0)),
@@ -236,6 +244,20 @@ class RecentTargetHistory:
                     row
                     for row in rows
                     if row.control_identity == target.control_identity and row.name == target.label
+                ]
+                if target.container_identity is not None:
+                    matches = [
+                        row for row in matches
+                        if row.container_identity == target.container_identity
+                    ]
+                if len(matches) == 1:
+                    return matches[0]
+                if len(matches) > 1:
+                    return None
+            elif target.container_identity is not None:
+                matches = [
+                    row for row in rows
+                    if row.container_identity == target.container_identity and row.name == target.label
                 ]
                 if len(matches) == 1:
                     return matches[0]
