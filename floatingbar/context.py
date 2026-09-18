@@ -104,7 +104,7 @@ def _normalize_chat_anchor(value):
 def _selected_chat_anchor(hwnd: int):
     """Return a unique selected left-pane chat anchor when UIA exposes one."""
     if not hwnd:
-        return (), ""
+        return (), "", ""
     try:
         from pywinauto import Application
 
@@ -132,7 +132,7 @@ def _selected_chat_anchor(hwnd: int):
                 name = ""
             name_fp = title_fingerprint(name)
             structure_fp = _structural_fingerprint(item)
-            if runtime_id or name_fp or structure_fp:
+            if runtime_id or name_fp:
                 anchors.append((runtime_id, name_fp, structure_fp))
 
         if len(anchors) == 1:
@@ -181,7 +181,6 @@ class WindowContext:
             or self.compose_runtime_id
             or self.chat_runtime_id
             or self.chat_name_fp
-            or self.chat_structure_fp
         )
 
     def matches(self) -> bool:
