@@ -141,7 +141,7 @@ class SmokeReportTests(unittest.TestCase):
                 item["result"] = RESULT_PASS
         errors = environment_case_errors(report)
         self.assertIn(
-            "environment process-instance evidence missing for telegram.send (telegram)",
+            "environment case evidence missing for telegram.send (telegram)",
             errors,
         )
 
@@ -194,7 +194,7 @@ class SmokeReportTests(unittest.TestCase):
                 item["result"] = RESULT_PASS
         errors = environment_case_errors(report)
         self.assertIn(
-            "environment process-instance evidence missing for telegram.restart (telegram)",
+            "environment case evidence missing for telegram.restart (telegram)",
             errors,
         )
 
