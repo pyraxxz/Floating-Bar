@@ -60,8 +60,8 @@ class AdapterBindingTests(unittest.TestCase):
 
         self.assertEqual(result, "posted-enter (VERIFIED)")
         prepare.assert_called_once_with()
-        post_text.assert_called_once_with(401, "hello")
-        post_enter.assert_called_once_with(401, target=401)
+        post_text.assert_called_once_with(401, "hello", expected_pid=200)
+        post_enter.assert_called_once_with(401, target=401, expected_pid=200)
 
     def test_terminal_target_preserves_submitted_but_unverified_boundary(self):
         spec = adapter_for_process("terminal.exe")
@@ -76,8 +76,8 @@ class AdapterBindingTests(unittest.TestCase):
             result = target.send("dir")
 
         self.assertEqual(result, "posted-enter (unverified)")
-        post_text.assert_called_once_with(402, "dir")
-        post_enter.assert_called_once_with(402, target=402)
+        post_text.assert_called_once_with(402, "dir", expected_pid=200)
+        post_enter.assert_called_once_with(402, target=402, expected_pid=200)
         self.assertIsNotNone(target.last_post_send_check)
         self.assertTrue(target.last_post_send_check.healthy)
 
