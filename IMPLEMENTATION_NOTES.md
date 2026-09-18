@@ -197,3 +197,8 @@ The orb menu now exposes an explicit update check. It queries only the public la
 ## Multi-monitor/DPI validation evidence
 
 The Windows validation snapshot now records bounded per-monitor geometry and effective DPI alongside the process DPI-awareness mode. It intentionally omits display-device names and any UI content, making mixed-DPI and multi-monitor acceptance reports more reproducible without adding machine-identifying display metadata.
+
+
+## Configurable summon hotkey
+
+The Settings dialog now persists one of four predefined global summon shortcuts. The choice is normalized against a fixed allowlist and loaded before hotkey registration at startup. Changing it intentionally requires an application restart so the current global registration is never torn down or replaced unexpectedly while the app is in use.
