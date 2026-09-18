@@ -58,6 +58,7 @@ class BackgroundTypingTarget:
         # A constructor-created target predates an explicit bind operation. Keep
         # the legacy state until bind() can perform an immediate HWND/PID check.
         self._bind_verified = True
+        self._bound_process_start = None
         self._pinned_hwnd = 0
         self._pinned_identity = None
         self._adapter_spec = None
@@ -68,21 +69,40 @@ class BackgroundTypingTarget:
         scope = TargetScope(hwnd, pid)
         self._scope = scope
         self._adapter_spec = spec
-        self._bind_verified = self._verify_bound_scope(scope)
+        try:
+            self._bound_process_start = winapi.get_process_creation_time(pid)
+        except Exception as exc:
+            self._bound_process_start = None
+            trace.trace_exception("background process identity inspection unavailable", exc)
+        self._bind_verified = self._verify_bound_scope(
+            scope,
+            expected_process_start=self._bound_process_start,
+        )
         self.clear_pinned_input()
         self._last_post_send_check = None
         self._last_submission_evidence = None
         return scope
 
     @staticmethod
-    def _verify_bound_scope(scope: TargetScope) -> bool:
-        """Check exact HWND/PID liveness without requiring the window to be visible."""
+    def _verify_bound_scope(
+        scope: TargetScope,
+        expected_process_start: int | None = None,
+    ) -> bool:
+        """Check exact HWND/PID/process-start identity without requiring visibility."""
         if not scope.valid:
             return False
         try:
             if not winapi.user32.IsWindow(scope.hwnd):
                 return False
-            return winapi.get_window_pid(scope.hwnd) == scope.pid
+            if winapi.get_window_pid(scope.hwnd) != scope.pid:
+                return False
+            if expected_process_start is not None:
+                current_process_start = winapi.get_process_creation_time(scope.pid)
+                if current_process_start is None:
+                    return False
+                if current_process_start != expected_process_start:
+                    return False
+            return True
         except Exception as exc:
             trace.trace_exception("background bind liveness check failed safely", exc)
             return False
@@ -94,6 +114,7 @@ class BackgroundTypingTarget:
         self._scope = None
         self._adapter_spec = None
         self._bind_verified = False
+        self._bound_process_start = None
         self._last_post_send_check = None
         self._last_submission_evidence = None
         self.clear_pinned_input()
@@ -110,7 +131,10 @@ class BackgroundTypingTarget:
         # A bind can race with a just-created window. Revalidate a previously
         # rejected bind so transient readiness does not become a permanent block.
         if not self._bind_verified:
-            self._bind_verified = self._verify_bound_scope(scope)
+            self._bind_verified = self._verify_bound_scope(
+                scope,
+                expected_process_start=self._bound_process_start,
+            )
         return bool(self._bind_verified and self.available())
 
     def available(self) -> bool:
@@ -121,7 +145,15 @@ class BackgroundTypingTarget:
             return False
         if not winapi.user32.IsWindowVisible(scope.hwnd):
             return False
-        return winapi.get_window_pid(scope.hwnd) == scope.pid
+        if winapi.get_window_pid(scope.hwnd) != scope.pid:
+            return False
+        if self._bound_process_start is not None:
+            current_process_start = winapi.get_process_creation_time(scope.pid)
+            if current_process_start is None:
+                return False
+            if current_process_start != self._bound_process_start:
+                return False
+        return True
 
     def input_candidates(self) -> tuple[InputCandidate, ...]:
         """Return content-free editable controls inside the exact target."""
