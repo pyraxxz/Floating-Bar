@@ -37,6 +37,21 @@ class RecentTargetHistoryTests(unittest.TestCase):
         )
         self.assertFalse(history.application_is_live(target))
 
+    def test_record_application_derives_window_class_when_omitted(self):
+        history = RecentTargetHistory()
+        with patch(
+            "floatingbar.recent_targets.winapi.get_window_class_name",
+            return_value="SlackWindow",
+        ):
+            target = history.record_application(
+                hwnd=44,
+                pid=444,
+                process_name="slack.exe",
+                label="Slack",
+                adapter_key="slack",
+            )
+        self.assertEqual(target.window_class, "SlackWindow")
+
     def test_recent_application_validation_requires_exact_scope_adapter_and_class(self):
         history = RecentTargetHistory()
         target = history.record_application(
