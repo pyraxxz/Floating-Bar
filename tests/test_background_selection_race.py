@@ -126,7 +126,7 @@ class SelectionRaceTests(unittest.TestCase):
         with patch("floatingbar.bound_context_overlay.winapi.get_window_class_name", return_value="DifferentWindow"):
             window._finish_telegram_chat_selection(window._selection_generation_value())
         window.target.select_for_send.assert_not_called()
-        window.target.release.assert_called_once()
+        window.target.release.assert_not_called()
 
     def test_failed_conversation_finish_releases_target_lease(self):
         window = self._window()
