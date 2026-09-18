@@ -42,6 +42,9 @@ class GenericRetryTests(unittest.TestCase):
             BoundContextOverlay._send_finished.__globals__["_BaseOverlay"],
             "_send_finished",
             side_effect=fail_and_offer_retry,
+        ), patch(
+            "floatingbar.bound_context_overlay.winapi.get_window_class_name",
+            return_value="DemoWindow",
         ):
             window._send_finished(completion)
 
