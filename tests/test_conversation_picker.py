@@ -95,6 +95,24 @@ class ConversationPickerRowTests(unittest.TestCase):
         )
         self.assertEqual(conversation_picker_identity(original), conversation_picker_identity(moved))
 
+    def test_container_identity_disambiguates_duplicate_structural_rows(self):
+        first = ConversationItem(
+            100, 200, "general", 0, 100, 300, 150,
+            runtime_id=None,
+            control_identity=("ListItem", "same", "row", "uia"),
+            container_identity=("ancestor1", "Pane", "workspace-a", "uia"),
+        )
+        second = ConversationItem(
+            100, 200, "general", 0, 160, 300, 210,
+            runtime_id=None,
+            control_identity=("ListItem", "same", "row", "uia"),
+            container_identity=("ancestor1", "Pane", "workspace-b", "uia"),
+        )
+        self.assertNotEqual(
+            conversation_picker_identity(first),
+            conversation_picker_identity(second),
+        )
+
     def test_geometry_remains_fallback_when_structural_identity_is_missing(self):
         first = _item(1)
         moved = ConversationItem(
