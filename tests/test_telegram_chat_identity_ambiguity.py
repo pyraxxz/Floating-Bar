@@ -21,6 +21,26 @@ class TelegramChatIdentityAmbiguityTests(unittest.TestCase):
                 select_telegram_chat(requested)
         post_click.assert_not_called()
 
+    def test_chat_identity_matches_uses_container_identity(self):
+        requested = TelegramChatItem(
+            100, 200, "Alex", 10, 100, 310, 150, True,
+            None, ("ListItem", "shared", "row", "uia"),
+            ("ancestor1", "Pane", "workspace-a", "uia"),
+        )
+        correct = TelegramChatItem(
+            100, 200, "Alex", 12, 102, 312, 152, True,
+            None, ("ListItem", "shared", "row", "uia"),
+            ("ancestor1", "Pane", "workspace-a", "uia"),
+        )
+        other = TelegramChatItem(
+            100, 200, "Alex", 12, 202, 312, 252, True,
+            None, ("ListItem", "shared", "row", "uia"),
+            ("ancestor1", "Pane", "workspace-b", "uia"),
+        )
+        with patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.telegram_chats.enumerate_telegram_chats", return_value=(correct, other)):
+            self.assertTrue(chat_identity_matches(requested))
+
     def test_chat_identity_matches_rejects_multiple_selected_same_name_without_identity(self):
         requested = TelegramChatItem(100, 200, "Alex", 10, 100, 310, 150, True)
         first = TelegramChatItem(100, 200, "Alex", 10, 100, 310, 150, True)
