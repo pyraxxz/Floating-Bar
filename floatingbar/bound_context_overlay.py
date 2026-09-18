@@ -477,7 +477,6 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             return
         bind_attempted = False
         try:
-            self.target.release()
             expected_class = str(getattr(self, "_background_window_class", "") or "").strip()
             if expected_class:
                 current_class = str(winapi.get_window_class_name(chat.hwnd) or "").strip()
@@ -489,7 +488,6 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
                 raise RuntimeError("Telegram selected a different window")
             self.target.bind_chat_identity(chat)
             if not self.target.chat_identity_matches():
-                self.target.release()
                 raise RuntimeError("Telegram changed away from the selected chat")
             self._work_hwnd = chat.hwnd
             self._attempt_context = capture(chat.hwnd)
