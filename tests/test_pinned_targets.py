@@ -135,11 +135,22 @@ class PinnedTargetStoreTests(unittest.TestCase):
                     adapter_key=f"adapter-{index}",
                     process_name=f"app-{index}.exe",
                     label=f"App {index}",
+                    window_class=f"AppWindowClass{index}",
                 )
             self.assertEqual(
                 [item.label for item in store.items()],
                 ["App 2", "App 1"],
             )
+
+    def test_classless_application_pin_is_rejected(self):
+        pin = PinnedTarget(
+            kind="application",
+            adapter_key="demo",
+            process_name="demo.exe",
+            label="Demo",
+            window_class=None,
+        )
+        self.assertFalse(pin.valid)
 
     def test_malformed_file_fails_closed_without_raising(self):
         with tempfile.TemporaryDirectory() as directory:
