@@ -37,6 +37,13 @@ class SmokeReportTests(unittest.TestCase):
         self.assertEqual(report["matrix_fingerprint"], matrix_fingerprint())
         self.assertRegex(report["matrix_fingerprint"], r"^[0-9a-f]{64}$")
 
+    def test_schema_v2_report_is_rejected_after_provenance_change(self):
+        report = build_report()
+        report["schema_version"] = 2
+
+        errors = validate_report(report)
+        self.assertIn("unsupported schema_version", errors)
+
     def test_matrix_fingerprint_rejects_stale_report(self):
         report = build_report()
         report["matrix_fingerprint"] = "0" * 64
