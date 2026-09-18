@@ -82,6 +82,22 @@ class ConversationRowTests(unittest.TestCase):
         self.assertIsNotNone(rows[0].control_identity)
         self.assertEqual(rows[0].attention.state, AttentionState.SELECTED)
 
+    def test_enumeration_excludes_automation_id_from_control_identity(self):
+        window = Mock()
+        window.rectangle.return_value = _Rect(0, 0, 1000, 900)
+        window.descendants.side_effect = [[
+            _Item(
+                _Rect(20, 100, 420, 160),
+                "Alice",
+                False,
+                None,
+                ("ListItem", "Alice", "ChatRow", "uia"),
+            )
+        ], []]
+        with self._app_patch(window),              patch("floatingbar.conversation_rows.winapi.get_window_pid", return_value=200),              patch("floatingbar.conversation_rows.winapi.user32.IsWindow", return_value=True):
+            rows = enumerate_conversations(123)
+        self.assertEqual(rows[0].control_identity, ("ListItem", "ChatRow", "uia"))
+
     def test_enumeration_captures_content_free_parent_identity(self):
         parent = _Item(_Rect(0, 0, 500, 900), "ignored")
         window = Mock()
