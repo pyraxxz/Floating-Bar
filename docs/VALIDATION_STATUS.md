@@ -11,7 +11,7 @@ This document records the current validation infrastructure on `main`. It is sep
 - Smoke-report schema validation with a matrix SHA-256 fingerprint.
 - Field-level validation of immutable smoke-case definitions.
 - Explicit handling for malformed schema versions, duplicate IDs, unknown IDs, invalid results, and missing cases.
-- Release-gate checks for a Windows environment snapshot and valid source commit ancestry.
+- Release-gate checks for a Windows environment snapshot, valid source commit ancestry, and an execution timestamp for every completed smoke case.
 - Content-free Windows environment snapshots covering Windows build, Python version, architecture, monitor count, DPI-awareness, observed supported-app windows, and observed executable file versions.
 - Adapter-registry consistency checks for duplicate keys, executable alias collisions, malformed aliases, unsupported capabilities, and inconsistent chat/type metadata.
 
