@@ -16,7 +16,7 @@ class GenericSubmitUncertaintyTests(unittest.TestCase):
             result = target.send("hello")
 
         self.assertEqual(result, "posted-enter (verification-unavailable)")
-        post_text.assert_called_once_with(300, "hello")
+        post_text.assert_called_once_with(300, "hello", expected_pid=200)
         submit.assert_called_once()
         self.assertIsNotNone(target.last_post_send_check)
         self.assertTrue(target.last_post_send_check.healthy)
