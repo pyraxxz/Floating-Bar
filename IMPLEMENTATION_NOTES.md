@@ -175,3 +175,8 @@ Patch-level fixes, refactors, tests, diagnostics, and small reliability improvem
 3. Use real-world traces from multiple Telegram builds to tune focused-child and Send-button evidence rather than guessing from one UIA tree.
 4. Add conservative terminal verification/retry semantics only when a non-content terminal signal can distinguish accepted input from mere key delivery.
 5. Generalize the target abstraction to other Windows background apps only after Telegram behavior is stable and well-tested.
+
+
+## Lightweight settings and startup behavior
+
+The orb now exposes a small Settings dialog instead of requiring users to edit configuration constants manually. It persists only the idle-collapse preference in a bounded JSON file and manages Windows startup through the current user's Run key. The packaged executable is registered directly; source launches register the Python interpreter plus the current script. No background-app identity or UI content enters the settings store.

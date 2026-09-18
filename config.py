@@ -1,5 +1,4 @@
-# Floating Bar — all tunable constants in one place.
-# Edit these, restart the app. No settings UI by design (v1).
+# Floating Bar — default tunable constants. User-adjustable preferences are persisted by floatingbar.settings.
 
 import re
 

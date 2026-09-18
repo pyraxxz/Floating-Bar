@@ -1,5 +1,5 @@
-"""The only UI: an orb (idle) that expands into a transparent input bar
-(active). Two states, nothing else — no history, no settings window.
+"""The core UI: an orb (idle) that expands into a transparent input bar
+(active), with a small settings dialog and explicit retry/recovery UX.
 
 The orb also provides recovery UX: failed sends keep the unsent text as a
 session-only retry draft, while a successful-but-unverified send is shown as
@@ -14,6 +14,7 @@ import tkinter as tk
 import config
 from . import trace
 from . import winapi
+from .settings import SettingsDialog, SettingsStore
 from . import __version__
 from .injector import InjectionFailed
 from .hardening import HardenedTelegramInjector
@@ -56,6 +57,8 @@ class OrbRelayWindow(tk.Tk):
         self._press_xy = (0, 0)
         self._win_off = (0, 0)
         self._retry_menu_label = "Retry failed draft"
+        self._settings_store = SettingsStore()
+        config.IDLE_COLLAPSE_MS = self._settings_store.idle_collapse_ms
 
         self.overrideredirect(True)
         self.attributes("-topmost", True)
@@ -113,6 +116,7 @@ class OrbRelayWindow(tk.Tk):
             command=self._retry_failed_draft,
             state="disabled",
         )
+        self.menu.add_command(label="Settings", command=self._open_settings)
         self.menu.add_separator()
         self.menu.add_command(label="Quit", command=self.destroy)
         self.orb.bind("<Button-3>", self._show_menu)
@@ -127,6 +131,18 @@ class OrbRelayWindow(tk.Tk):
             winapi.hide_from_alt_tab(self.winfo_id())
         except Exception:
             pass
+
+    def _open_settings(self) -> None:
+        """Open the lightweight application settings dialog."""
+        if self._sending:
+            return
+        SettingsDialog(self, self._settings_store, self._apply_settings)
+
+    def _apply_settings(self, settings) -> None:
+        """Apply safe runtime preferences without changing target behavior."""
+        config.IDLE_COLLAPSE_MS = int(settings.idle_collapse_ms)
+        if self._state == "bar":
+            self._reset_idle()
 
     def _set_retry_menu_enabled(self, enabled: bool) -> None:
         try:

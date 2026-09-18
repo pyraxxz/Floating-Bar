@@ -22,12 +22,13 @@ The current implementation includes:
 * persistent **Pinned** application/conversation targets using only stable adapter/process/label identity;
 * persistent user-authored **Quick replies** that insert a draft but never auto-send it;
 * a global `Ctrl+Alt+Space` summon hotkey;
+* a lightweight Settings dialog for Windows startup and idle-collapse behavior;
 * a first-run mini-tutorial and content-free background-target feedback;
 * machine-readable Windows smoke-test tooling and a 33-case declarative desktop smoke matrix.
 
 Pins and quick replies are intentionally separate from background-app discovery: no HWND/PID/runtime identifiers are persisted for pins, and quick-reply text is stored only because the user explicitly saved it.
 
-The Windows CI gate currently compiles the Python sources, runs the regression suite, and builds the Windows executable with PyInstaller on every development push.
+The Windows CI gate currently runs for pull requests (plus manual dispatch), compiles the Python sources, runs the regression suite, and builds the Windows executable with PyInstaller before a change is merged.
 
 ---
 

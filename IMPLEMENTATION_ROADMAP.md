@@ -247,12 +247,12 @@ Every adapter should eventually produce one of:
 ## Phase 8 — Product release
 
 - [ ] Final supported-application matrix after real desktop validation
-- [ ] Installation/startup behavior
+- [x] Per-user Windows startup behavior
 - [ ] Packaging and clean upgrade path
 - [x] Core user documentation and troubleshooting guidance
 - [ ] Signed executable and installer packaging
 - [ ] Release update notification
-- [ ] Lightweight settings UI
+- [x] Lightweight settings UI for safe application preferences
 - [ ] Meaningful milestone release after real desktop validation
 
 ## Adoption/product track
