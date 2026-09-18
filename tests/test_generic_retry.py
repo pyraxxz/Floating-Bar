@@ -1,4 +1,5 @@
 import unittest
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from floatingbar.bound_context_overlay import OrbRelayWindow as BoundContextOverlay
@@ -10,6 +11,13 @@ class GenericRetryTests(unittest.TestCase):
         window = BoundContextOverlay.__new__(BoundContextOverlay)
         window._background_typer = Mock()
         window._background_typer.scope.return_value = TargetScope(410, 811)
+        window._background_typer.bind.return_value = TargetScope(410, 811)
+        window._background_typer.scope_matches.return_value = True
+        window._background_typer.probe.return_value = SimpleNamespace(
+            available=True,
+            candidate_count=1,
+            reason="ready",
+        )
         window._generic_attempt_id = 21
         window._background_process_name = "discord.exe"
         window._background_adapter_key = "discord"
@@ -67,6 +75,43 @@ class GenericRetryTests(unittest.TestCase):
         self.assertEqual(window._work_hwnd, 410)
         window._show_bar.assert_called_once_with()
         window._set_retry_menu_enabled.assert_called_once_with(True)
+
+    def test_generic_retry_is_blocked_when_scope_changed(self):
+        window = self._window()
+        window._generic_retry_scope = TargetScope(410, 811)
+        window._generic_retry_process_name = "discord.exe"
+        window._generic_retry_adapter_key = "discord"
+        window._retry_draft = "hello again"
+        window._hide_feedback = Mock()
+        window._show_feedback = Mock()
+        window._show_bar = Mock()
+        window._set_retry_menu_enabled = Mock()
+
+        window._background_typer.bind.return_value = TargetScope(999, 811)
+        with patch("floatingbar.bound_context_overlay.target_for_adapter", return_value=window._background_typer):
+            window._retry_failed_draft()
+
+        window._show_feedback.assert_called_once()
+        window._show_bar.assert_not_called()
+        window._background_typer.release.assert_called_once_with()
+
+    def test_generic_retry_requires_same_adapter_identity(self):
+        window = self._window()
+        window._generic_retry_scope = TargetScope(410, 811)
+        window._generic_retry_process_name = "discord.exe"
+        window._generic_retry_adapter_key = "slack"
+        window._retry_draft = "hello again"
+        window._hide_feedback = Mock()
+        window._show_feedback = Mock()
+        window._show_bar = Mock()
+        window._set_retry_menu_enabled = Mock()
+
+        with patch("floatingbar.bound_context_overlay.target_for_adapter", return_value=window._background_typer):
+            window._retry_failed_draft()
+
+        window._show_feedback.assert_called_once()
+        window._show_bar.assert_not_called()
+        window._background_typer.bind.assert_not_called()
 
     def test_generic_retry_is_cleared_when_new_background_window_is_selected(self):
         window = self._window()
