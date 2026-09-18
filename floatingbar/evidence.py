@@ -51,12 +51,15 @@ class SubmissionEvidence:
 
     `strategy` is retained for diagnostics/backwards compatibility; callers
     should branch on `state` and `retryable` instead of parsing it.
+    `proof_kind` records the scope of any verification claim, such as
+    `input-acceptance`, separately from the terminal evidence state.
     """
 
     state: EvidenceState
     strategy: Optional[str] = None
     detail: Optional[str] = None
     retryable: bool = False
+    proof_kind: Optional[str] = None
 
     @property
     def confirmed(self) -> bool:
