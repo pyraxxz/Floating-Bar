@@ -26,6 +26,46 @@ class SelectionRaceTests(unittest.TestCase):
         window.target = Mock()
         return window
 
+
+    def test_pinned_picker_item_preserves_process_instance_identity(self):
+        window = OrbRelayWindow.__new__(OrbRelayWindow)
+        from floatingbar.pinned_targets import PinnedTarget
+        window._pinned_targets = Mock()
+        window._pinned_targets.items.return_value = (
+            PinnedTarget(
+                kind="application",
+                adapter_key="discord",
+                process_name="discord.exe",
+                label="Discord",
+                window_class="DiscordMainWindow",
+            ),
+        )
+        live = Mock(
+            hwnd=123,
+            pid=200,
+            process_name="discord.exe",
+            window_class="DiscordMainWindow",
+            process_start=456,
+            foreground=False,
+        )
+        with patch("floatingbar.bound_context_overlay.to_picker_items", return_value=(
+            Mock(
+                hwnd=123,
+                pid=200,
+                process_name="discord.exe",
+                window_class="DiscordMainWindow",
+                process_start=456,
+                foreground=False,
+            ),
+        )),              patch(
+                 "floatingbar.bound_context_overlay.actionable_adapter_for_process",
+                 return_value=Mock(key="discord", label="Discord", implemented=True, supports_background_type=True),
+             ):
+            items = window._pinned_picker_items((live,))
+
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].process_start, 456)
+
     def test_invalid_new_selection_clears_active_app_identity(self):
         window = self._window()
         window._background_process_name = "discord.exe"
