@@ -95,6 +95,18 @@ def _candidate_from_element(element, pid: int, top_hwnd: int) -> InputCandidate 
         return None
 
 
+def _candidate_identity(candidate: InputCandidate) -> tuple:
+    """Return content-free UIA identity used to detect conflicting wrappers."""
+    return (
+        int(candidate.pid),
+        str(candidate.control_type),
+        str(candidate.class_name),
+        str(candidate.automation_id),
+        str(candidate.framework_id),
+        candidate.runtime_id,
+    )
+
+
 def enumerate_input_candidates(top_hwnd: int) -> tuple[InputCandidate, ...]:
     """Enumerate visible editable controls without reading their text."""
     if not top_hwnd or not winapi.user32.IsWindow(top_hwnd):
@@ -116,7 +128,19 @@ def enumerate_input_candidates(top_hwnd: int) -> tuple[InputCandidate, ...]:
     except Exception:
         return ()
 
-    unique = {candidate.hwnd: candidate for candidate in candidates}
+    unique: dict[int, InputCandidate] = {}
+    ambiguous: set[int] = set()
+    for candidate in candidates:
+        hwnd = int(candidate.hwnd)
+        if hwnd in ambiguous:
+            continue
+        existing = unique.get(hwnd)
+        if existing is None:
+            unique[hwnd] = candidate
+            continue
+        if _candidate_identity(existing) != _candidate_identity(candidate):
+            ambiguous.add(hwnd)
+            unique.pop(hwnd, None)
     return tuple(unique.values())
 
 
