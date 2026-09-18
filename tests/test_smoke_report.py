@@ -6,8 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from floatingbar.smoke_matrix import (
-    RESULT_BLOCKED,
+from floatingbar.smoke_matrix import (    RESULT_BLOCKED,
     RESULT_FAIL,
     RESULT_PASS,
     build_report,
@@ -22,6 +21,31 @@ from floatingbar.smoke_matrix import (
 
 
 class SmokeReportTests(unittest.TestCase):
+    def test_case_evidence_captures_executable_versions_without_content(self):
+        from types import SimpleNamespace
+
+        from tools.smoke_report import _record_case_evidence
+
+        snapshot = SimpleNamespace(
+            monitors=(),
+            adapters=(
+                SimpleNamespace(
+                    key="telegram",
+                    observed_process_instances=(("telegram.exe", 123),),
+                    observed_versions=("5.9.1",),
+                ),
+            ),
+        )
+        evidence = _record_case_evidence(snapshot, "2026-09-18T12:00:00Z")
+
+        self.assertEqual(
+            evidence["executable_versions"],
+            [{"adapter_key": "telegram", "version": "5.9.1"}],
+        )
+        self.assertNotIn("window_title", evidence)
+        self.assertNotIn("message", evidence)
+        self.assertNotIn("clipboard", evidence)
+
     @staticmethod
     def _complete_environment():
         return {
@@ -373,7 +397,7 @@ class SmokeReportTests(unittest.TestCase):
             r"^20[0-9]{2}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
         )
         self.assertEqual(selected["evidence"]["recorded_at"], selected["tested_at"])
-        self.assertIn("process_instances", selected["evidence"])
+        self.assertIn("process_instances", selected["evidence"])\n        self.assertIn("executable_versions", selected["evidence"])
         self.assertTrue(all(
             item["result"] == "PENDING"
             for item in updated["cases"]
@@ -618,7 +642,7 @@ class SmokeReportTests(unittest.TestCase):
             path = Path(tmp) / "smoke.json"
             path.write_text(json.dumps(report), encoding="utf-8")
             text = path.read_text(encoding="utf-8")
-            self.assertIn('"schema_version": 4', text)
+            self.assertIn('"schema_version": 5', text)
             self.assertIn('"matrix_fingerprint":', text)
 
 
