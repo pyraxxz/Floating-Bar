@@ -232,11 +232,10 @@ def _refresh_selected_row(chat: TelegramChatItem) -> TelegramChatItem:
 
     if chat.runtime_id is not None:
         identity_matches = [row for row in current_rows if row.runtime_id == chat.runtime_id]
+        if len(identity_matches) > 1:
+            raise RuntimeError("Telegram chat row runtime identity is ambiguous")
         if identity_matches:
-            current = min(
-                identity_matches,
-                key=lambda row: abs(row.left - chat.left) + abs(row.top - chat.top),
-            )
+            current = identity_matches[0]
             if current.name != chat.name:
                 raise RuntimeError("Telegram chat row identity changed")
             if abs(current.left - chat.left) + abs(current.top - chat.top) > 24:
