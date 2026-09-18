@@ -234,6 +234,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
                     adapter_key=spec.key,
                     pinned=True,
                     window_class=item.window_class,
+                    process_start=item.process_start,
                 )
             )
         return tuple(items)
