@@ -319,6 +319,10 @@ def chat_identity_matches(chat: TelegramChatItem) -> bool:
             return bool(matches[0].selected)
         if len(matches) > 1:
             return False
+        if chat.container_identity is not None:
+            return False
+        if chat.runtime_id is not None:
+            return False
     candidates = [
         row
         for row in current_rows
