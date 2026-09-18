@@ -24,6 +24,7 @@ class GenericRetryTests(unittest.TestCase):
         window._generic_retry_scope = None
         window._generic_retry_process_name = ""
         window._generic_retry_adapter_key = ""
+        window._generic_retry_window_class = ""
         window._retry_draft = None
         window._sending = False
         window._work_hwnd = 0
@@ -47,6 +48,7 @@ class GenericRetryTests(unittest.TestCase):
         self.assertEqual(window._generic_retry_scope, TargetScope(410, 811))
         self.assertEqual(window._generic_retry_process_name, "discord.exe")
         self.assertEqual(window._generic_retry_adapter_key, "discord")
+        self.assertEqual(window._generic_retry_window_class, "DemoWindow")
         window._background_typer.release.assert_called_once_with()
         self.assertEqual(window._background_process_name, "")
         self.assertEqual(window._background_adapter_key, "")
@@ -89,6 +91,26 @@ class GenericRetryTests(unittest.TestCase):
 
         window._background_typer.bind.return_value = TargetScope(999, 811)
         with patch("floatingbar.bound_context_overlay.target_for_adapter", return_value=window._background_typer):
+            window._retry_failed_draft()
+
+        window._show_feedback.assert_called_once()
+        window._show_bar.assert_not_called()
+        window._background_typer.release.assert_called_once_with()
+
+    def test_generic_retry_blocks_window_class_reuse(self):
+        window = self._window()
+        window._generic_retry_scope = TargetScope(410, 811)
+        window._generic_retry_process_name = "discord.exe"
+        window._generic_retry_adapter_key = "discord"
+        window._generic_retry_window_class = "DemoWindow"
+        window._retry_draft = "hello again"
+        window._hide_feedback = Mock()
+        window._show_feedback = Mock()
+        window._show_bar = Mock()
+        window._set_retry_menu_enabled = Mock()
+
+        with patch("floatingbar.bound_context_overlay.target_for_adapter", return_value=window._background_typer), \
+             patch("floatingbar.bound_context_overlay.winapi.get_window_class_name", return_value="OtherWindow"):
             window._retry_failed_draft()
 
         window._show_feedback.assert_called_once()
