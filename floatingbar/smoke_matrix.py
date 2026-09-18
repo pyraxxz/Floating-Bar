@@ -197,6 +197,94 @@ def validate_report(report: Mapping[str, object]) -> tuple[str, ...]:
     return tuple(errors)
 
 
+def environment_case_errors(report: Mapping[str, object]) -> tuple[str, ...]:
+    """Return environment-evidence errors for completed PASS cases."""
+    environment = report.get("environment")
+    if not isinstance(environment, Mapping):
+        return ("environment snapshot is missing",)
+
+    errors: list[str] = []
+    raw_cases = report.get("cases", ())
+    if not isinstance(raw_cases, list):
+        return tuple(errors)
+
+    raw_adapters = environment.get("adapters", ())
+    adapters: dict[str, Mapping[str, object]] = {}
+    if isinstance(raw_adapters, list):
+        for item in raw_adapters:
+            if isinstance(item, Mapping):
+                key = str(item.get("key", "")).strip()
+                if key:
+                    adapters[key] = item
+
+    raw_monitors = environment.get("monitors", ())
+    monitors = raw_monitors if isinstance(raw_monitors, list) else []
+
+    if any(
+        isinstance(item, Mapping)
+        and str(item.get("case_id", "")) == "env.dpi"
+        and str(item.get("result", RESULT_PENDING)) == RESULT_PASS
+        for item in raw_cases
+    ):
+        dpi_values = {
+            (int(item.get("dpi_x", 0) or 0), int(item.get("dpi_y", 0) or 0))
+            for item in monitors
+            if isinstance(item, Mapping)
+            and int(item.get("dpi_x", 0) or 0) > 0
+            and int(item.get("dpi_y", 0) or 0) > 0
+        }
+        if len(monitors) < 2 or len(dpi_values) < 2:
+            errors.append("env.dpi PASS requires at least two monitors with distinct effective DPI values")
+
+    required_processes = {
+        "terminal.acceptance.wt": {"windowsterminal.exe", "wt.exe"},
+        "terminal.acceptance.preview": {"windowsterminalpreview.exe"},
+        "terminal.acceptance.conhost": {"conhost.exe", "cmd.exe"},
+        "terminal.acceptance.pwsh": {"pwsh.exe"},
+    }
+    adapter_cases = {
+        "telegram": {"telegram"},
+        "whatsapp": {"whatsapp"},
+        "discord": {"discord"},
+        "slack": {"slack"},
+        "teams": {"teams"},
+        "terminal": {"terminal"},
+        "cmd": {"cmd"},
+        "powershell": {"powershell"},
+    }
+
+    for item in raw_cases:
+        if not isinstance(item, Mapping) or str(item.get("result", RESULT_PENDING)) != RESULT_PASS:
+            continue
+        case_id = str(item.get("case_id", "")).strip()
+        expected_processes = required_processes.get(case_id)
+        if expected_processes:
+            observed = set()
+            for key in expected_processes:
+                spec = adapters.get("terminal" if key in {"windowsterminal.exe", "wt.exe", "windowsterminalpreview.exe", "conhost.exe", "cmd.exe", "pwsh.exe"} else key)
+                if spec is not None:
+                    raw_observed = spec.get("observed_processes", ())
+                    if isinstance(raw_observed, (list, tuple)):
+                        observed.update(str(value).casefold() for value in raw_observed)
+            if not (observed & expected_processes):
+                errors.append(f"environment evidence missing for {case_id}")
+            continue
+
+        adapter_key = next(
+            (adapter for adapter in adapter_cases if case_id == f"chat.{adapter}"),
+            None,
+        )
+        if case_id.startswith("telegram."):
+            adapter_key = "telegram"
+        if adapter_key:
+            spec = adapters.get(adapter_key)
+            observed_count = int(spec.get("open_window_count", 0) or 0) if spec is not None else 0
+            if observed_count <= 0:
+                errors.append(f"environment evidence missing for {case_id}")
+
+    return tuple(errors)
+
+
 def summarize_report(report: Mapping[str, object]) -> dict[str, int]:
     """Return stable counts for a smoke report without inspecting its notes."""
     counts = {result.lower(): 0 for result in RESULTS}
@@ -252,6 +340,7 @@ __all__ = [
     "build_report",
     "case_ids",
     "completion_errors",
+    "environment_case_errors",
     "default_cases",
     "matrix_fingerprint",
     "pending_case_ids",
