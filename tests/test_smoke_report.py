@@ -37,7 +37,7 @@ class SmokeReportTests(unittest.TestCase):
             ],
             "adapters": [
                 {"key": "telegram", "open_window_count": 1, "observed_processes": ["telegram.exe"], "observed_process_instances": [{"process_name": "telegram.exe", "process_start": 1001}]},
-                {"key": "terminal", "open_window_count": 1, "observed_processes": ["windowsterminal.exe", "windowsterminalpreview.exe", "conhost.exe"], "observed_process_instances": [{"process_name": "windowsterminal.exe", "process_start": 1002}]},
+                {"key": "terminal", "open_window_count": 1, "observed_processes": ["windowsterminal.exe", "windowsterminalpreview.exe", "conhost.exe"], "observed_process_instances": [{"process_name": "windowsterminal.exe", "process_start": 1002}, {"process_name": "windowsterminalpreview.exe", "process_start": 1012}, {"process_name": "conhost.exe", "process_start": 1013}]},
                 {"key": "powershell", "open_window_count": 1, "observed_processes": ["pwsh.exe"], "observed_process_instances": [{"process_name": "pwsh.exe", "process_start": 1003}]},
                 {"key": "cmd", "open_window_count": 1, "observed_processes": ["cmd.exe"], "observed_process_instances": [{"process_name": "cmd.exe", "process_start": 1004}]},
                 {"key": "whatsapp", "open_window_count": 1, "observed_processes": ["whatsapp.exe"], "observed_process_instances": [{"process_name": "whatsapp.exe", "process_start": 1005}]},
@@ -56,7 +56,10 @@ class SmokeReportTests(unittest.TestCase):
             "adapters": [
                 {
                     "key": item["key"],
-                    "observed_process_instances": list(item.get("observed_process_instances", [])),
+                    "observed_process_instances": [
+                        {**instance, "adapter_key": item["key"]}
+                        for instance in item.get("observed_process_instances", [])
+                    ],
                 }
                 for item in environment.get("adapters", [])
                 if isinstance(item, dict) and item.get("key")
@@ -155,7 +158,7 @@ class SmokeReportTests(unittest.TestCase):
                     "open_window_count": 1,
                     "observed_processes": ["telegram.exe"],
                     "observed_process_instances": [
-                        {"process_name": "telegram.exe", "process_start": 123}
+                        {"adapter_key": "telegram", "process_name": "telegram.exe", "process_start": 123}
                     ],
                 },
             ]
