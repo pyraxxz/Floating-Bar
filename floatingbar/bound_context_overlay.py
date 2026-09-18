@@ -190,6 +190,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
                     process_name=target.process_name,
                     adapter_key=spec.key,
                     recent=True,
+                    window_class=str(target.window_class or ""),
                 )
             )
         return tuple(items)
@@ -206,6 +207,11 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
                 for item in windows
                 if item.process_name.casefold() == pin.process_name
             ]
+            if pin.window_class:
+                matches = [
+                    item for item in matches
+                    if item.window_class == pin.window_class
+                ]
             if len(matches) != 1:
                 continue
             item = to_picker_items(matches)[0]
@@ -222,6 +228,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
                     process_name=item.process_name,
                     adapter_key=spec.key,
                     pinned=True,
+                    window_class=item.window_class,
                 )
             )
         return tuple(items)
@@ -279,6 +286,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             adapter_key=spec.key,
             process_name=item.process_name,
             label=spec.label,
+            window_class=item.window_class,
         )
 
     def _toggle_pinned_conversation(self, conversation: ConversationItem) -> None:
@@ -292,7 +300,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             control_identity=conversation.control_identity,
         )
 
-    def _remember_bound_application(self, spec, hwnd: int, pid: int) -> None:
+    def _remember_bound_application(self, spec, hwnd: int, pid: int, window_class: str = "") -> None:
         """Remember only a successfully probed application scope."""
         if spec is None or not spec.implemented or not spec.supports_background_type:
             return
@@ -302,6 +310,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             process_name=self._background_process_name,
             label=spec.label,
             adapter_key=spec.key,
+            window_class=window_class,
         )
 
     def _select_background_window(self, item: PickerItem) -> None:
@@ -332,9 +341,9 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             self._conversation_picker.show()
             return
 
-        self._bind_generic_target(item.hwnd, item.pid, spec)
+        self._bind_generic_target(item.hwnd, item.pid, spec, item.window_class)
 
-    def _bind_generic_target(self, hwnd: int, pid: int, spec=None) -> None:
+    def _bind_generic_target(self, hwnd: int, pid: int, spec=None, window_class: str = "") -> None:
         self._background_typer.bind(hwnd, pid)
         self._bind_adapter_metadata(spec)
         self._update_status()
@@ -348,7 +357,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         if not probe.available or probe.candidate_count <= 0 or reason != "ready":
             self._show_feedback(self._probe_feedback(probe))
             return
-        self._remember_bound_application(spec, hwnd, pid)
+        self._remember_bound_application(spec, hwnd, pid, window_class)
         if self._state != "bar" and not self._sending:
             self._show_bar()
 
