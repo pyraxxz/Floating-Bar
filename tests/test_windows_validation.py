@@ -34,7 +34,7 @@ class WindowsValidationTests(unittest.TestCase):
 
     def test_snapshot_serialization_is_content_free(self):
         snapshot = WindowsValidationSnapshot(
-            schema_version=1,
+            schema_version=2,
             platform="Windows",
             windows_release="11",
             windows_version="10.0.26100",
