@@ -6,6 +6,7 @@ from floatingbar.control_candidates import (
     best_input_candidate,
     candidate_score,
     _candidate_from_element,
+    enumerate_input_candidates,
 )
 from floatingbar.generic_target import BackgroundTypingTarget
 from floatingbar.transaction import TargetScope
