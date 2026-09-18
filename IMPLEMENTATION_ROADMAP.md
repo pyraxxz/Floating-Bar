@@ -46,9 +46,9 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Content-free Windows environment validation snapshot
 - [x] Declarative real-Windows smoke matrix covering supported app families and reliability cases
 - [x] Smoke report validation, result summaries, and reproducible desktop-test report generation
-- [x] Session-only recent application targets with exact HWND/PID revalidation
+- [x] Session-only recent application targets with exact HWND/PID/process-instance revalidation
 - [x] Session-only recent conversation targets with runtime/structural row revalidation
-- [x] Persistent pinned application/conversation targets with content-free stored identity and live-scope validation
+- [x] Persistent pinned application/conversation targets with content-free stored identity and live-scope validation, including picker process-instance guards
 - [x] Persistent user-authored quick replies with bounded CRUD storage and draft-only insertion
 
 ### Completed grouped milestone — Adapter Architecture
