@@ -517,11 +517,31 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         if scope is None:
             return super()._retry_failed_draft()
         spec = actionable_adapter_for_process(self._generic_retry_process_name)
-        if spec is None or not spec.implemented or not spec.supports_background_type:
+        if (
+            spec is None
+            or not spec.implemented
+            or not spec.supports_background_type
+            or spec.key != self._generic_retry_adapter_key
+        ):
             self._show_feedback("The original background app is no longer supported safely.")
             return
-        self._background_typer = target_for_adapter(spec)
-        self._background_typer.bind(scope.hwnd, scope.pid)
+        target = target_for_adapter(spec)
+        rebound = target.bind(scope.hwnd, scope.pid)
+        if rebound != scope or not target.scope_matches(scope.hwnd, scope.pid):
+            target.release()
+            self._show_feedback("The original background app changed before the retry could start.")
+            return
+        try:
+            probe = target.probe()
+        except Exception:
+            target.release()
+            self._show_feedback("The original background app could not be inspected safely for retry.")
+            return
+        if not probe.available or probe.candidate_count <= 0 or self._probe_reason(probe) != "ready":
+            target.release()
+            self._show_feedback(self._probe_feedback(probe))
+            return
+        self._background_typer = target
         self._bind_adapter_metadata(spec)
         self._background_process_name = self._generic_retry_process_name
         self._background_adapter_key = self._generic_retry_adapter_key
