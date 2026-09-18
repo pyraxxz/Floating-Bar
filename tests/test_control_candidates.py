@@ -5,6 +5,7 @@ from floatingbar.control_candidates import (
     InputCandidate,
     best_input_candidate,
     candidate_score,
+    _candidate_from_element,
 )
 from floatingbar.generic_target import BackgroundTypingTarget
 from floatingbar.transaction import TargetScope
@@ -26,6 +27,39 @@ class ControlCandidateTests(unittest.TestCase):
         candidate = InputCandidate(10, 20, "Edit", "Edit", 1, 2, 101, 42, True, True, True)
         self.assertFalse(hasattr(candidate, "text"))
         self.assertEqual(candidate.area, 4000)
+
+    def test_candidate_extraction_captures_content_free_uia_identity(self):
+        from types import SimpleNamespace
+
+        class Element:
+            handle = 301
+            element_info = SimpleNamespace(
+                control_type="Edit",
+                class_name="RichEdit",
+                automation_id="composer-1",
+                framework_id="uia",
+                runtime_id=(7, 8, 9),
+            )
+
+            @staticmethod
+            def rectangle():
+                return SimpleNamespace(left=10, top=20, right=410, bottom=60)
+
+            @staticmethod
+            def is_visible():
+                return True
+
+            @staticmethod
+            def is_enabled():
+                return True
+
+        with patch("floatingbar.control_candidates.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.control_candidates.winapi.get_focused_hwnd", return_value=301):
+            candidate = _candidate_from_element(Element(), 200, 100)
+
+        self.assertEqual(candidate.automation_id, "composer-1")
+        self.assertEqual(candidate.framework_id, "uia")
+        self.assertEqual(candidate.runtime_id, (7, 8, 9))
 
     def test_generic_target_exposes_structural_candidates_without_sending(self):
         target = BackgroundTypingTarget(100, 200)
