@@ -208,6 +208,53 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(context.chat_name_fp, "")
         self.assertTrue(context.guard_available)
 
+    def test_window_context_matches_selected_chat_structural_anchor(self):
+        structure_fp = title_fingerprint("ListItem|chat-row|uia||ancestor1|Pane|chat-list|uia")
+        context = WindowContext(
+            100, 200, "",
+            chat_runtime_id=(7, 8, 9),
+            chat_name_fp=title_fingerprint("Private Chat"),
+            chat_structure_fp=structure_fp,
+        )
+        with patch("floatingbar.context.winapi.get_window_pid", return_value=200), patch(
+            "floatingbar.context.winapi.user32.IsWindow", return_value=True
+        ), patch(
+            "floatingbar.context._selected_chat_anchor",
+            return_value=((7, 8, 9), title_fingerprint("Private Chat"), structure_fp),
+        ):
+            self.assertTrue(context.matches())
+
+    def test_window_context_rejects_recycled_chat_structure_with_same_runtime_and_name(self):
+        expected = title_fingerprint("ListItem|chat-row|uia||ancestor1|Pane|chat-list-a|uia")
+        replacement = title_fingerprint("ListItem|chat-row|uia||ancestor1|Pane|chat-list-b|uia")
+        context = WindowContext(
+            100, 200, "",
+            chat_runtime_id=(7, 8, 9),
+            chat_name_fp=title_fingerprint("Private Chat"),
+            chat_structure_fp=expected,
+        )
+        with patch("floatingbar.context.winapi.get_window_pid", return_value=200), patch(
+            "floatingbar.context.winapi.user32.IsWindow", return_value=True
+        ), patch(
+            "floatingbar.context._selected_chat_anchor",
+            return_value=((7, 8, 9), title_fingerprint("Private Chat"), replacement),
+        ):
+            self.assertFalse(context.matches())
+
+    def test_legacy_two_value_chat_anchor_remains_accepted(self):
+        context = WindowContext(
+            100, 200, "",
+            chat_runtime_id=(7, 8, 9),
+            chat_name_fp=title_fingerprint("Private Chat"),
+        )
+        with patch("floatingbar.context.winapi.get_window_pid", return_value=200), patch(
+            "floatingbar.context.winapi.user32.IsWindow", return_value=True
+        ), patch(
+            "floatingbar.context._selected_chat_anchor",
+            return_value=((7, 8, 9), title_fingerprint("Private Chat")),
+        ):
+            self.assertTrue(context.matches())
+
 
 if __name__ == "__main__":
     unittest.main()
