@@ -85,7 +85,7 @@ class HardeningTests(unittest.TestCase):
             side_effect=RuntimeError("click failed"),
         ) as click, patch("floatingbar.hardening.winapi.post_text") as post_text, patch(
             "floatingbar.hardening.trace.trace"
-        ):
+        ), patch("floatingbar.hardening.winapi.get_window_pid", return_value=10):
             with self.assertRaises(InjectionFailed) as raised:
                 injector._land_text(SimpleNamespace(), 123, "danger")
 
@@ -99,7 +99,8 @@ class HardeningTests(unittest.TestCase):
         target.scope_matches.return_value = True
         injector = HardenedTelegramInjector(target)
 
-        with patch("floatingbar.hardening.winapi.post_text") as post_text:
+        with patch("floatingbar.hardening.winapi.post_text") as post_text, \
+             patch("floatingbar.hardening.winapi.get_window_pid", return_value=10):
             with self.assertRaises(InjectionFailed) as raised:
                 injector._land_text(SimpleNamespace(), 123, "danger")
 
