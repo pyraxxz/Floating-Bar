@@ -321,7 +321,7 @@ def environment_case_errors(report: Mapping[str, object]) -> tuple[str, ...]:
                             if name in expected_processes and isinstance(start, int) and not isinstance(start, bool) and start > 0:
                                 observed.add(name)
             case_evidence = item.get("evidence")
-            if not isinstance(case_evidence, Mapping):
+            if not isinstance(case_evidence, Mapping) or not case_evidence:
                 errors.append(f"environment case evidence missing for {case_id}")
             elif str(case_evidence.get("recorded_at", "")).strip() != str(item.get("tested_at", "")).strip():
                 errors.append(f"environment case evidence timestamp mismatch for {case_id}")
@@ -360,7 +360,7 @@ def environment_case_errors(report: Mapping[str, object]) -> tuple[str, ...]:
                             and start > 0
                         ):
                             instances.add((name, start))
-                if not isinstance(case_evidence, Mapping):
+                if not isinstance(case_evidence, Mapping) or not case_evidence:
                     errors.append(f"environment case evidence missing for {case_id} ({adapter_key})")
                 elif str(case_evidence.get("recorded_at", "")).strip() != str(item.get("tested_at", "")).strip():
                     errors.append(f"environment case evidence timestamp mismatch for {case_id} ({adapter_key})")
@@ -371,7 +371,7 @@ def environment_case_errors(report: Mapping[str, object]) -> tuple[str, ...]:
         critical_requirement = critical_app_process_requirements.get(case_id)
         if critical_requirement:
             case_evidence = item.get("evidence")
-            if not isinstance(case_evidence, Mapping):
+            if not isinstance(case_evidence, Mapping) or not case_evidence:
                 for adapter_key in critical_requirement:
                     errors.append(f"environment case evidence missing for {case_id} ({adapter_key})")
                 continue
