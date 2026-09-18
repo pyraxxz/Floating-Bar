@@ -104,7 +104,7 @@ class RecentTargetHistoryTests(unittest.TestCase):
                 ):
                     with patch(
                         "floatingbar.recent_targets.actionable_adapter_for_process",
-                        return_value=SimpleNamespace(implemented=True, key="demo"),
+                        return_value=SimpleNamespace(implemented=True, supports_background_type=True, key="demo"),
                     ):
                         with patch(
                             "floatingbar.recent_targets.winapi.get_window_class_name",
@@ -120,7 +120,7 @@ class RecentTargetHistoryTests(unittest.TestCase):
                 ):
                     with patch(
                         "floatingbar.recent_targets.actionable_adapter_for_process",
-                        return_value=SimpleNamespace(implemented=True, key="demo"),
+                        return_value=SimpleNamespace(implemented=True, supports_background_type=True, key="demo"),
                     ):
                         with patch(
                             "floatingbar.recent_targets.winapi.get_window_class_name",
