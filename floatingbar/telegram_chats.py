@@ -263,8 +263,7 @@ def _refresh_selected_row(chat: TelegramChatItem) -> TelegramChatItem:
             return current
         if len(structural_matches) > 1:
             raise RuntimeError("Telegram chat row structural identity is ambiguous")
-        if chat.runtime_id is None:
-            raise RuntimeError("Telegram chat row structural identity disappeared")
+        raise RuntimeError("Telegram chat row structural identity disappeared")
 
     candidates = [row for row in current_rows if row.name == chat.name]
     if not candidates:
