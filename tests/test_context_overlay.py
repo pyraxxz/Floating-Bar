@@ -176,7 +176,10 @@ class ContextOverlayTests(unittest.TestCase):
         self.assertIsInstance(completion, SendCompletion)
         self.assertEqual(completion.attempt_id, 10)
         self.assertIsNone(completion.strategy)
-        self.assertIn("unexpected", completion.error)
+        self.assertEqual(
+            completion.error,
+            "Telegram send preflight failed safely.",
+        )
         self.assertIsNotNone(window._active_lifecycle)
         self.assertEqual(window._active_lifecycle.state, TransactionState.REJECTED)
 
