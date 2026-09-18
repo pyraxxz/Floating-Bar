@@ -3,7 +3,12 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from floatingbar.context import _is_selected_chat_row, _selected_chat_anchor, title_fingerprint
+from floatingbar.context import (
+    _is_selected_chat_row,
+    _selected_chat_anchor,
+    _structural_fingerprint,
+    title_fingerprint,
+)
 
 
 class _Rect:
@@ -195,6 +200,36 @@ class ChatAnchorBatchTests(unittest.TestCase):
 
         self.assertEqual(result, ((), ""))
         application.assert_not_called()
+
+    def test_structural_fingerprint_ignores_automation_id_but_detects_structure_change(self):
+        ancestor = SimpleNamespace(
+            element_info=SimpleNamespace(
+                control_type="Pane",
+                class_name="ChatList",
+                framework_id="uia",
+                automation_id="ignored",
+            ),
+            parent=lambda: None,
+        )
+
+        def item(class_name, automation_id):
+            return SimpleNamespace(
+                element_info=SimpleNamespace(
+                    control_type="ListItem",
+                    class_name=class_name,
+                    framework_id="uia",
+                    automation_id=automation_id,
+                ),
+                parent=lambda: ancestor,
+            )
+
+        first = _structural_fingerprint(item("ChatRow", "chat-one"))
+        same_structure = _structural_fingerprint(item("ChatRow", "chat-two"))
+        changed_structure = _structural_fingerprint(item("DifferentRow", "chat-two"))
+
+        self.assertTrue(first)
+        self.assertEqual(first, same_structure)
+        self.assertNotEqual(first, changed_structure)
 
 
 if __name__ == "__main__":
