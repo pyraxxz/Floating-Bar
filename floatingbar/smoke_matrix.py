@@ -15,7 +15,7 @@ from typing import Iterable, Mapping
 from .app_adapters import registry_validation_errors
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 RESULT_PENDING = "PENDING"
 RESULT_PASS = "PASS"
