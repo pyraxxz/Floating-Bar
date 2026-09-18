@@ -53,16 +53,11 @@ class SmokeReportTests(unittest.TestCase):
         evidence = {
             "recorded_at": recorded_at,
             "monitors": list(environment.get("monitors", [])),
-            "adapters": [
-                {
-                    "key": item["key"],
-                    "observed_process_instances": [
-                        {**instance, "adapter_key": item["key"]}
-                        for instance in item.get("observed_process_instances", [])
-                    ],
-                }
+            "process_instances": [
+                {**instance, "adapter_key": item["key"]}
                 for item in environment.get("adapters", [])
                 if isinstance(item, dict) and item.get("key")
+                for instance in item.get("observed_process_instances", [])
             ],
         }
         for item in report["cases"]:
@@ -169,12 +164,11 @@ class SmokeReportTests(unittest.TestCase):
                 item["tested_at"] = "2026-09-18T12:00:00Z"
                 item["evidence"] = {
                     "recorded_at": item["tested_at"],
-                    "adapters": [
+                    "process_instances": [
                         {
-                            "key": "telegram",
-                            "observed_process_instances": [
-                                {"process_name": "telegram.exe", "process_start": 123}
-                            ],
+                            "adapter_key": "telegram",
+                            "process_name": "telegram.exe",
+                            "process_start": 123,
                         }
                     ],
                 }
@@ -223,12 +217,11 @@ class SmokeReportTests(unittest.TestCase):
                 item["tested_at"] = "2026-09-18T12:00:00Z"
                 item["evidence"] = {
                     "recorded_at": item["tested_at"],
-                    "adapters": [
+                    "process_instances": [
                         {
-                            "key": "telegram",
-                            "observed_process_instances": [
-                                {"process_name": "telegram.exe", "process_start": 123}
-                            ],
+                            "adapter_key": "telegram",
+                            "process_name": "telegram.exe",
+                            "process_start": 123,
                         }
                     ],
                 }
@@ -268,12 +261,11 @@ class SmokeReportTests(unittest.TestCase):
                 item["tested_at"] = "2026-09-18T12:00:00Z"
                 item["evidence"] = {
                     "recorded_at": "2026-09-18T12:01:00Z",
-                    "adapters": [
+                    "process_instances": [
                         {
-                            "key": "telegram",
-                            "observed_process_instances": [
-                                {"process_name": "telegram.exe", "process_start": 123}
-                            ],
+                            "adapter_key": "telegram",
+                            "process_name": "telegram.exe",
+                            "process_start": 123,
                         }
                     ],
                 }
