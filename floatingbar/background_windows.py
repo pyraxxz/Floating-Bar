@@ -23,6 +23,7 @@ class BackgroundWindow:
     area: int
     foreground: bool = False
     window_class: str = ""
+    process_start: int | None = None
 
     @property
     def label(self) -> str:
@@ -56,6 +57,7 @@ def enumerate_background_windows(
                 continue
             pid = winapi.get_window_pid(hwnd)
             image = winapi.get_process_image_name(pid)
+            process_start = winapi.get_process_creation_time(pid)
             process_name = image.rsplit("\\", 1)[-1].casefold() if image else ""
             if not process_name:
                 continue
@@ -67,6 +69,7 @@ def enumerate_background_windows(
                     area=winapi.get_window_rect_area(hwnd),
                     foreground=(hwnd == foreground),
                     window_class=str(winapi.get_window_class_name(hwnd) or "").strip(),
+                    process_start=process_start,
                 )
             )
         except Exception:
