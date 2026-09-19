@@ -12,7 +12,10 @@ import config
 from . import clipboard_guard
 from . import trace
 from . import winapi
-from .evidence import EvidenceStrategy, SubmissionEvidence, from_result
+from .adapter_evidence import evidence_for_adapter
+from .app_adapters import adapter_for_process
+from .app_verification import verification_contract
+from .evidence import EvidenceState, EvidenceStrategy, SubmissionEvidence, from_result
 from .injector import InjectionFailed, TelegramInjector, _combo
 from .transaction import candidate_parts
 
@@ -52,9 +55,27 @@ class HardenedTelegramInjector(TelegramInjector):
         except Exception as exc:
             self._last_submission_evidence = from_result(None, str(exc))
             raise
-        self._last_submission_evidence = from_result(strategy)
+        raw_evidence = from_result(strategy)
+        telegram_spec = adapter_for_process("telegram.exe")
+        if (
+            raw_evidence.state is EvidenceState.VERIFIED
+            and raw_evidence.proof_kind is None
+        ):
+            contract = verification_contract(telegram_spec)
+            if contract is not None:
+                raw_evidence = SubmissionEvidence(
+                    state=raw_evidence.state,
+                    strategy=raw_evidence.strategy,
+                    detail=raw_evidence.detail,
+                    retryable=raw_evidence.retryable,
+                    proof_kind=contract.proof_kind,
+                )
+        self._last_submission_evidence = evidence_for_adapter(
+            telegram_spec,
+            submission_evidence=raw_evidence,
+        )
         if isinstance(strategy, EvidenceStrategy):
-            return strategy
+            return EvidenceStrategy(str(strategy), self._last_submission_evidence)
         return EvidenceStrategy(strategy, self._last_submission_evidence)
 
     def _assert_target_scope(self, hwnd: int, stage: str) -> int:
