@@ -24,6 +24,7 @@ permissions:
 jobs:
   publish:
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
         with:
@@ -176,7 +177,11 @@ jobs:
 
       - name: Install dependencies
         if: steps.release.outputs.publish == 'true'
-        run: pip install -r requirements.txt pyinstaller
+        run: python -m pip install --disable-pip-version-check -r requirements.txt pyinstaller
+
+      - name: Verify installed dependency consistency
+        if: steps.release.outputs.publish == 'true'
+        run: python -m pip check
 
       - name: Compile Python sources
         if: steps.release.outputs.publish == 'true'

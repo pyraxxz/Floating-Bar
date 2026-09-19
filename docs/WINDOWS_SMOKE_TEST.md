@@ -39,7 +39,7 @@ Use `--require-complete` for the release gate; it fails until every case is reso
 python tools/smoke_report.py --validate smoke-report.json --require-complete
 ```
 
-For a milestone release, commit the completed `smoke-report.json` into the exact release source before creating the version tag. The release workflow requires that file, verifies its required Windows environment fields, and checks that the recorded `source_commit` is an ancestor of the tagged source before installing release dependencies or building the Windows executable. This keeps the downloadable build tied to a recorded real-Windows acceptance result instead of treating unit-test success as desktop validation.
+For a milestone release, commit the completed `smoke-report.json` into the exact release source before creating the version tag. The release workflow requires that file, verifies its required Windows environment fields, and checks that the recorded `source_commit` exactly matches the tagged release commit before installing release dependencies or building the Windows executable. This keeps the downloadable build tied to a recorded real-Windows acceptance result instead of treating unit-test success as desktop validation.
 
 The validator checks the schema, duplicate/missing case IDs, result values, completion state, and the required Windows environment fields. Keep notes content-free; use short failure reasons such as `compose-not-found`, `target-replaced`, `uipi-blocked`, or `coordinate-offset` rather than copying private UI content.
 
