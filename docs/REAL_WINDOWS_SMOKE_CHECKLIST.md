@@ -200,8 +200,8 @@ python tools/smoke_report.py --validate smoke-report.json --require-complete
 The validation must reject missing cases, stale matrix fingerprints, malformed schema,
 duplicate/unknown IDs, and invalid result values.
 
-For release use, also confirm that the report's recorded source commit is an ancestor
-of the exact release tag commit. The release workflow performs that ancestry check before
+For release use, also confirm that the report's recorded source commit exactly matches
+the release tag commit. The release workflow performs that exact-source check before
 publication.
 
 ## 11. Minimum release-quality execution set
