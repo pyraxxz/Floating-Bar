@@ -298,6 +298,12 @@ def _confirm_selected(chat: TelegramChatItem) -> TelegramChatItem:
     raise RuntimeError("Telegram chat row was not selected after background click")
 
 
+def _sole_selected_row(rows: tuple[TelegramChatItem, ...], candidate: TelegramChatItem) -> bool:
+    """Require exactly one selected row in the current structural snapshot."""
+    selected = tuple(row for row in rows if row.selected)
+    return len(selected) == 1 and selected[0] is candidate
+
+
 def chat_identity_matches(chat: TelegramChatItem) -> bool:
     """Return whether the same content-free chat identity is still selected."""
     if not chat.hwnd or not chat.pid:
@@ -318,7 +324,7 @@ def chat_identity_matches(chat: TelegramChatItem) -> bool:
             current = matches[0]
             if chat.control_identity is not None and current.control_identity != chat.control_identity:
                 return False
-            return bool(current.selected)
+            return _sole_selected_row(current_rows, current)
         if len(matches) > 1:
             return False
     if chat.control_identity is not None:
@@ -333,7 +339,7 @@ def chat_identity_matches(chat: TelegramChatItem) -> bool:
                 if row.container_identity == chat.container_identity
             ]
         if len(matches) == 1:
-            return bool(matches[0].selected)
+            return _sole_selected_row(current_rows, matches[0])
         if len(matches) > 1:
             return False
         return False
@@ -344,7 +350,7 @@ def chat_identity_matches(chat: TelegramChatItem) -> bool:
             if row.container_identity == chat.container_identity
         ]
         if len(matches) == 1:
-            return bool(matches[0].selected)
+            return _sole_selected_row(current_rows, matches[0])
         return False
     if chat.runtime_id is not None:
         return False
@@ -356,6 +362,8 @@ def chat_identity_matches(chat: TelegramChatItem) -> bool:
     if len(candidates) != 1:
         return False
     current = candidates[0]
+    if not _sole_selected_row(current_rows, current):
+        return False
     distance = abs(current.left - chat.left) + abs(current.top - chat.top)
     return distance <= 24
 
