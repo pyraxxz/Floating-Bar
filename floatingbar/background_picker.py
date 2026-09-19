@@ -124,9 +124,9 @@ def action_for_item(item: PickerItem) -> str:
     """Return the safe action exposed when hovering an application row."""
     spec = actionable_adapter_for_process(item.process_name)
     if not item.actionable or not spec or not spec.implemented:
-        return "Preview"
+        return "No safe input"
     if not spec.supports_background_type:
-        return "Preview"
+        return "No safe input"
     return spec.action
 
 
@@ -247,7 +247,11 @@ class BackgroundAppPicker:
             if len(merged) >= BackgroundAppPicker.MAX_VISIBLE:
                 break
         if len(merged) < BackgroundAppPicker.MAX_VISIBLE:
-            for item in live_items:
+            live = [item for item in live_items if (item.hwnd, item.pid) not in seen]
+            # Put usable targets first so a few unrelated windows cannot crowd
+            # every actionable app out of the small hover menu.
+            live.sort(key=lambda item: (not item.actionable, not item.foreground))
+            for item in live:
                 key = (item.hwnd, item.pid)
                 if key in seen:
                     continue
@@ -292,7 +296,11 @@ class BackgroundAppPicker:
             section = "Pinned" if item.pinned else "Recent" if item.recent else "Open apps"
             if section not in section_names:
                 section_names.append(section)
-        height = len(items) * self.ROW_HEIGHT + len(section_names) * self.SECTION_HEIGHT + 14
+        height = (
+            len(items) * self.ROW_HEIGHT
+            + len(section_names) * self.SECTION_HEIGHT
+            + 42
+        )
         x, y = ui_theme.place_popup_near(self.owner, popup, self.WIDTH, height)
         popup.geometry(f"{self.WIDTH}x{height}+{x}+{y}")
         popup.bind("<Enter>", self._popup_enter, add="+")
@@ -300,7 +308,21 @@ class BackgroundAppPicker:
 
         frame = ui_theme.frame(popup)
         frame.pack(fill="both", expand=True, padx=4, pady=4)
+        ui_theme.label(
+            frame,
+            text="Background apps",
+            muted=True,
+            bold=True,
+            small=True,
+        ).pack(fill="x", padx=4, pady=(1, 0))
+        ui_theme.label(
+            frame,
+            text="Hover an app for actions  ·  ↑/↓ choose  ·  Enter open",
+            dim=True,
+            small=True,
+        ).pack(fill="x", padx=4, pady=(1, 5))
         current_section = None
+        row_buttons = []
         for item in items:
             section = "Pinned" if item.pinned else "Recent" if item.recent else "Open apps"
             if section != current_section:
@@ -323,6 +345,7 @@ class BackgroundAppPicker:
             )
             button.pack(fill="x", ipady=5)
             if item.actionable:
+                row_buttons.append(button)
                 button.bind(
                     "<Enter>",
                     lambda _event, selected=item, row=button: self._row_enter(
@@ -331,6 +354,11 @@ class BackgroundAppPicker:
                     add="+",
                 )
                 button.bind("<Leave>", self._row_leave, add="+")
+        ui_theme.bind_picker_navigation(
+            popup,
+            row_buttons,
+            on_escape=self.hide,
+        )
 
     def _row_enter(self, item: PickerItem, row: tk.Misc) -> None:
         self._cancel_hide()

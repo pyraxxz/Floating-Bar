@@ -122,6 +122,14 @@ class OrbRelayWindow(tk.Tk):
             font=ui_theme.FONT_SMALL,
             anchor="w",
         )
+        self.entry_hint = tk.Label(
+            self.bar,
+            text="Enter ↵",
+            bg=ui_theme.SURFACE_ELEVATED,
+            fg=ui_theme.TEXT_DIM,
+            font=ui_theme.FONT_SMALL_BOLD,
+            anchor="e",
+        )
         self._bind_drag(self.bar, on_click=None)
 
         self.entry.bind("<Return>", self._on_enter_key)
@@ -308,11 +316,50 @@ class OrbRelayWindow(tk.Tk):
         self._apply_alpha(config.ORB_ALPHA)
         self._set_geometry()
 
+    def _layout_bar_entry(self, entry_x: int = 10) -> None:
+        """Lay out the compose field and its small keyboard hint."""
+        hint_width = 58
+        right_margin = 8
+        hint_x = max(entry_x + 60, config.BAR_WIDTH - hint_width - right_margin)
+        entry_width = max(80, hint_x - entry_x - 6)
+        self.entry.place(
+            x=entry_x,
+            y=9,
+            width=entry_width,
+            height=22,
+        )
+        self.entry_hint.place(
+            x=hint_x,
+            y=10,
+            width=hint_width,
+            height=20,
+        )
+        self._refresh_entry_hint()
+
+    def _refresh_entry_hint(self) -> None:
+        """Show the Enter affordance only while the compose is empty."""
+        try:
+            empty = not bool(self.entry.get())
+        except Exception:
+            empty = True
+        try:
+            if empty and not self._sending:
+                self.entry_hint.place(
+                    x=max(0, config.BAR_WIDTH - 66),
+                    y=10,
+                    width=58,
+                    height=20,
+                )
+            else:
+                self.entry_hint.place_forget()
+        except Exception:
+            pass
+
     def _show_bar(self) -> None:
         self._state = "bar"
         self.orb.place_forget()
         self.bar.place(x=0, y=0, width=config.BAR_WIDTH, height=config.BAR_HEIGHT)
-        self.entry.place(x=10, y=9, width=config.BAR_WIDTH - 20, height=22)
+        self._layout_bar_entry()
         self._apply_alpha(config.BAR_ALPHA)
         self._set_geometry()
         self.lift()
@@ -545,12 +592,17 @@ class OrbRelayWindow(tk.Tk):
             self._set_retry_menu_enabled(False)
         if self._feedback_message:
             self._hide_feedback()
+        try:
+            self.after_idle(self._refresh_entry_hint)
+        except Exception:
+            pass
 
     def _on_enter_key(self, _event=None) -> str:
         if self._sending:
             return "break"
         text = self.entry.get()
         self.entry.delete(0, "end")
+        self._refresh_entry_hint()
         if not text.strip():
             return "break"
         self._sending = True

@@ -186,12 +186,19 @@ def bind_picker_navigation(
             current_index = -1
         rows[next_focus_index(current_index, len(rows), direction)].focus_set()
 
+    def focus_edge(last: bool = False):
+        rows[-1 if last else 0].focus_set()
+
     window.bind("<Up>", lambda _event: (move_focus(-1), "break")[1], add="+")
     window.bind("<Down>", lambda _event: (move_focus(1), "break")[1], add="+")
+    window.bind("<Home>", lambda _event: (focus_edge(False), "break")[1], add="+")
+    window.bind("<End>", lambda _event: (focus_edge(True), "break")[1], add="+")
     window.bind("<Escape>", lambda _event: (on_escape(), "break")[1], add="+")
     for row in rows:
         row.bind("<Up>", lambda _event: (move_focus(-1), "break")[1], add="+")
         row.bind("<Down>", lambda _event: (move_focus(1), "break")[1], add="+")
+        row.bind("<Home>", lambda _event: (focus_edge(False), "break")[1], add="+")
+        row.bind("<End>", lambda _event: (focus_edge(True), "break")[1], add="+")
     rows[0].focus_set()
 
 
