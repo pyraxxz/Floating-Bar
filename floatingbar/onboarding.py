@@ -6,6 +6,8 @@ import os
 import tkinter as tk
 from typing import Optional
 
+from . import ui_theme
+
 
 _APPDATA = os.environ.get("APPDATA") or os.path.expanduser("~")
 _MARKER_PATH = os.path.join(_APPDATA, "FloatingBar", "first-run-seen")
@@ -46,16 +48,16 @@ def show(parent: tk.Misc, *, force: bool = False) -> Optional[tk.Toplevel]:
     window.resizable(False, False)
     window.transient(parent)
     window.attributes("-topmost", True)
-    window.configure(bg="#18181b")
+    ui_theme.style_popup(window)
 
-    frame = tk.Frame(window, bg="#18181b", padx=18, pady=16)
+    frame = ui_theme.frame(window, padx=22, pady=18)
     frame.pack(fill="both", expand=True)
 
-    tk.Label(frame, text="Floating Bar", bg="#18181b", fg="#ffffff", font=("Segoe UI", 14, "bold")).pack(anchor="w")
+    ui_theme.label(frame, text="Floating Bar", fg=ui_theme.TEXT_STRONG, font=("Segoe UI", 15, "bold")).pack(anchor="w")
     tk.Label(
         frame,
         text="Send into background apps without switching away from your work.",
-        bg="#18181b", fg="#d4d4d8", font=("Segoe UI", 9), wraplength=340, justify="left",
+        bg=ui_theme.SURFACE, fg=ui_theme.TEXT_MUTED, font=ui_theme.FONT_BODY, wraplength=340, justify="left",
     ).pack(anchor="w", pady=(4, 12))
 
     for step in (
@@ -71,7 +73,7 @@ def show(parent: tk.Misc, *, force: bool = False) -> Optional[tk.Toplevel]:
     tk.Label(
         frame,
         text="The bar does not read message contents from background apps.",
-        bg="#18181b", fg="#a1a1aa", font=("Segoe UI", 8), wraplength=340, justify="left",
+        bg=ui_theme.SURFACE, fg=ui_theme.TEXT_DIM, font=ui_theme.FONT_SMALL, wraplength=340, justify="left",
     ).pack(anchor="w", pady=(10, 14))
 
     def close() -> None:
@@ -82,10 +84,7 @@ def show(parent: tk.Misc, *, force: bool = False) -> Optional[tk.Toplevel]:
             pass
 
     window.protocol("WM_DELETE_WINDOW", close)
-    tk.Button(
-        frame, text="Got it", command=close, relief="flat", bd=0, padx=14, pady=6,
-        bg="#27272a", fg="#ffffff", activebackground="#3f3f46", activeforeground="#ffffff",
-    ).pack(anchor="e")
+    ui_theme.button(frame, text="Got it", command=close, primary=True).pack(anchor="e")
 
     window.grab_set()
     window.update_idletasks()
