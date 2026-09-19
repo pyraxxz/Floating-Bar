@@ -136,6 +136,24 @@ def button(
     return widget
 
 
+def adaptive_label_width(
+    text: str,
+    *,
+    minimum: int = 66,
+    maximum: int = 112,
+    character_width: int = 7,
+    padding: int = 8,
+) -> int:
+    """Estimate a bounded pixel width that keeps application labels readable."""
+    cleaned = str(text or "").strip()
+    minimum = max(1, int(minimum))
+    maximum = max(minimum, int(maximum))
+    character_width = max(1, int(character_width))
+    padding = max(0, int(padding))
+    estimated = len(cleaned) * character_width + padding
+    return max(minimum, min(maximum, estimated))
+
+
 def next_focus_index(current_index: int, count: int, direction: int) -> int:
     """Return a wrapped picker-row focus index without touching Tk state."""
     total = max(0, int(count))
