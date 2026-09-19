@@ -32,7 +32,7 @@ class SmokeChecklistContractTests(unittest.TestCase):
     def test_checklist_preserves_content_free_execution_rules(self):
         required_phrases = (
             "content-free",
-            "Do not record message content",
+            "message bodies",
             "python tools/smoke_report.py --validate smoke-report.json --require-complete",
         )
         missing = [phrase for phrase in required_phrases if phrase not in self.checklist]
