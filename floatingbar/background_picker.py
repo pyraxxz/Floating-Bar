@@ -358,7 +358,7 @@ class BackgroundAppPicker:
         x = row.winfo_rootx() + row.winfo_width() + 4
         y = row.winfo_rooty()
         height = 78 if self.pin_toggle is not None else 44
-        x, y = ui_theme.place_popup_near(self.owner, popup, 132, height, gap=4)
+        x, y = ui_theme.place_popup_near(row, popup, 132, height, gap=4)
         popup.geometry(f"132x{height}+{x}+{y}")
         action_button = ui_theme.button(
             popup,
