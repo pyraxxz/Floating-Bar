@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import startup
+from . import ui_theme
 
 _APPDATA = os.environ.get("APPDATA") or os.path.expanduser("~")
 _DEFAULT_PATH = os.path.join(_APPDATA, "FloatingBar", "settings.json")
@@ -153,10 +154,10 @@ class SettingsDialog(tk.Toplevel):
         self.resizable(False, False)
         self.transient(parent)
         self.attributes("-topmost", True)
-        self.configure(bg="#18181b")
+        ui_theme.style_popup(self)
         self.protocol("WM_DELETE_WINDOW", self.destroy)
 
-        frame = tk.Frame(self, bg="#18181b", padx=16, pady=14)
+        frame = ui_theme.frame(self, padx=20, pady=18)
         frame.pack(fill="both", expand=True)
 
         startup_var = tk.BooleanVar(value=startup.is_startup_enabled())
@@ -165,11 +166,11 @@ class SettingsDialog(tk.Toplevel):
             frame,
             text="Start Floating Bar with Windows",
             variable=startup_var,
-            bg="#18181b",
-            fg="#f4f4f5",
-            activebackground="#18181b",
-            activeforeground="#ffffff",
-            selectcolor="#27272a",
+            bg=ui_theme.SURFACE,
+            fg=ui_theme.TEXT,
+            activebackground=ui_theme.SURFACE,
+            activeforeground=ui_theme.TEXT_STRONG,
+            selectcolor=ui_theme.SURFACE_ELEVATED,
             anchor="w",
             highlightthickness=0,
         ).pack(fill="x")
@@ -177,8 +178,8 @@ class SettingsDialog(tk.Toplevel):
         tk.Label(
             frame,
             text="Summon hotkey (restart Floating Bar after changing)",
-            bg="#18181b",
-            fg="#d4d4d8",
+            bg=ui_theme.SURFACE,
+            fg=ui_theme.TEXT_MUTED,
             anchor="w",
         ).pack(fill="x", pady=(12, 2))
 
@@ -204,11 +205,11 @@ class SettingsDialog(tk.Toplevel):
             variable=self._seconds,
             resolution=1,
             showvalue=True,
-            bg="#18181b",
-            fg="#f4f4f5",
+            bg=ui_theme.SURFACE,
+            fg=ui_theme.TEXT,
             highlightthickness=0,
-            troughcolor="#27272a",
-            activebackground="#52525b",
+            troughcolor=ui_theme.SURFACE_ELEVATED,
+            activebackground=ui_theme.SURFACE_HOVER,
             bd=0,
         )
         scale.pack(fill="x")
@@ -216,34 +217,18 @@ class SettingsDialog(tk.Toplevel):
         self._status = tk.Label(
             frame,
             text="",
-            bg="#18181b",
-            fg="#f59e0b",
+            bg=ui_theme.SURFACE,
+            fg=ui_theme.WARNING,
             anchor="w",
         )
         self._status.pack(fill="x", pady=(4, 6))
 
         buttons = tk.Frame(frame, bg="#18181b")
         buttons.pack(fill="x", pady=(6, 0))
-        tk.Button(
-            buttons,
-            text="Apply",
-            command=self._apply,
-            relief="flat",
-            bd=0,
-            bg="#27272a",
-            fg="#f4f4f5",
-        ).pack(side="right", padx=(6, 0))
-        tk.Button(
-            buttons,
-            text="Close",
-            command=self.destroy,
-            relief="flat",
-            bd=0,
-            bg="#27272a",
-            fg="#d4d4d8",
-        ).pack(side="right")
+        ui_theme.button(buttons, text="Apply", command=self._apply, primary=True).pack(side="right", padx=(6, 0))
+        ui_theme.button(buttons, text="Close", command=self.destroy, subtle=True).pack(side="right")
 
-        self.geometry("390x255")
+        self.geometry("410x270")
 
     def _apply(self) -> None:
         startup_ok = startup.set_startup_enabled(bool(self._startup_var.get()))

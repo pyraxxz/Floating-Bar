@@ -13,6 +13,8 @@ import os
 import tempfile
 import tkinter as tk
 from typing import Callable, Optional
+
+from . import ui_theme
 from uuid import uuid4
 
 
@@ -174,10 +176,10 @@ class QuickReplyManager(tk.Toplevel):
         self.resizable(False, False)
         self.transient(parent)
         self.attributes("-topmost", True)
-        self.configure(bg="#18181b")
+        ui_theme.style_popup(self)
         self.protocol("WM_DELETE_WINDOW", self.destroy)
 
-        frame = tk.Frame(self, bg="#18181b", padx=12, pady=12)
+        frame = ui_theme.frame(self, padx=16, pady=16)
         frame.pack(fill="both", expand=True)
 
         self.listbox = tk.Listbox(
@@ -185,10 +187,10 @@ class QuickReplyManager(tk.Toplevel):
             width=28,
             height=9,
             exportselection=False,
-            bg="#27272a",
-            fg="#f4f4f5",
-            selectbackground="#3f3f46",
-            selectforeground="#ffffff",
+            bg=ui_theme.SURFACE_ELEVATED,
+            fg=ui_theme.TEXT,
+            selectbackground=ui_theme.ACCENT_DIM,
+            selectforeground=ui_theme.TEXT_STRONG,
             relief="flat",
             bd=0,
         )
@@ -196,49 +198,37 @@ class QuickReplyManager(tk.Toplevel):
         self.listbox.bind("<<ListboxSelect>>", self._selected)
 
         tk.Label(
-            frame, text="Label", bg="#18181b", fg="#a1a1aa", anchor="w",
-            font=("Segoe UI", 8, "bold"),
+            frame, text="Label", bg=ui_theme.SURFACE, fg=ui_theme.TEXT_MUTED, anchor="w",
+            font=ui_theme.FONT_SMALL_BOLD,
         ).grid(row=0, column=1, sticky="ew")
         self.label_entry = tk.Entry(
-            frame, bg="#27272a", fg="#f4f4f5", insertbackground="#ffffff",
+            frame, bg=ui_theme.SURFACE_ELEVATED, fg=ui_theme.TEXT, insertbackground=ui_theme.TEXT_STRONG,
             relief="flat", bd=0,
         )
         self.label_entry.grid(row=1, column=1, sticky="ew", pady=(2, 8))
 
         tk.Label(
-            frame, text="Reply", bg="#18181b", fg="#a1a1aa", anchor="w",
-            font=("Segoe UI", 8, "bold"),
+            frame, text="Reply", bg=ui_theme.SURFACE, fg=ui_theme.TEXT_MUTED, anchor="w",
+            font=ui_theme.FONT_SMALL_BOLD,
         ).grid(row=2, column=1, sticky="ew")
         self.text = tk.Text(
             frame, width=36, height=7, wrap="word",
-            bg="#27272a", fg="#f4f4f5", insertbackground="#ffffff",
+            bg=ui_theme.SURFACE_ELEVATED, fg=ui_theme.TEXT, insertbackground=ui_theme.TEXT_STRONG,
             relief="flat", bd=0,
         )
         self.text.grid(row=3, column=1, sticky="nsew", pady=(2, 8))
 
-        buttons = tk.Frame(frame, bg="#18181b")
+        buttons = ui_theme.frame(frame)
         buttons.grid(row=4, column=1, sticky="ew")
         for index in range(4):
             buttons.columnconfigure(index, weight=1)
-        tk.Button(
-            buttons, text="New", command=self._new,
-            relief="flat", bd=0, bg="#27272a", fg="#d4d4d8",
-        ).grid(row=0, column=0, sticky="ew", padx=2)
-        tk.Button(
-            buttons, text="Save", command=self._save,
-            relief="flat", bd=0, bg="#27272a", fg="#d4d4d8",
-        ).grid(row=0, column=1, sticky="ew", padx=2)
-        tk.Button(
-            buttons, text="Use", command=self._use,
-            relief="flat", bd=0, bg="#27272a", fg="#d4d4d8",
-        ).grid(row=0, column=2, sticky="ew", padx=2)
-        tk.Button(
-            buttons, text="Delete", command=self._delete,
-            relief="flat", bd=0, bg="#27272a", fg="#d4d4d8",
-        ).grid(row=0, column=3, sticky="ew", padx=2)
+        ui_theme.button(buttons, text="New", command=self._new, subtle=True).grid(row=0, column=0, sticky="ew", padx=2)
+        ui_theme.button(buttons, text="Save", command=self._save, primary=True).grid(row=0, column=1, sticky="ew", padx=2)
+        ui_theme.button(buttons, text="Use", command=self._use, subtle=True).grid(row=0, column=2, sticky="ew", padx=2)
+        ui_theme.button(buttons, text="Delete", command=self._delete, subtle=True).grid(row=0, column=3, sticky="ew", padx=2)
 
         self._refresh_list()
-        self.geometry("640x285")
+        self.geometry("660x300")
 
     def _refresh_list(self, select_id: Optional[str] = None) -> None:
         self.listbox.delete(0, "end")

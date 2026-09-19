@@ -21,6 +21,7 @@ from . import trace
 from . import onboarding
 from . import winapi
 from .overlay import OrbRelayWindow as _BaseOverlay
+from . import ui_theme
 
 
 class OrbRelayWindow(_ContextOrbRelayWindow):
@@ -79,8 +80,8 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self._background_identity_label = tk.Label(
             self.bar,
             bg=self.bar.cget("bg"),
-            fg="#a1a1aa",
-            font=("Segoe UI", 8, "bold"),
+            fg=ui_theme.TEXT_MUTED,
+            font=ui_theme.FONT_SMALL_BOLD,
             anchor="w",
         )
         self._onboarding_job = self.after(250, self._show_onboarding_once)

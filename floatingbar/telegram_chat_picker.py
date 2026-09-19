@@ -11,6 +11,7 @@ from typing import Callable, Optional, Sequence
 
 from .conversation_attention import AttentionState
 from .telegram_chats import TelegramChatItem
+from . import ui_theme
 
 
 @dataclass(frozen=True)
@@ -32,8 +33,8 @@ def to_chat_picker_rows(chats: Sequence[TelegramChatItem]) -> tuple[ChatPickerRo
 
 
 class TelegramChatPicker:
-    WIDTH = 260
-    ROW_HEIGHT = 30
+    WIDTH = 300
+    ROW_HEIGHT = 36
     LIMIT = 6
 
     def __init__(
@@ -60,38 +61,31 @@ class TelegramChatPicker:
         self.window = popup
         popup.overrideredirect(True)
         popup.attributes("-topmost", True)
-        popup.configure(bg="#18181b")
+        ui_theme.style_popup(popup)
         popup.bind("<Escape>", lambda _event: self.hide())
         popup.protocol("WM_DELETE_WINDOW", self.hide)
-        try:
-            popup.wm_attributes("-toolwindow", True)
-        except Exception:
-            pass
-        x = self.owner.winfo_rootx() + self.owner.winfo_width() + 8
-        y = self.owner.winfo_rooty()
-        popup.geometry(f"{self.WIDTH}x{len(chats) * self.ROW_HEIGHT + 8}+{x}+{y}")
-        frame = tk.Frame(popup, bg="#18181b", bd=0)
+        total_height = len(chats) * self.ROW_HEIGHT + 56
+        x, y = ui_theme.place_popup_near(self.owner, popup, self.WIDTH, total_height)
+        popup.geometry(f"{self.WIDTH}x{total_height}+{x}+{y}")
+        frame = ui_theme.frame(popup, padx=8, pady=7)
+        ui_theme.label(frame, text="Telegram", muted=True, bold=True, small=True).pack(fill="x", pady=(0, 3))
+        ui_theme.label(frame, text="Choose a chat", muted=True, small=True).pack(fill="x", pady=(0, 5))
         frame.pack(fill="both", expand=True, padx=4, pady=4)
         for row in to_chat_picker_rows(chats):
-            suffix_parts = []
+            state_suffix = []
             if row.needs_attention:
-                suffix_parts.append("Unread")
+                state_suffix.append("Unread")
             if row.selected:
-                suffix_parts.append("Current")
-            suffix = "  " + " · ".join(suffix_parts) if suffix_parts else ""
-            button = tk.Button(
+                state_suffix.append("Current")
+            suffix = "   ·   " + " / ".join(state_suffix) if state_suffix else ""
+            button = ui_theme.row_button(
                 frame,
                 text=row.name + suffix,
-                anchor="w",
-                relief="flat",
-                bd=0,
-                bg="#18181b",
-                fg="#f4f4f5",
-                activebackground="#27272a",
-                activeforeground="#ffffff",
+                selected=row.selected,
+                attention=row.needs_attention,
                 command=lambda chat=row.chat: self._selected(chat),
             )
-            button.pack(fill="x", ipady=4)
+            button.pack(fill="x", ipady=5, pady=1)
 
     def _selected(self, chat: TelegramChatItem) -> None:
         self.hide()

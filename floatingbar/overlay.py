@@ -23,6 +23,7 @@ from .hardening import HardenedTelegramInjector
 from .evidence import EvidenceState, from_result
 from .target import TelegramTarget, TelegramNotFound
 from .transaction import SendCompletion, SendRequest
+from . import ui_theme
 
 
 def _classify_send_result(strategy, error):
@@ -85,23 +86,23 @@ class OrbRelayWindow(tk.Tk):
         )
         self._bind_drag(self.orb, on_click=self._expand)
 
-        self.bar = tk.Frame(self, bg=config.TRANSPARENT_KEY_COLOR, bd=0)
+        self.bar = tk.Frame(self, bg=ui_theme.SURFACE_ELEVATED, bd=0, highlightthickness=1, highlightbackground=ui_theme.BORDER)
         self.entry = tk.Entry(
             self.bar,
             font=("Segoe UI", 12),
             bd=0,
             highlightthickness=0,
-            bg=config.TRANSPARENT_KEY_COLOR,
-            fg=config.TEXT_COLOR,
+            bg=ui_theme.SURFACE_ELEVATED,
+            fg=ui_theme.TEXT_STRONG,
             insertbackground=config.CURSOR_COLOR,
-            disabledbackground=config.TRANSPARENT_KEY_COLOR,
+            disabledbackground=ui_theme.SURFACE_ELEVATED,
             relief="flat",
         )
         self.feedback_label = tk.Label(
             self.bar,
-            bg=config.TRANSPARENT_KEY_COLOR,
+            bg=ui_theme.SURFACE_ELEVATED,
             fg=config.ERROR_COLOR,
-            font=("Segoe UI", 8),
+            font=ui_theme.FONT_SMALL,
             anchor="w",
         )
         self._bind_drag(self.bar, on_click=None)
@@ -112,7 +113,16 @@ class OrbRelayWindow(tk.Tk):
         self.entry.bind("<FocusIn>", lambda e: self._cancel_scheduled_collapse())
         self.entry.bind("<FocusOut>", lambda e: self._schedule_collapse())
 
-        self.menu = tk.Menu(self, tearoff=0)
+        self.menu = tk.Menu(
+            self,
+            tearoff=0,
+            bg=ui_theme.SURFACE,
+            fg=ui_theme.TEXT,
+            activebackground=ui_theme.SURFACE_HOVER,
+            activeforeground=ui_theme.TEXT_STRONG,
+            disabledforeground=ui_theme.TEXT_DIM,
+            borderwidth=0,
+        )
         self.menu.add_command(label=f"Floating Bar v{__version__}", state="disabled")
         self.menu.add_command(label="Open trace folder", command=self._open_trace_folder)
         self.menu.add_command(
@@ -189,46 +199,40 @@ class OrbRelayWindow(tk.Tk):
         dialog.resizable(False, False)
         dialog.transient(self)
         dialog.attributes("-topmost", True)
-        dialog.configure(bg="#18181b")
+        ui_theme.style_popup(dialog)
         dialog.protocol("WM_DELETE_WINDOW", dialog.destroy)
 
-        frame = tk.Frame(dialog, bg="#18181b", padx=16, pady=14)
+        frame = ui_theme.frame(dialog, padx=18, pady=16)
         frame.pack(fill="both", expand=True)
         tk.Label(
             frame,
             text=f"New version available: v{release.version}",
-            bg="#18181b",
-            fg="#f4f4f5",
-            font=("Segoe UI", 10, "bold"),
+            bg=ui_theme.SURFACE,
+            fg=ui_theme.TEXT_STRONG,
+            font=ui_theme.FONT_TITLE,
             anchor="w",
         ).pack(fill="x")
         tk.Label(
             frame,
             text=f"Current version: v{__version__}",
-            bg="#18181b",
-            fg="#a1a1a1",
+            bg=ui_theme.SURFACE,
+            fg=ui_theme.TEXT_MUTED,
             anchor="w",
         ).pack(fill="x", pady=(4, 12))
 
-        buttons = tk.Frame(frame, bg="#18181b")
+        buttons = ui_theme.frame(frame)
         buttons.pack(fill="x")
-        tk.Button(
+        ui_theme.button(
             buttons,
             text="Open release",
             command=lambda: self._open_release_page(release.url, dialog),
-            relief="flat",
-            bd=0,
-            bg="#27272a",
-            fg="#f4f4f5",
+            primary=True,
         ).pack(side="right", padx=(6, 0))
-        tk.Button(
+        ui_theme.button(
             buttons,
             text="Close",
             command=dialog.destroy,
-            relief="flat",
-            bd=0,
-            bg="#27272a",
-            fg="#d4d4d8",
+            subtle=True,
         ).pack(side="right")
         dialog.geometry("320x120")
 
@@ -291,7 +295,7 @@ class OrbRelayWindow(tk.Tk):
         self._state = "bar"
         self.orb.place_forget()
         self.bar.place(x=0, y=0, width=config.BAR_WIDTH, height=config.BAR_HEIGHT)
-        self.entry.place(x=8, y=10, width=config.BAR_WIDTH - 16, height=20)
+        self.entry.place(x=10, y=9, width=config.BAR_WIDTH - 20, height=22)
         self._apply_alpha(config.BAR_ALPHA)
         self._set_geometry()
         self.lift()
