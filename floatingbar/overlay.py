@@ -84,7 +84,24 @@ class OrbRelayWindow(tk.Tk):
             fill=config.ORB_COLOR_READY,
             outline="",
         )
+        ring_pad = 1
+        self.orb_ring = self.orb.create_oval(
+            ring_pad,
+            ring_pad,
+            config.ORB_DIAMETER - ring_pad,
+            config.ORB_DIAMETER - ring_pad,
+            fill="",
+            outline=ui_theme.ACCENT_HOVER,
+            width=2,
+            state="hidden",
+        )
+        self._orb_hovered = False
+        self._orb_pressed = False
         self._bind_drag(self.orb, on_click=self._expand)
+        self.orb.bind("<Enter>", self._on_orb_enter, add="+")
+        self.orb.bind("<Leave>", self._on_orb_leave, add="+")
+        self.orb.bind("<ButtonPress-1>", self._on_orb_press, add="+")
+        self.orb.bind("<ButtonRelease-1>", self._on_orb_release, add="+")
 
         self.bar = tk.Frame(self, bg=ui_theme.SURFACE_ELEVATED, bd=0, highlightthickness=1, highlightbackground=ui_theme.BORDER)
         self.entry = tk.Entry(
@@ -344,6 +361,40 @@ class OrbRelayWindow(tk.Tk):
 
     def _set_dot_color(self, color: str) -> None:
         self.orb.itemconfig(self.orb_dot, fill=color)
+
+    def _set_orb_ring(self) -> None:
+        if self._orb_pressed:
+            self.orb.itemconfig(
+                self.orb_ring,
+                state="normal",
+                outline=ui_theme.TEXT_STRONG,
+                width=2,
+            )
+        elif self._orb_hovered:
+            self.orb.itemconfig(
+                self.orb_ring,
+                state="normal",
+                outline=ui_theme.ACCENT_HOVER,
+                width=2,
+            )
+        else:
+            self.orb.itemconfig(self.orb_ring, state="hidden")
+
+    def _on_orb_enter(self, _event=None) -> None:
+        self._orb_hovered = True
+        self._set_orb_ring()
+
+    def _on_orb_leave(self, _event=None) -> None:
+        self._orb_hovered = False
+        self._set_orb_ring()
+
+    def _on_orb_press(self, _event=None) -> None:
+        self._orb_pressed = True
+        self._set_orb_ring()
+
+    def _on_orb_release(self, _event=None) -> None:
+        self._orb_pressed = False
+        self._set_orb_ring()
 
     def _update_status(self) -> None:
         try:
