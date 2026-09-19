@@ -51,7 +51,7 @@ class BackgroundAdapterFocusTests(unittest.TestCase):
              patch("floatingbar.generic_target.winapi.post_enter") as post_enter:
             result = target.send("background reply")
 
-        self.assertEqual(result, "posted-enter (unverified)")
+        self.assertEqual(result, "posted-enter (VERIFIED)")
         post_text.assert_called_once_with(401, "background reply", expected_pid=200, expected_process_start=None)
         post_enter.assert_called_once_with(401, target=401, expected_pid=200, expected_process_start=None)
 
@@ -72,7 +72,7 @@ class BackgroundAdapterFocusTests(unittest.TestCase):
              patch("floatingbar.generic_target.winapi.post_enter") as post_enter:
             result = target.send("background reply")
 
-        self.assertEqual(result, "posted-enter (unverified)")
+        self.assertEqual(result, "posted-enter (VERIFIED)")
         post_text.assert_called_once_with(403, "background reply", expected_pid=200, expected_process_start=None)
         post_enter.assert_called_once_with(403, target=403, expected_pid=200, expected_process_start=None)
 
