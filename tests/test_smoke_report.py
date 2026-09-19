@@ -250,6 +250,41 @@ class SmokeReportTests(unittest.TestCase):
             errors,
         )
 
+    def test_critical_case_does_not_require_unavailable_executable_version(self):
+        report = build_report(environment={
+            "adapters": [
+                {
+                    "key": "whatsapp",
+                    "open_window_count": 1,
+                    "observed_processes": ["whatsapp.exe"],
+                    "observed_process_instances": [
+                        {"process_name": "whatsapp.exe", "process_start": 123}
+                    ],
+                    "observed_versions": [],
+                },
+            ]
+        })
+        for item in report["cases"]:
+            if item["case_id"] == "chat.whatsapp":
+                item["result"] = RESULT_PASS
+                item["tested_at"] = "2026-09-18T12:00:00Z"
+                item["evidence"] = {
+                    "recorded_at": item["tested_at"],
+                    "process_instances": [
+                        {
+                            "adapter_key": "whatsapp",
+                            "process_name": "whatsapp.exe",
+                            "process_start": 123,
+                        }
+                    ],
+                    "executable_versions": [],
+                }
+        errors = environment_case_errors(report)
+        self.assertNotIn(
+            "environment executable-version evidence missing for chat.whatsapp (whatsapp)",
+            errors,
+        )
+
     def test_critical_telegram_pass_requires_case_executable_version_evidence(self):
         report = build_report(environment={
             "adapters": [
