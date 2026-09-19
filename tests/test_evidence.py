@@ -34,6 +34,12 @@ class EvidenceTests(unittest.TestCase):
         result = from_result(strategy)
         self.assertEqual(result.proof_kind, "input-acceptance")
 
+    def test_non_contract_verification_wording_is_not_verified(self):
+        result = from_result("manual note: not verified")
+        self.assertEqual(result.state, EvidenceState.SUBMITTED)
+        self.assertFalse(result.confirmed)
+        self.assertFalse(result.retryable)
+
     def test_verification_unavailable_is_uncertain(self):
         result = from_result("posted-click (verification-unavailable)")
         self.assertEqual(result.state, EvidenceState.UNAVAILABLE)
