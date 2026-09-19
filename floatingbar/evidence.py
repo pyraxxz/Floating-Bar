@@ -113,7 +113,7 @@ def from_result(strategy: Optional[str], error: Optional[str] = None) -> Submiss
     if not strategy:
         return SubmissionEvidence(EvidenceState.UNKNOWN, retryable=False)
 
-    normalized = strategy.lower()
+    normalized = strategy.lower().strip()
     # Check negative/terminal forms before broad success checks.
     if "blocked" in normalized or "rejected" in normalized:
         return SubmissionEvidence(
@@ -129,13 +129,16 @@ def from_result(strategy: Optional[str], error: Optional[str] = None) -> Submiss
         )
     # "unverified" contains the substring "verified", so it must be checked
     # before the broad positive verification form.
-    if "unverified" in normalized:
+    if normalized.endswith("(unverified)"):
         return SubmissionEvidence(
             EvidenceState.SUBMITTED,
             strategy=strategy,
             retryable=False,
         )
-    if "verified" in normalized:
+    # Legacy producers encode a confirmed result with the explicit terminal
+    # token "(VERIFIED)". Do not treat unrelated wording such as "not verified"
+    # as proof.
+    if normalized.endswith("(verified)"):
         return SubmissionEvidence(
             EvidenceState.VERIFIED,
             strategy=strategy,
