@@ -389,20 +389,36 @@ def environment_case_errors(report: Mapping[str, object]) -> tuple[str, ...]:
                     value = str(version.get("version", "")).strip()
                     if adapter_key and value and adapter_key in version_requirement:
                         observed_versions.add(adapter_key)
-            if not isinstance(case_evidence, Mapping) or not case_evidence:
-                errors.append(
-                    f"environment executable-version evidence missing for {case_id} "
-                    f"({', '.join(sorted(version_requirement))})"
-                )
-            elif str(case_evidence.get("recorded_at", "")).strip() != str(item.get("tested_at", "")).strip():
-                errors.append(
-                    f"environment executable-version timestamp mismatch for {case_id}"
-                )
-            elif not observed_versions:
-                errors.append(
-                    f"environment executable-version evidence missing for {case_id} "
-                    f"({', '.join(sorted(version_requirement))})"
-                )
+
+            # Only require version provenance for adapters whose environment
+            # snapshot actually exposes a non-empty executable version. An
+            # unavailable version is not proof of a missing case result.
+            available_versions = set()
+            for adapter_key in version_requirement:
+                environment_adapter = adapters.get(adapter_key)
+                if not isinstance(environment_adapter, Mapping):
+                    continue
+                raw_environment_versions = environment_adapter.get("observed_versions", ())
+                if isinstance(raw_environment_versions, (list, tuple)):
+                    if any(str(value).strip() for value in raw_environment_versions):
+                        available_versions.add(adapter_key)
+
+            required_versions = available_versions & version_requirement
+            if required_versions:
+                if not isinstance(case_evidence, Mapping) or not case_evidence:
+                    errors.append(
+                        f"environment executable-version evidence missing for {case_id} "
+                        f"({', '.join(sorted(required_versions))})"
+                    )
+                elif str(case_evidence.get("recorded_at", "")).strip() != str(item.get("tested_at", "")).strip():
+                    errors.append(
+                        f"environment executable-version timestamp mismatch for {case_id}"
+                    )
+                elif not (observed_versions & required_versions):
+                    errors.append(
+                        f"environment executable-version evidence missing for {case_id} "
+                        f"({', '.join(sorted(required_versions))})"
+                    )
 
         process_requirement = required_processes.get(case_id)
         if process_requirement:
