@@ -136,6 +136,27 @@ class BackgroundPickerTests(unittest.TestCase):
         self.assertEqual(result[0].adapter_key, "generic:myeditor")
         self.assertEqual(action_for_item(result[0]), "Type")
 
+    def test_non_actionable_live_windows_do_not_crowd_out_actionable_apps(self):
+        unsupported = tuple(
+            PickerItem(index, 100 + index, f"Unknown {index}", False, False, "unknown.exe")
+            for index in range(1, 5)
+        )
+        actionable = (
+            PickerItem(20, 200, "Telegram", True, False, "telegram.exe", "telegram"),
+            PickerItem(21, 201, "Slack", True, False, "slack.exe", "slack"),
+        )
+        merged = BackgroundAppPicker._merge_items((), (), unsupported + actionable)
+        self.assertEqual(
+            [item.label for item in merged],
+            ["Telegram", "Slack", "Unknown 1", "Unknown 2", "Unknown 3", "Unknown 4"],
+        )
+        self.assertTrue(all(item.actionable for item in merged[:2]))
+        self.assertFalse(merged[-1].actionable)
+
+    def test_non_actionable_row_explains_why_it_cannot_be_used(self):
+        item = PickerItem(10, 20, "Calculator", False, False, "calculator.exe")
+        self.assertEqual(action_for_item(item), "No safe input")
+
     def test_recent_items_are_shown_after_pinned_items_and_duplicates_are_removed(self):
         pinned = PickerItem(10, 20, "Telegram", True, False, "telegram.exe", "telegram", False, True)
         recent = PickerItem(10, 20, "Telegram", True, False, "telegram.exe", "telegram", True, False)
