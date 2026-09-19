@@ -9,6 +9,13 @@ class ThemeTests(unittest.TestCase):
         self.assertEqual(ui_theme.ACCENT, "#60a5fa")
         self.assertNotEqual(ui_theme.TEXT, ui_theme.TEXT_DIM)
 
+    def test_next_focus_index_wraps_and_handles_empty_lists(self):
+        self.assertEqual(ui_theme.next_focus_index(-1, 3, 1), 0)
+        self.assertEqual(ui_theme.next_focus_index(2, 3, 1), 0)
+        self.assertEqual(ui_theme.next_focus_index(0, 3, -1), 2)
+        self.assertEqual(ui_theme.next_focus_index(99, 3, -1), 2)
+        self.assertEqual(ui_theme.next_focus_index(0, 0, 1), -1)
+
     def test_place_popup_near_prefers_left_when_right_side_is_offscreen(self):
         class FakeOwner:
             def winfo_rootx(self): return 900
