@@ -339,7 +339,7 @@ def chat_identity_matches(chat: TelegramChatItem) -> bool:
                 if row.container_identity == chat.container_identity
             ]
         if len(matches) == 1:
-            return _sole_selected_row(current_rows, matches[0])
+            return bool(matches[0].selected)
         if len(matches) > 1:
             return False
         return False
@@ -350,7 +350,7 @@ def chat_identity_matches(chat: TelegramChatItem) -> bool:
             if row.container_identity == chat.container_identity
         ]
         if len(matches) == 1:
-            return _sole_selected_row(current_rows, matches[0])
+            return bool(matches[0].selected)
         return False
     if chat.runtime_id is not None:
         return False
@@ -362,8 +362,6 @@ def chat_identity_matches(chat: TelegramChatItem) -> bool:
     if len(candidates) != 1:
         return False
     current = candidates[0]
-    if not _sole_selected_row(current_rows, current):
-        return False
     distance = abs(current.left - chat.left) + abs(current.top - chat.top)
     return distance <= 24
 
