@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from floatingbar.app_adapters import adapter_for_process
 from floatingbar.chat_composer_target import ChatComposerTarget
+from floatingbar.evidence import EvidenceState, EvidenceStrategy
 
 
 class ChatVerificationTests(unittest.TestCase):
@@ -66,8 +67,14 @@ class ChatVerificationTests(unittest.TestCase):
              patch.object(target, "_wait_for_length", return_value=False):
             baseline = target.prepare_submission_verification()
             self.assertEqual(baseline, 5)
-            self.assertIsNone(target.begin_submission_verification(301, baseline))
-        self.assertEqual(target.finish_submission_verification(301, None, "posted-enter (unverified)"), "posted-enter (verification-unavailable)")
+            result = target.begin_submission_verification(301, baseline)
+            self.assertIsInstance(result, EvidenceStrategy)
+            self.assertEqual(result, "chat-submit (blocked)")
+            self.assertEqual(result.submission_evidence.state, EvidenceState.BLOCKED)
+        self.assertEqual(
+            target.finish_submission_verification(301, None, "posted-enter (unverified)"),
+            "posted-enter (verification-unavailable)",
+        )
 
     def test_unreadable_baseline_fails_closed(self):
         target = self._target()
@@ -89,3 +96,43 @@ class ChatVerificationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_chat_send_does_not_press_enter_when_growth_is_unproven(self):
+        target = self._target()
+        with (
+            self._candidate_patch(target),
+            self._live_target_patch(target),
+            patch.object(target, "_verification_target", return_value=301),
+            patch.object(target, "_composer_value_length", return_value=5),
+            patch.object(target, "_wait_for_length", return_value=False),
+            patch("floatingbar.generic_target.winapi.post_text") as post_text,
+            patch("floatingbar.generic_target.winapi.post_enter") as post_enter,
+        ):
+            result = target.send("background reply")
+        self.assertEqual(result, "chat-submit (blocked)")
+        self.assertIsNotNone(target.last_submission_evidence)
+        self.assertEqual(
+            target.last_submission_evidence.state,
+            EvidenceState.BLOCKED,
+        )
+        post_text.assert_called_once()
+        post_enter.assert_not_called()
+
+    def test_chat_unreadable_baseline_blocks_submit_before_enter(self):
+        target = self._target()
+        with (
+            self._candidate_patch(target),
+            self._live_target_patch(target),
+            patch.object(target, "_verification_target", return_value=301),
+            patch.object(target, "_composer_value_length", return_value=-1),
+            patch("floatingbar.generic_target.winapi.post_text") as post_text,
+            patch("floatingbar.generic_target.winapi.post_enter") as post_enter,
+        ):
+            result = target.send("background reply")
+        self.assertEqual(result, "chat-submit (blocked)")
+        self.assertEqual(
+            target.last_submission_evidence.state,
+            EvidenceState.BLOCKED,
+        )
+        post_text.assert_called_once()
+        post_enter.assert_not_called()
