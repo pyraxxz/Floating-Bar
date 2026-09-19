@@ -79,10 +79,13 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self._selection_generation = 0
         self._background_identity_label = tk.Label(
             self.bar,
-            bg=self.bar.cget("bg"),
-            fg=ui_theme.TEXT_MUTED,
+            bg=ui_theme.ACCENT_DIM,
+            fg=ui_theme.TEXT_STRONG,
             font=ui_theme.FONT_SMALL_BOLD,
-            anchor="w",
+            anchor="center",
+            padx=7,
+            highlightthickness=1,
+            highlightbackground=ui_theme.BORDER,
         )
         self._onboarding_job = self.after(250, self._show_onboarding_once)
 
@@ -139,17 +142,12 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             self._background_identity_label.config(text=label)
             self._background_identity_label.place(
                 x=8,
-                y=12,
+                y=9,
                 width=identity_width,
-                height=16,
+                height=22,
             )
             entry_x = identity_width + 12
-            self.entry.place(
-                x=entry_x,
-                y=10,
-                width=max(40, self.winfo_width() - entry_x - 10),
-                height=20,
-            )
+            self._layout_bar_entry(entry_x)
         else:
             self._background_identity_label.place_forget()
 
