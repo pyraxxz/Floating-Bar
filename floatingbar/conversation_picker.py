@@ -276,7 +276,7 @@ class ConversationPicker:
                     font=ui_theme.FONT_SMALL_BOLD,
                 ).pack(fill="x", padx=4, pady=(1, 2))
                 current_section = section
-            row_frame = tk.Frame(frame, bg="#18181b", bd=0)
+            row_frame = ui_theme.frame(frame)
             row_frame.pack(fill="x")
             row_frame.columnconfigure(0, weight=1)
             attention = row.attention in {AttentionState.UNREAD, AttentionState.RELEVANT}
@@ -301,7 +301,7 @@ class ConversationPicker:
 
         ui_theme.bind_picker_navigation(popup, row_buttons, on_escape=self.hide)
 
-        footer = tk.Frame(popup, bg="#18181b", bd=0)
+        footer = ui_theme.frame(popup)
         footer.pack(fill="x", padx=4, pady=(0, 4))
         footer.columnconfigure(0, weight=1)
         footer.columnconfigure(1, weight=1)
@@ -328,10 +328,10 @@ class ConversationPicker:
             anchor="center",
             relief="flat",
             bd=0,
-            bg="#27272a",
-            fg="#d4d4d8",
-            activebackground="#3f3f46",
-            activeforeground="#ffffff",
+            bg=ui_theme.SURFACE_ELEVATED,
+            fg=ui_theme.TEXT_MUTED,
+            activebackground=ui_theme.SURFACE_HOVER,
+            activeforeground=ui_theme.TEXT_STRONG,
             command=self.show,
         )
         refresh.grid(row=0, column=1, sticky="ew", padx=2, pady=2, ipady=2)
@@ -342,10 +342,10 @@ class ConversationPicker:
             anchor="center",
             relief="flat",
             bd=0,
-            bg="#27272a",
-            fg="#d4d4d8",
-            activebackground="#3f3f46",
-            activeforeground="#ffffff",
+            bg=ui_theme.SURFACE_ELEVATED,
+            fg=ui_theme.TEXT_MUTED,
+            activebackground=ui_theme.SURFACE_HOVER,
+            activeforeground=ui_theme.TEXT_STRONG,
             state="normal" if has_next else "disabled",
             command=lambda: self._page(1),
         )

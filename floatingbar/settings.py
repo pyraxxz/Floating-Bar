@@ -190,8 +190,8 @@ class SettingsDialog(tk.Toplevel):
         tk.Label(
             frame,
             text="Collapse the expanded bar after inactivity",
-            bg="#18181b",
-            fg="#d4d4d8",
+            bg=ui_theme.SURFACE,
+            fg=ui_theme.TEXT_MUTED,
             anchor="w",
         ).pack(fill="x", pady=(12, 2))
 
@@ -223,7 +223,7 @@ class SettingsDialog(tk.Toplevel):
         )
         self._status.pack(fill="x", pady=(4, 6))
 
-        buttons = tk.Frame(frame, bg="#18181b")
+        buttons = ui_theme.frame(frame)
         buttons.pack(fill="x", pady=(6, 0))
         ui_theme.button(buttons, text="Apply", command=self._apply, primary=True).pack(side="right", padx=(6, 0))
         ui_theme.button(buttons, text="Close", command=self.destroy, subtle=True).pack(side="right")
