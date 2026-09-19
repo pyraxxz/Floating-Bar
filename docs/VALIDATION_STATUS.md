@@ -16,6 +16,7 @@ This document records the current validation infrastructure on `main`. It is sep
 - Adapter-registry consistency checks for duplicate keys, executable alias collisions, malformed aliases, unsupported capabilities, and inconsistent chat/type metadata.
 - Generic background-target leases, recent application targets, conversation rows, Telegram chat rows, retries, and the hover picker preserve content-free process-start identity alongside HWND/PID where available, rejecting same-PID process replacement before reuse.
 - Critical/app-specific PASS cases require matching content-free process-instance evidence captured for that case, not merely an observed executable name from the initial report snapshot.
+- Critical application PASS cases also require case-local executable-version provenance for the relevant adapter when that version is available to the validation tooling.
 - Verification cannot claim `VERIFIED` solely from an observed clear: the exact pinned control is revalidated afterward, and chat targets additionally revalidate the selected conversation before publishing verified evidence.
 
 ## Real Windows validation still required

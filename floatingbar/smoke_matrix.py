@@ -324,6 +324,29 @@ def environment_case_errors(report: Mapping[str, object]) -> tuple[str, ...]:
         "cmd": {"cmd"},
         "powershell": {"powershell"},
     }
+    # Critical application PASS cases must also retain case-local executable
+    # version provenance whenever the validation snapshot can observe it. This
+    # prevents a PASS from being detached from the actual desktop build under test.
+    critical_case_version_requirements = {
+        "telegram.send": {"telegram"},
+        "telegram.multiwindow": {"telegram"},
+        "telegram.restart": {"telegram"},
+        "telegram.context": {"telegram"},
+        "telegram.unverified": {"telegram"},
+        "telegram.retry": {"telegram"},
+        "chat.whatsapp": {"whatsapp"},
+        "chat.discord": {"discord"},
+        "chat.slack": {"slack"},
+        "chat.teams": {"teams"},
+        "terminal.submit": {"terminal", "cmd", "powershell"},
+        "terminal.acceptance.wt": {"terminal"},
+        "terminal.acceptance.preview": {"terminal"},
+        "terminal.acceptance.conhost": {"terminal", "cmd"},
+        "terminal.acceptance.pwsh": {"powershell"},
+        "terminal.uncertain": {"terminal", "cmd", "powershell"},
+        "terminal.restart": {"terminal", "cmd", "powershell"},
+    }
+
     critical_app_process_requirements = {
         "telegram.send": {"telegram": {"telegram.exe"}},
         "telegram.multiwindow": {"telegram": {"telegram.exe"}},
@@ -352,6 +375,51 @@ def environment_case_errors(report: Mapping[str, object]) -> tuple[str, ...]:
         expected_case = expected_case_map.get(case_id)
         if expected_case is None:
             continue
+
+        version_requirement = critical_case_version_requirements.get(case_id)
+        if version_requirement:
+            case_evidence = item.get("evidence")
+            raw_versions = case_evidence.get("executable_versions", ()) if isinstance(case_evidence, Mapping) else ()
+            observed_versions = set()
+            if isinstance(raw_versions, list):
+                for version in raw_versions:
+                    if not isinstance(version, Mapping):
+                        continue
+                    adapter_key = str(version.get("adapter_key", "")).strip()
+                    value = str(version.get("version", "")).strip()
+                    if adapter_key and value and adapter_key in version_requirement:
+                        observed_versions.add(adapter_key)
+
+            # Only require version provenance for adapters whose environment
+            # snapshot actually exposes a non-empty executable version. An
+            # unavailable version is not proof of a missing case result.
+            available_versions = set()
+            for adapter_key in version_requirement:
+                environment_adapter = adapters.get(adapter_key)
+                if not isinstance(environment_adapter, Mapping):
+                    continue
+                raw_environment_versions = environment_adapter.get("observed_versions", ())
+                if isinstance(raw_environment_versions, (list, tuple)):
+                    if any(str(value).strip() for value in raw_environment_versions):
+                        available_versions.add(adapter_key)
+
+            required_versions = available_versions & version_requirement
+            if required_versions:
+                if not isinstance(case_evidence, Mapping) or not case_evidence:
+                    errors.append(
+                        f"environment executable-version evidence missing for {case_id} "
+                        f"({', '.join(sorted(required_versions))})"
+                    )
+                elif str(case_evidence.get("recorded_at", "")).strip() != str(item.get("tested_at", "")).strip():
+                    errors.append(
+                        f"environment executable-version timestamp mismatch for {case_id}"
+                    )
+                elif not (observed_versions & required_versions):
+                    errors.append(
+                        f"environment executable-version evidence missing for {case_id} "
+                        f"({', '.join(sorted(required_versions))})"
+                    )
+
         process_requirement = required_processes.get(case_id)
         if process_requirement:
             adapter_keys, expected_processes = process_requirement
