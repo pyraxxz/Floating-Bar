@@ -12,6 +12,7 @@ from typing import Callable, Optional, Sequence
 
 from .app_adapters import actionable_adapter_for_process
 from .background_windows import BackgroundWindow
+from . import ui_theme
 
 
 _LABELS = {
@@ -135,9 +136,9 @@ class BackgroundAppPicker:
     HOVER_DELAY_MS = 140
     TRANSITION_GRACE_MS = 220
     ACTION_GRACE_MS = 220
-    WIDTH = 210
-    ROW_HEIGHT = 30
-    SECTION_HEIGHT = 22
+    WIDTH = 238
+    ROW_HEIGHT = 34
+    SECTION_HEIGHT = 20
     MAX_PINNED = 3
     MAX_RECENT = 2
     MAX_VISIBLE = 6
@@ -284,25 +285,22 @@ class BackgroundAppPicker:
         self.window = popup
         popup.overrideredirect(True)
         popup.attributes("-topmost", True)
-        popup.configure(bg="#18181b")
-        try:
-            popup.wm_attributes("-toolwindow", True)
-        except Exception:
-            pass
+        ui_theme.style_popup(popup)
 
-        x = self.owner.winfo_rootx() + self.owner.winfo_width() + 8
-        y = self.owner.winfo_rooty()
+        popup.update_idletasks()
+        x, y = ui_theme.place_popup_near(self.owner, popup, self.WIDTH, height=100)
         section_names = []
         for item in items:
             section = "Pinned" if item.pinned else "Recent" if item.recent else "Open apps"
             if section not in section_names:
                 section_names.append(section)
-        height = len(items) * self.ROW_HEIGHT + len(section_names) * self.SECTION_HEIGHT + 8
+        height = len(items) * self.ROW_HEIGHT + len(section_names) * self.SECTION_HEIGHT + 14
+        x, y = ui_theme.place_popup_near(self.owner, popup, self.WIDTH, height)
         popup.geometry(f"{self.WIDTH}x{height}+{x}+{y}")
         popup.bind("<Enter>", self._popup_enter, add="+")
         popup.bind("<Leave>", self._popup_leave, add="+")
 
-        frame = tk.Frame(popup, bg="#18181b", bd=0)
+        frame = ui_theme.frame(popup)
         frame.pack(fill="both", expand=True, padx=4, pady=4)
         current_section = None
         for item in items:
@@ -314,28 +312,18 @@ class BackgroundAppPicker:
                     frame,
                     text=section,
                     anchor="w",
-                    bg="#18181b",
-                    fg="#71717a",
-                    font=("Segoe UI", 8, "bold"),
+                    bg=ui_theme.SURFACE,
+                    fg=ui_theme.TEXT_DIM,
+                    font=ui_theme.FONT_SMALL_BOLD,
                 ).pack(fill="x", padx=4, pady=(1, 2))
                 current_section = section
-            state = "normal" if item.actionable else "disabled"
-            suffix = "  " + action_for_item(item)
-            button = tk.Button(
+            button = ui_theme.row_button(
                 frame,
-                text=item.label + suffix,
-                anchor="w",
-                relief="flat",
-                bd=0,
-                bg="#18181b",
-                fg="#f4f4f5" if item.actionable else "#71717a",
-                activebackground="#27272a",
-                activeforeground="#ffffff",
-                disabledforeground="#71717a",
-                state=state,
+                text=f"{item.label}   ·   {action_for_item(item)}",
+                disabled=not item.actionable,
                 command=lambda selected=item: self._selected(selected),
             )
-            button.pack(fill="x", ipady=4)
+            button.pack(fill="x", ipady=5)
             if item.actionable:
                 button.bind(
                     "<Enter>",
@@ -366,42 +354,26 @@ class BackgroundAppPicker:
         self._action_window = popup
         popup.overrideredirect(True)
         popup.attributes("-topmost", True)
-        popup.configure(bg="#18181b")
+        ui_theme.style_popup(popup)
         popup.bind("<Enter>", self._actions_enter, add="+")
         popup.bind("<Leave>", self._actions_leave, add="+")
-        try:
-            popup.wm_attributes("-toolwindow", True)
-        except Exception:
-            pass
         x = row.winfo_rootx() + row.winfo_width() + 4
         y = row.winfo_rooty()
         height = 74 if self.pin_toggle is not None else 38
         popup.geometry(f"110x{height}+{x}+{y}")
-        action_button = tk.Button(
+        action_button = ui_theme.button(
             popup,
             text=action_for_item(item),
-            anchor="center",
-            relief="flat",
-            bd=0,
-            bg="#27272a",
-            fg="#f4f4f5",
-            activebackground="#3f3f46",
-            activeforeground="#ffffff",
             command=self._selected_action,
+            primary=True,
         )
         action_button.pack(fill="x", padx=4, pady=(4, 2), ipady=4)
         if self.pin_toggle is not None:
-            pin_button = tk.Button(
+            pin_button = ui_theme.button(
                 popup,
                 text="Unpin" if item.pinned else "Pin",
-                anchor="center",
-                relief="flat",
-                bd=0,
-                bg="#27272a",
-                fg="#d4d4d8",
-                activebackground="#3f3f46",
-                activeforeground="#ffffff",
                 command=self._toggle_pin,
+                subtle=True,
             )
             pin_button.pack(fill="x", padx=4, pady=(2, 4), ipady=2)
 
