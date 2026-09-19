@@ -145,17 +145,33 @@ def place_popup_near(
     owner_x = owner.winfo_rootx()
     owner_y = owner.winfo_rooty()
     owner_w = owner.winfo_width()
-    owner_h = owner.winfo_height()
-    screen_w = max(owner.winfo_screenwidth(), width)
-    screen_h = max(owner.winfo_screenheight(), height)
+
+    # Tk exposes the virtual desktop through vroot coordinates. Falling back
+    # to the primary screen keeps lightweight tests and unusual Tk builds safe.
+    try:
+        origin_x = int(owner.winfo_vrootx())
+        origin_y = int(owner.winfo_vrooty())
+        desktop_w = int(owner.winfo_vrootwidth())
+        desktop_h = int(owner.winfo_vrootheight())
+    except (AttributeError, tk.TclError, TypeError, ValueError):
+        origin_x = origin_y = 0
+        desktop_w = int(owner.winfo_screenwidth())
+        desktop_h = int(owner.winfo_screenheight())
+
+    desktop_w = max(desktop_w, width + 16)
+    desktop_h = max(desktop_h, height + 16)
+    right_edge = origin_x + desktop_w
+    bottom_edge = origin_y + desktop_h
 
     x_right = owner_x + owner_w + gap
     x_left = owner_x - width - gap
-    x = x_right if x_right + width <= screen_w else max(0, x_left)
+    if x_right + width <= right_edge:
+        x = x_right
+    else:
+        x = x_left
+    x = max(origin_x + 8, min(x, right_edge - width - 8))
 
-    y = owner_y
-    if y + height > screen_h:
-        y = max(0, screen_h - height - 8)
+    y = max(origin_y + 8, min(owner_y, bottom_edge - height - 8))
     return x, y
 
 
