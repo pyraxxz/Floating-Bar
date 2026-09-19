@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from floatingbar.app_adapters import adapter_for_process
+from floatingbar.evidence import EvidenceState
 from floatingbar.terminal_target import TerminalTypingTarget
 
 
@@ -55,7 +56,9 @@ class TerminalVerificationTests(unittest.TestCase):
              patch.object(target, "_verification_target", return_value=301), \
              patch.object(target, "_terminal_value_length", return_value=-1):
             self.assertIsNone(target.prepare_submission_verification())
-            self.assertIsNone(target.begin_submission_verification(301, None))
+            blocked = target.begin_submission_verification(301, None)
+            self.assertEqual(blocked, "terminal-submit (blocked)")
+            self.assertEqual(blocked.submission_evidence.state, EvidenceState.BLOCKED)
         self.assertEqual(
             target.finish_submission_verification(301, None, "posted-enter (unverified)"),
             "posted-enter (verification-unavailable)",
@@ -70,11 +73,34 @@ class TerminalVerificationTests(unittest.TestCase):
              patch.object(target, "_wait_for_length", return_value=False):
             baseline = target.prepare_submission_verification()
             self.assertEqual(baseline, 0)
-            self.assertIsNone(target.begin_submission_verification(301, baseline))
+            blocked = target.begin_submission_verification(301, baseline)
+            self.assertEqual(blocked, "terminal-submit (blocked)")
+            self.assertEqual(blocked.submission_evidence.state, EvidenceState.BLOCKED)
         self.assertEqual(
             target.finish_submission_verification(301, None, "posted-enter (unverified)"),
             "posted-enter (verification-unavailable)",
         )
+
+    def test_terminal_guard_blocks_enter_when_growth_is_not_proven(self):
+        target = self._target()
+        with (
+            self._candidate_patch(target),
+            patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True),
+            patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True),
+            patch("floatingbar.generic_target.winapi.is_minimized", return_value=False),
+            patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200),
+            patch("floatingbar.generic_target.winapi.get_focused_hwnd", return_value=999),
+            patch.object(target, "_verification_target", return_value=301),
+            patch.object(target, "_terminal_value_length", return_value=0),
+            patch.object(target, "_wait_for_length", return_value=False),
+            patch("floatingbar.generic_target.winapi.post_text") as post_text,
+            patch("floatingbar.generic_target.winapi.post_enter") as post_enter,
+        ):
+            result = target.send("echo hello")
+        self.assertEqual(result, "terminal-submit (blocked)")
+        self.assertEqual(target.last_submission_evidence.state, EvidenceState.BLOCKED)
+        post_text.assert_called_once()
+        post_enter.assert_not_called()
 
     def test_clear_timeout_is_submitted_but_unverified(self):
         target = self._target()

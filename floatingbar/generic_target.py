@@ -373,7 +373,11 @@ class BackgroundTypingTarget:
         return None
 
     def begin_submission_verification(self, target_hwnd: int, state):
-        """Optional adapter hook executed after injection and before submit."""
+        """Optional hook after injection and before submit.
+
+        A concrete target may return an ``EvidenceStrategy`` to publish a
+        typed blocked/unavailable result and stop before the submit action.
+        """
         return state
 
     def finish_submission_verification(self, target_hwnd: int, state, strategy: str) -> str:
@@ -414,6 +418,8 @@ class BackgroundTypingTarget:
             trace.trace(f"stage=target hwnd={target} scope={self.scope().hwnd}/{self.scope().pid}")
             try:
                 verification_state = self.begin_submission_verification(target, verification_state)
+                if isinstance(verification_state, EvidenceStrategy):
+                    return self._record_submission_evidence(verification_state)
             except Exception:
                 verification_state = None
                 trace.trace("stage=verification post-injection unavailable")
