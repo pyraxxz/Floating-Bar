@@ -45,10 +45,19 @@ class BackgroundAdapterFocusTests(unittest.TestCase):
         target = ChatComposerTarget(100, 200)
         composer = _Candidate(401)
         patches = self._patch_runtime(target)
-        with patches[0], patches[1], patches[2], patches[3], patches[4], \
-             patch.object(target, "input_candidates", return_value=(composer,)), \
-             patch("floatingbar.generic_target.winapi.post_text") as post_text, \
-             patch("floatingbar.generic_target.winapi.post_enter") as post_enter:
+        with (
+            patches[0],
+            patches[1],
+            patches[2],
+            patches[3],
+            patches[4],
+            patch.object(target, "input_candidates", return_value=(composer,)),
+            patch.object(target, "_verification_target", return_value=401),
+            patch.object(target, "_composer_value_length", return_value=0),
+            patch.object(target, "_wait_for_length", side_effect=[True, True]),
+            patch("floatingbar.generic_target.winapi.post_text") as post_text,
+            patch("floatingbar.generic_target.winapi.post_enter") as post_enter,
+        ):
             result = target.send("background reply")
 
         self.assertEqual(result, "posted-enter (VERIFIED)")
@@ -66,10 +75,19 @@ class BackgroundAdapterFocusTests(unittest.TestCase):
             patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200),
             patch("floatingbar.generic_target.winapi.get_focused_hwnd", return_value=402),
         )
-        with patches[0], patches[1], patches[2], patches[3], patches[4], \
-             patch.object(target, "input_candidates", return_value=(focused_search, composer)), \
-             patch("floatingbar.generic_target.winapi.post_text") as post_text, \
-             patch("floatingbar.generic_target.winapi.post_enter") as post_enter:
+        with (
+            patches[0],
+            patches[1],
+            patches[2],
+            patches[3],
+            patches[4],
+            patch.object(target, "input_candidates", return_value=(focused_search, composer)),
+            patch.object(target, "_verification_target", return_value=403),
+            patch.object(target, "_composer_value_length", return_value=0),
+            patch.object(target, "_wait_for_length", side_effect=[True, True]),
+            patch("floatingbar.generic_target.winapi.post_text") as post_text,
+            patch("floatingbar.generic_target.winapi.post_enter") as post_enter,
+        ):
             result = target.send("background reply")
 
         self.assertEqual(result, "posted-enter (VERIFIED)")
