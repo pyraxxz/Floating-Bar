@@ -135,12 +135,19 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         spec = actionable_adapter_for_process(getattr(self, "_background_process_name", ""))
         label = spec.label if spec is not None else ""
         if label:
+            identity_width = ui_theme.adaptive_label_width(label)
             self._background_identity_label.config(text=label)
-            self._background_identity_label.place(x=8, y=12, width=66, height=16)
+            self._background_identity_label.place(
+                x=8,
+                y=12,
+                width=identity_width,
+                height=16,
+            )
+            entry_x = identity_width + 12
             self.entry.place(
-                x=78,
+                x=entry_x,
                 y=10,
-                width=max(40, self.winfo_width() - 86),
+                width=max(40, self.winfo_width() - entry_x - 10),
                 height=20,
             )
         else:

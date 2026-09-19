@@ -9,6 +9,12 @@ class ThemeTests(unittest.TestCase):
         self.assertEqual(ui_theme.ACCENT, "#60a5fa")
         self.assertNotEqual(ui_theme.TEXT, ui_theme.TEXT_DIM)
 
+    def test_adaptive_label_width_is_bounded_and_content_aware(self):
+        self.assertEqual(ui_theme.adaptive_label_width("Telegram"), 66)
+        self.assertGreater(ui_theme.adaptive_label_width("Microsoft Teams"), 66)
+        self.assertEqual(ui_theme.adaptive_label_width("Very Long Application Name"), 112)
+        self.assertEqual(ui_theme.adaptive_label_width(""), 66)
+
     def test_next_focus_index_wraps_and_handles_empty_lists(self):
         self.assertEqual(ui_theme.next_focus_index(-1, 3, 1), 0)
         self.assertEqual(ui_theme.next_focus_index(2, 3, 1), 0)
