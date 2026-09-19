@@ -7,6 +7,7 @@ from floatingbar.hardening import (
     _is_explicit_send_name,
     _is_voice_name,
 )
+from floatingbar.evidence import EvidenceStrategy
 from floatingbar.injector import InjectionFailed, TelegramInjector, _nested
 
 
@@ -50,6 +51,23 @@ class HardeningTests(unittest.TestCase):
         self.assertTrue(_is_explicit_send_name("Send message"))
         self.assertFalse(_is_explicit_send_name(""))
         self.assertFalse(_is_explicit_send_name("Emoji"))
+
+    def test_send_binds_telegram_verification_proof_scope(self):
+        target = Mock()
+        injector = HardenedTelegramInjector(target)
+        with patch.object(
+            TelegramInjector,
+            "send",
+            return_value="posted-click (VERIFIED)",
+        ):
+            result = injector.send("hello")
+
+        self.assertIsInstance(result, str)
+        self.assertEqual(result, "posted-click (VERIFIED)")
+        self.assertIsInstance(result, EvidenceStrategy)
+        self.assertEqual(result.submission_evidence.state.value, "verified")
+        self.assertEqual(result.submission_evidence.proof_kind, "input-acceptance")
+        self.assertIsNotNone(injector.last_submission_evidence)
 
     def test_expected_target_pid_uses_pid_validated_by_scope_guard(self):
         target = Mock()
