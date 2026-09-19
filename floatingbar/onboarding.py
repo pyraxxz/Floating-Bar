@@ -66,7 +66,7 @@ def show(parent: tk.Misc, *, force: bool = False) -> Optional[tk.Toplevel]:
         "3. Enter your text and press Enter to submit.",
     ):
         tk.Label(
-            frame, text=step, bg="#18181b", fg="#f4f4f5", font=("Segoe UI", 9),
+            frame, text=step, bg=ui_theme.SURFACE, fg=ui_theme.TEXT, font=ui_theme.FONT_BODY,
             wraplength=340, justify="left",
         ).pack(anchor="w", pady=2)
 
