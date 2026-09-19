@@ -41,13 +41,9 @@ class ThemeTests(unittest.TestCase):
         self.assertEqual(x, 140)
         self.assertEqual(y, 592)
 
-
-if __name__ == "__main__":
-    unittest.main()
-
-    def test_place_popup_near_uses_negative_virtual_desktop_origin(self):
+    def test_place_popup_near_supports_negative_virtual_desktop_origin(self):
         class FakeOwner:
-            def winfo_rootx(self): return -600
+            def winfo_rootx(self): return -1230
             def winfo_rooty(self): return 80
             def winfo_width(self): return 40
             def winfo_height(self): return 40
@@ -60,5 +56,9 @@ if __name__ == "__main__":
             def update_idletasks(self): pass
 
         x, y = ui_theme.place_popup_near(FakeOwner(), FakePopup(), 220, 120, gap=8)
-        self.assertEqual(x, -852)
+        self.assertEqual(x, -1182)
         self.assertEqual(y, 80)
+
+
+if __name__ == "__main__":
+    unittest.main()
