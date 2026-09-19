@@ -71,9 +71,10 @@ class AdapterEvidenceTests(unittest.TestCase):
             strategy="posted-enter",
         )
         evidence = evidence_for_adapter(spec, submission_evidence=typed)
-        self.assertEqual(evidence.state, EvidenceState.VERIFIED)
-        self.assertTrue(evidence.confirmed)
-        self.assertEqual(evidence.proof_kind, "input-acceptance")
+        self.assertEqual(evidence.state, EvidenceState.SUBMITTED)
+        self.assertFalse(evidence.confirmed)
+        self.assertIsNone(evidence.proof_kind)
+        self.assertIn("missing its declared proof scope", evidence.detail)
 
     def test_failed_send_remains_failed_for_any_adapter(self):
         spec = adapter_for_process("wt.exe")

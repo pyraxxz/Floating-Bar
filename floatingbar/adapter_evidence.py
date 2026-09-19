@@ -80,7 +80,17 @@ def evidence_for_adapter(
                     detail="adapter verification proof scope does not match its declared contract",
                     retryable=False,
                 )
+            elif raw.proof_kind is None and isinstance(submission_evidence, SubmissionEvidence):
+                result = SubmissionEvidence(
+                    state=EvidenceState.SUBMITTED,
+                    strategy=raw.strategy or strategy,
+                    detail="verified evidence is missing its declared proof scope",
+                    retryable=False,
+                )
             elif raw.proof_kind is None:
+                # Legacy string strategies predate typed proof metadata. Keep
+                # their existing compatibility behavior while requiring
+                # explicit proof scope from the structured producer path.
                 result = SubmissionEvidence(
                     state=raw.state,
                     strategy=raw.strategy,
