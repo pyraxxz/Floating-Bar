@@ -89,6 +89,8 @@ class TelegramChatPicker:
             button.pack(fill="x", ipady=5, pady=1)
             row_buttons.append(button)
 
+        ui_theme.bind_picker_navigation(popup, row_buttons, on_escape=self.hide)
+
     def _selected(self, chat: TelegramChatItem) -> None:
         self.hide()
         self.on_select(chat)
