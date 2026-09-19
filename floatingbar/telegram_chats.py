@@ -298,6 +298,12 @@ def _confirm_selected(chat: TelegramChatItem) -> TelegramChatItem:
     raise RuntimeError("Telegram chat row was not selected after background click")
 
 
+def _sole_selected_row(rows: tuple[TelegramChatItem, ...], candidate: TelegramChatItem) -> bool:
+    """Require exactly one selected row in the current structural snapshot."""
+    selected = tuple(row for row in rows if row.selected)
+    return len(selected) == 1 and selected[0] is candidate
+
+
 def chat_identity_matches(chat: TelegramChatItem) -> bool:
     """Return whether the same content-free chat identity is still selected."""
     if not chat.hwnd or not chat.pid:
@@ -318,7 +324,7 @@ def chat_identity_matches(chat: TelegramChatItem) -> bool:
             current = matches[0]
             if chat.control_identity is not None and current.control_identity != chat.control_identity:
                 return False
-            return bool(current.selected)
+            return _sole_selected_row(current_rows, current)
         if len(matches) > 1:
             return False
     if chat.control_identity is not None:

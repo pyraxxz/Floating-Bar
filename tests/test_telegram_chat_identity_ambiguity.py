@@ -135,6 +135,29 @@ class TelegramChatIdentityAmbiguityTests(unittest.TestCase):
         with patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200),              patch("floatingbar.telegram_chats.enumerate_telegram_chats", return_value=(renamed,)):
             self.assertTrue(chat_identity_matches(requested))
 
+    def test_chat_identity_matches_rejects_ambiguous_selected_rows_even_with_runtime_identity(self):
+        requested = TelegramChatItem(
+            100, 200, "Alex", 10, 100, 310, 150, True,
+            runtime_id=(1, 2, 3),
+            control_identity=("ListItem", "row", "uia"),
+        )
+        same_identity = TelegramChatItem(
+            100, 200, "Alex", 10, 100, 310, 150, True,
+            runtime_id=(1, 2, 3),
+            control_identity=("ListItem", "row", "uia"),
+        )
+        other_selected = TelegramChatItem(
+            100, 200, "Bob", 10, 150, 310, 200, True,
+            runtime_id=(4, 5, 6),
+            control_identity=("ListItem", "other", "uia"),
+        )
+        with patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
+             patch(
+                 "floatingbar.telegram_chats.enumerate_telegram_chats",
+                 return_value=(same_identity, other_selected),
+             ):
+            self.assertFalse(chat_identity_matches(requested))
+
     def test_chat_identity_matches_rejects_runtime_identity_loss(self):
         requested = TelegramChatItem(
             100, 200, "Alex", 10, 100, 310, 150, True,
