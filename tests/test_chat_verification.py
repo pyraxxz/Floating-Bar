@@ -84,18 +84,20 @@ class ChatVerificationTests(unittest.TestCase):
              patch.object(target, "_verification_target", return_value=301), \
              patch.object(target, "_composer_value_length", return_value=-1):
             self.assertIsNone(target.prepare_submission_verification())
-            self.assertIsNone(target.begin_submission_verification(301, None))
-        self.assertEqual(target.finish_submission_verification(301, None, "posted-enter (unverified)"), "posted-enter (verification-unavailable)")
+            result = target.begin_submission_verification(301, None)
+            self.assertIsInstance(result, EvidenceStrategy)
+            self.assertEqual(result, "chat-submit (blocked)")
+            self.assertEqual(result.submission_evidence.state, EvidenceState.BLOCKED)
+        self.assertEqual(
+            target.finish_submission_verification(301, None, "posted-enter (unverified)"),
+            "posted-enter (verification-unavailable)",
+        )
 
     def test_non_compose_clear_adapter_keeps_unverified_strategy(self):
         target = self._target("terminal.exe")
         self.assertIsNone(target.prepare_submission_verification())
         self.assertIsNone(target.begin_submission_verification(301, None))
         self.assertEqual(target.finish_submission_verification(301, None, "posted-enter (unverified)"), "posted-enter (unverified)")
-
-
-if __name__ == "__main__":
-    unittest.main()
 
     def test_chat_send_does_not_press_enter_when_growth_is_unproven(self):
         target = self._target()
@@ -111,10 +113,7 @@ if __name__ == "__main__":
             result = target.send("background reply")
         self.assertEqual(result, "chat-submit (blocked)")
         self.assertIsNotNone(target.last_submission_evidence)
-        self.assertEqual(
-            target.last_submission_evidence.state,
-            EvidenceState.BLOCKED,
-        )
+        self.assertEqual(target.last_submission_evidence.state, EvidenceState.BLOCKED)
         post_text.assert_called_once()
         post_enter.assert_not_called()
 
@@ -130,9 +129,10 @@ if __name__ == "__main__":
         ):
             result = target.send("background reply")
         self.assertEqual(result, "chat-submit (blocked)")
-        self.assertEqual(
-            target.last_submission_evidence.state,
-            EvidenceState.BLOCKED,
-        )
+        self.assertEqual(target.last_submission_evidence.state, EvidenceState.BLOCKED)
         post_text.assert_called_once()
         post_enter.assert_not_called()
+
+
+if __name__ == "__main__":
+    unittest.main()
