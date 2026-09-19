@@ -96,7 +96,7 @@ def paginate_conversations(
 class ConversationPicker:
     WIDTH = 320
     ROW_HEIGHT = 36
-    HEADER_HEIGHT = 34
+    HEADER_HEIGHT = 52
     FOOTER_HEIGHT = 36
     SECTION_HEIGHT = 22
     PAGE_LIMIT = 6
@@ -208,7 +208,6 @@ class ConversationPicker:
         popup.overrideredirect(True)
         popup.attributes("-topmost", True)
         ui_theme.style_popup(popup)
-        popup.bind("<Escape>", lambda _event: self.hide())
         popup.protocol("WM_DELETE_WINDOW", self.hide)
         
         visible_pinned = sum(
@@ -248,10 +247,17 @@ class ConversationPicker:
             font=ui_theme.FONT_SMALL_BOLD,
         )
         header.pack(fill="x", padx=8, pady=(6, 0))
+        ui_theme.label(
+            popup,
+            text="↑/↓ move  ·  Enter select  ·  Esc close",
+            dim=True,
+            small=True,
+        ).pack(fill="x", padx=8, pady=(1, 2))
 
         frame = ui_theme.frame(popup)
         frame.pack(fill="both", expand=True, padx=4, pady=(0, 2))
         current_section = None
+        row_buttons = []
         for row in to_conversation_picker_rows(
             conversations,
             self._recent_keys,
@@ -282,6 +288,7 @@ class ConversationPicker:
                 command=lambda item=row.conversation: self._selected(item),
             )
             button.grid(row=0, column=0, sticky="ew", ipady=4)
+            row_buttons.append(button)
             if self.pin_toggle is not None:
                 pin_button = ui_theme.button(
                     row_frame,
@@ -291,6 +298,8 @@ class ConversationPicker:
                     width=2,
                 )
                 pin_button.grid(row=0, column=1, padx=(2, 0), ipady=2)
+
+        ui_theme.bind_picker_navigation(popup, row_buttons, on_escape=self.hide)
 
         footer = tk.Frame(popup, bg="#18181b", bd=0)
         footer.pack(fill="x", padx=4, pady=(0, 4))
