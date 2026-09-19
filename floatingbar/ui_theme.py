@@ -7,7 +7,7 @@ reads application content, or changes target-selection behavior.
 from __future__ import annotations
 
 import tkinter as tk
-from typing import Optional
+from typing import Optional, Sequence
 
 SURFACE = "#18181b"
 SURFACE_ELEVATED = "#202024"
@@ -109,6 +109,10 @@ def button(
         "disabledforeground": TEXT_DIM,
         "font": FONT_BODY_BOLD if primary else FONT_BODY,
         "cursor": "hand2",
+        "takefocus": 1,
+        "highlightthickness": 1,
+        "highlightbackground": BORDER,
+        "highlightcolor": ACCENT,
     }
     if subtle:
         normal = SURFACE
@@ -130,6 +134,48 @@ def button(
     widget.bind("<Enter>", on_enter, add="+")
     widget.bind("<Leave>", on_leave, add="+")
     return widget
+
+
+def next_focus_index(current_index: int, count: int, direction: int) -> int:
+    """Return a wrapped picker-row focus index without touching Tk state."""
+    total = max(0, int(count))
+    if total == 0:
+        return -1
+    step = 1 if int(direction) >= 0 else -1
+    current = int(current_index)
+    if current < 0 or current >= total:
+        return 0 if step > 0 else total - 1
+    return (current + step) % total
+
+
+def bind_picker_navigation(
+    window: tk.Toplevel,
+    buttons: Sequence[tk.Button],
+    *,
+    on_escape,
+) -> None:
+    """Add predictable keyboard navigation to a picker without global focus hooks."""
+    rows = tuple(buttons)
+    if not rows:
+        window.bind("<Escape>", lambda _event: on_escape(), add="+")
+        return
+
+    def move_focus(direction: int):
+        current = window.focus_get()
+        try:
+            current_index = rows.index(current)
+        except ValueError:
+            current_index = -1
+        rows[next_focus_index(current_index, len(rows), direction)].focus_set()
+
+    window.bind("<Up>", lambda _event: (move_focus(-1), "break")[1], add="+")
+    window.bind("<Down>", lambda _event: (move_focus(1), "break")[1], add="+")
+    window.bind("<Escape>", lambda _event: (on_escape(), "break")[1], add="+")
+    for row in rows:
+        row.bind("<Up>", lambda _event: (move_focus(-1), "break")[1], add="+")
+        row.bind("<Down>", lambda _event: (move_focus(1), "break")[1], add="+")
+    rows[0].focus_set()
+
 
 
 def place_popup_near(
@@ -222,6 +268,10 @@ def row_button(
         "state": "disabled" if disabled else "normal",
         "font": FONT_BODY_BOLD if selected or attention else FONT_BODY,
         "cursor": cursor,
+        "takefocus": 1,
+        "highlightthickness": 1,
+        "highlightbackground": BORDER,
+        "highlightcolor": ACCENT,
     }
     if width is not None:
         options["width"] = width
@@ -266,5 +316,7 @@ __all__ = [
     "label",
     "place_popup_near",
     "row_button",
+    "bind_picker_navigation",
+    "next_focus_index",
     "style_popup",
 ]
