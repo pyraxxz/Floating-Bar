@@ -82,11 +82,10 @@ def evidence_for_adapter(
                 )
             elif raw.proof_kind is None:
                 result = SubmissionEvidence(
-                    state=raw.state,
-                    strategy=raw.strategy,
-                    detail=raw.detail,
-                    retryable=raw.retryable,
-                    proof_kind=contract.proof_kind,
+                    state=EvidenceState.SUBMITTED,
+                    strategy=raw.strategy or strategy,
+                    detail="verified evidence is missing its declared proof scope",
+                    retryable=False,
                 )
             else:
                 result = raw
