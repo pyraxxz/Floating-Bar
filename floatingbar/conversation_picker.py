@@ -6,6 +6,7 @@ from typing import Callable, Optional, Sequence
 
 from .conversation_attention import AttentionState
 from .conversation_rows import ConversationItem
+from . import ui_theme
 
 
 @dataclass(frozen=True)
@@ -93,8 +94,8 @@ def paginate_conversations(
 
 
 class ConversationPicker:
-    WIDTH = 280
-    ROW_HEIGHT = 30
+    WIDTH = 320
+    ROW_HEIGHT = 36
     HEADER_HEIGHT = 34
     FOOTER_HEIGHT = 36
     SECTION_HEIGHT = 22
@@ -206,16 +207,10 @@ class ConversationPicker:
         self.window = popup
         popup.overrideredirect(True)
         popup.attributes("-topmost", True)
-        popup.configure(bg="#18181b")
+        ui_theme.style_popup(popup)
         popup.bind("<Escape>", lambda _event: self.hide())
         popup.protocol("WM_DELETE_WINDOW", self.hide)
-        try:
-            popup.wm_attributes("-toolwindow", True)
-        except Exception:
-            pass
-
-        x = self.owner.winfo_rootx() + self.owner.winfo_width() + 8
-        y = self.owner.winfo_rooty()
+        
         visible_pinned = sum(
             1 for item in conversations
             if conversation_picker_identity(item) in self._pinned_keys
@@ -233,8 +228,9 @@ class ConversationPicker:
             + len(conversations) * self.ROW_HEIGHT
             + sections * self.SECTION_HEIGHT
             + self.FOOTER_HEIGHT
-            + 8
+            + 14
         )
+        x, y = ui_theme.place_popup_near(self.owner, popup, self.WIDTH, height)
         popup.geometry(f"{self.WIDTH}x{height}+{x}+{y}")
 
         start = offset + 1
@@ -247,13 +243,13 @@ class ConversationPicker:
             popup,
             text=header_text,
             anchor="w",
-            bg="#18181b",
-            fg="#a1a1aa",
-            font=("Segoe UI", 8, "bold"),
+            bg=ui_theme.SURFACE,
+            fg=ui_theme.TEXT_MUTED,
+            font=ui_theme.FONT_SMALL_BOLD,
         )
         header.pack(fill="x", padx=8, pady=(6, 0))
 
-        frame = tk.Frame(popup, bg="#18181b", bd=0)
+        frame = ui_theme.frame(popup)
         frame.pack(fill="both", expand=True, padx=4, pady=(0, 2))
         current_section = None
         for row in to_conversation_picker_rows(
@@ -264,45 +260,35 @@ class ConversationPicker:
             section = "Pinned" if row.pinned else "Recent" if row.recent else "Open conversations"
             if section != current_section:
                 if current_section is not None:
-                    tk.Frame(frame, bg="#27272a", height=1).pack(fill="x", pady=2)
+                    tk.Frame(frame, bg=ui_theme.BORDER, height=1).pack(fill="x", pady=3)
                 tk.Label(
                     frame,
                     text=section,
                     anchor="w",
-                    bg="#18181b",
-                    fg="#71717a",
-                    font=("Segoe UI", 8, "bold"),
+                    bg=ui_theme.SURFACE,
+                    fg=ui_theme.TEXT_DIM,
+                    font=ui_theme.FONT_SMALL_BOLD,
                 ).pack(fill="x", padx=4, pady=(1, 2))
                 current_section = section
             row_frame = tk.Frame(frame, bg="#18181b", bd=0)
             row_frame.pack(fill="x")
             row_frame.columnconfigure(0, weight=1)
-            button = tk.Button(
+            attention = row.attention in {AttentionState.UNREAD, AttentionState.RELEVANT}
+            button = ui_theme.row_button(
                 row_frame,
                 text=row.name + row.suffix,
-                anchor="w",
-                relief="flat",
-                bd=0,
-                bg="#18181b",
-                fg="#f4f4f5",
-                activebackground="#27272a",
-                activeforeground="#ffffff",
+                selected=row.selected,
+                attention=attention,
                 command=lambda item=row.conversation: self._selected(item),
             )
             button.grid(row=0, column=0, sticky="ew", ipady=4)
             if self.pin_toggle is not None:
-                pin_button = tk.Button(
+                pin_button = ui_theme.button(
                     row_frame,
                     text="★" if row.pinned else "☆",
-                    anchor="center",
-                    relief="flat",
-                    bd=0,
-                    width=2,
-                    bg="#18181b",
-                    fg="#d4d4d8",
-                    activebackground="#27272a",
-                    activeforeground="#ffffff",
                     command=lambda item=row.conversation: self._toggle_pin(item),
+                    subtle=True,
+                    width=2,
                 )
                 pin_button.grid(row=0, column=1, padx=(2, 0), ipady=2)
 
@@ -312,22 +298,22 @@ class ConversationPicker:
         footer.columnconfigure(1, weight=1)
         footer.columnconfigure(2, weight=1)
 
-        previous = tk.Button(
+        previous = ui_theme.button(
             footer,
             text="Previous",
             anchor="center",
             relief="flat",
             bd=0,
-            bg="#27272a",
-            fg="#d4d4d8",
-            activebackground="#3f3f46",
-            activeforeground="#ffffff",
+            bg=ui_theme.SURFACE_ELEVATED,
+            fg=ui_theme.TEXT_MUTED,
+            activebackground=ui_theme.SURFACE_HOVER,
+            activeforeground=ui_theme.TEXT_STRONG,
             state="normal" if has_previous else "disabled",
             command=lambda: self._page(-1),
         )
         previous.grid(row=0, column=0, sticky="ew", padx=2, pady=2, ipady=2)
 
-        refresh = tk.Button(
+        refresh = ui_theme.button(
             footer,
             text="Refresh",
             anchor="center",
@@ -341,7 +327,7 @@ class ConversationPicker:
         )
         refresh.grid(row=0, column=1, sticky="ew", padx=2, pady=2, ipady=2)
 
-        next_page = tk.Button(
+        next_page = ui_theme.button(
             footer,
             text="Next",
             anchor="center",
