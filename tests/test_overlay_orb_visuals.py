@@ -1,6 +1,7 @@
 import unittest
 
 from floatingbar.overlay import OrbRelayWindow
+from floatingbar import ui_theme
 
 
 class _FakeCanvas:
