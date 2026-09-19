@@ -24,6 +24,18 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         for fragment in required_fragments:
             self.assertIn(fragment, workflow)
 
+    def test_release_workflow_has_dependency_and_timeout_guardrails(self):
+        workflow = (
+            REPO_ROOT / ".github" / "workflows" / "build-exe.yml"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("timeout-minutes: 30", workflow)
+        self.assertIn(
+            "python -m pip install --disable-pip-version-check -r requirements.txt pyinstaller",
+            workflow,
+        )
+        self.assertIn("python -m pip check", workflow)
+
     def test_release_workflow_requires_exact_smoke_report_source(self):
         workflow = (
             REPO_ROOT / ".github" / "workflows" / "build-exe.yml"
