@@ -287,8 +287,6 @@ class BackgroundAppPicker:
         popup.attributes("-topmost", True)
         ui_theme.style_popup(popup)
 
-        popup.update_idletasks()
-        x, y = ui_theme.place_popup_near(self.owner, popup, self.WIDTH, height=100)
         section_names = []
         for item in items:
             section = "Pinned" if item.pinned else "Recent" if item.recent else "Open apps"
@@ -307,7 +305,7 @@ class BackgroundAppPicker:
             section = "Pinned" if item.pinned else "Recent" if item.recent else "Open apps"
             if section != current_section:
                 if current_section is not None:
-                    tk.Frame(frame, bg="#27272a", height=1).pack(fill="x", pady=2)
+                    tk.Frame(frame, bg=ui_theme.BORDER, height=1).pack(fill="x", pady=3)
                 tk.Label(
                     frame,
                     text=section,
@@ -359,8 +357,9 @@ class BackgroundAppPicker:
         popup.bind("<Leave>", self._actions_leave, add="+")
         x = row.winfo_rootx() + row.winfo_width() + 4
         y = row.winfo_rooty()
-        height = 74 if self.pin_toggle is not None else 38
-        popup.geometry(f"110x{height}+{x}+{y}")
+        height = 78 if self.pin_toggle is not None else 44
+        x, y = ui_theme.place_popup_near(self.owner, popup, 132, height, gap=4)
+        popup.geometry(f"132x{height}+{x}+{y}")
         action_button = ui_theme.button(
             popup,
             text=action_for_item(item),
