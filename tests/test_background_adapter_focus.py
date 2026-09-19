@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import patch
 
+from floatingbar.app_adapters import adapter_for_process
 from floatingbar.chat_composer_target import ChatComposerTarget
 from floatingbar.terminal_target import TerminalTypingTarget
 
@@ -43,6 +44,7 @@ class BackgroundAdapterFocusTests(unittest.TestCase):
 
     def test_chat_composer_does_not_require_target_to_be_focused(self):
         target = ChatComposerTarget(100, 200)
+        target.bind(100, 200, spec=adapter_for_process("whatsapp.exe"))
         composer = _Candidate(401)
         patches = self._patch_runtime(target)
         with (
@@ -66,6 +68,7 @@ class BackgroundAdapterFocusTests(unittest.TestCase):
 
     def test_chat_prefers_composer_shaped_control_over_focused_search_field(self):
         target = ChatComposerTarget(100, 200)
+        target.bind(100, 200, spec=adapter_for_process("whatsapp.exe"))
         focused_search = _Candidate(402, width=120, height=20)
         composer = _Candidate(403, width=600, height=40)
         patches = (
