@@ -315,6 +315,7 @@ class SmokeReportTests(unittest.TestCase):
                     "observed_process_instances": [
                         {"process_name": "telegram.exe", "process_start": 123}
                     ],
+                    "observed_versions": ["5.9.1"],
                 },
             ]
         })
@@ -331,10 +332,17 @@ class SmokeReportTests(unittest.TestCase):
                             "process_start": 123,
                         }
                     ],
+                    "executable_versions": [
+                        {"adapter_key": "telegram", "version": "5.9.1"}
+                    ],
                 }
         errors = environment_case_errors(report)
         self.assertNotIn(
             "environment process-instance evidence missing for telegram.restart (telegram)",
+            errors,
+        )
+        self.assertNotIn(
+            "environment executable-version evidence missing for telegram.restart (telegram)",
             errors,
         )
 
