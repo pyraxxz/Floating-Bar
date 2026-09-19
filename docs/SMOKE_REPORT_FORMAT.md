@@ -35,9 +35,11 @@ Every completed (`PASS`, `FAIL`, or `BLOCKED`) case must also contain a non-empt
 `tested_at` execution timestamp. Pending cases leave `tested_at` empty.
 When a result is recorded on Windows, case-local `evidence` also captures the
 fresh monitor geometry, content-free process-instance identities, and available
-executable file versions observed at the same timestamp. These fields never
-contain window titles, conversation names, message text, input values, or
-clipboard contents.
+executable file versions observed at the same timestamp. Critical application
+PASS cases require a matching executable-version entry when the relevant
+adapter version is available to the validator. These fields never contain
+window titles, conversation names, message text, input values, or clipboard
+contents.
 
 Critical restart cases (`env.restart`, `telegram.restart`, and `terminal.restart`) also require matching content-free process-instance evidence in the Windows environment snapshot when marked `PASS`.
 
