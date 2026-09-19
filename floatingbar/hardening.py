@@ -15,7 +15,7 @@ from . import winapi
 from .adapter_evidence import evidence_for_adapter
 from .app_adapters import adapter_for_process
 from .app_verification import verification_contract
-from .evidence import EvidenceStrategy, SubmissionEvidence, from_result
+from .evidence import EvidenceState, EvidenceStrategy, SubmissionEvidence, from_result
 from .injector import InjectionFailed, TelegramInjector, _combo
 from .transaction import candidate_parts
 
@@ -58,8 +58,7 @@ class HardenedTelegramInjector(TelegramInjector):
         raw_evidence = from_result(strategy)
         telegram_spec = adapter_for_process("telegram.exe")
         if (
-            raw_evidence.state is not None
-            and raw_evidence.state.value == "verified"
+            raw_evidence.state is EvidenceState.VERIFIED
             and raw_evidence.proof_kind is None
         ):
             contract = verification_contract(telegram_spec)
