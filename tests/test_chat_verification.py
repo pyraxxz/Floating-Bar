@@ -12,7 +12,7 @@ class ChatVerificationTests(unittest.TestCase):
         target = ChatComposerTarget(100, 200)
         spec = adapter_for_process(process_name)
         target.bind(100, 200, spec=spec)
-        candidate = SimpleNamespace(hwnd=301, pid=200, control_type="Edit", class_name="Edit", is_likely_composer_shape=True)
+        candidate = SimpleNamespace(hwnd=301, pid=200, control_type="Edit", class_name="Edit", focused=False, is_likely_composer_shape=True)
         target._verification_candidate = candidate
         return target
 
