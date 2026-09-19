@@ -147,14 +147,26 @@ class TerminalTypingTarget(BackgroundTypingTarget):
         if not self._supports_terminal_verification():
             return state
         if state is None:
-            return None
+            return self._typed_verification_result(
+                "terminal-submit (blocked)",
+                EvidenceState.BLOCKED,
+                "terminal input acceptance could not be proven before submit",
+            )
         try:
             target_hwnd = self._verification_target(target_hwnd)
         except Exception:
-            return None
+            return self._typed_verification_result(
+                "terminal-submit (blocked)",
+                EvidenceState.BLOCKED,
+                "pinned terminal control changed before submit",
+            )
         result = self._wait_for_length(target_hwnd, lambda length: length > state)
         if result is not True:
-            return None
+            return self._typed_verification_result(
+                "terminal-submit (blocked)",
+                EvidenceState.BLOCKED,
+                "terminal input growth was not proven before submit",
+            )
         return state
 
     def finish_submission_verification(self, target_hwnd: int, state, strategy: str):
