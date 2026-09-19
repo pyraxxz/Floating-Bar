@@ -209,7 +209,7 @@ class SmokeReportTests(unittest.TestCase):
             errors,
         )
 
-    def test_critical_telegram_pass_accepts_process_instance_evidence(self):
+    def test_critical_telegram_pass_accepts_process_and_version_evidence(self):
         report = build_report(environment={
             "adapters": [
                 {
@@ -219,6 +219,7 @@ class SmokeReportTests(unittest.TestCase):
                     "observed_process_instances": [
                         {"adapter_key": "telegram", "process_name": "telegram.exe", "process_start": 123}
                     ],
+                    "observed_versions": ["5.9.1"],
                 },
             ]
         })
@@ -235,10 +236,52 @@ class SmokeReportTests(unittest.TestCase):
                             "process_start": 123,
                         }
                     ],
+                    "executable_versions": [
+                        {"adapter_key": "telegram", "version": "5.9.1"}
+                    ],
                 }
         errors = environment_case_errors(report)
         self.assertNotIn(
             "environment process-instance evidence missing for telegram.send (telegram)",
+            errors,
+        )
+        self.assertNotIn(
+            "environment executable-version evidence missing for telegram.send (telegram)",
+            errors,
+        )
+
+    def test_critical_telegram_pass_requires_case_executable_version_evidence(self):
+        report = build_report(environment={
+            "adapters": [
+                {
+                    "key": "telegram",
+                    "open_window_count": 1,
+                    "observed_processes": ["telegram.exe"],
+                    "observed_process_instances": [
+                        {"adapter_key": "telegram", "process_name": "telegram.exe", "process_start": 123}
+                    ],
+                    "observed_versions": ["5.9.1"],
+                },
+            ]
+        })
+        for item in report["cases"]:
+            if item["case_id"] == "telegram.send":
+                item["result"] = RESULT_PASS
+                item["tested_at"] = "2026-09-18T12:00:00Z"
+                item["evidence"] = {
+                    "recorded_at": item["tested_at"],
+                    "process_instances": [
+                        {
+                            "adapter_key": "telegram",
+                            "process_name": "telegram.exe",
+                            "process_start": 123,
+                        }
+                    ],
+                    "executable_versions": [],
+                }
+        errors = environment_case_errors(report)
+        self.assertIn(
+            "environment executable-version evidence missing for telegram.send (telegram)",
             errors,
         )
 
