@@ -322,6 +322,33 @@ class TelegramChatPickerTests(unittest.TestCase):
                 select_telegram_chat(chat)
         post_click.assert_not_called()
 
+    def test_select_chat_allows_large_move_when_runtime_identity_stays_stable(self):
+        chat = TelegramChatItem(
+            100, 200, "Alice", 100, 200, 300, 260,
+            runtime_id=(1, 2, 3),
+            control_identity=("ListItem", "ChatRow", "uia"),
+        )
+        moved = TelegramChatItem(
+            100, 200, "Alice", 260, 420, 460, 480,
+            runtime_id=(1, 2, 3),
+            control_identity=("ListItem", "ChatRow", "uia"),
+        )
+        selected = TelegramChatItem(
+            100, 200, "Alice", 260, 420, 460, 480, True,
+            runtime_id=(1, 2, 3),
+            control_identity=("ListItem", "ChatRow", "uia"),
+        )
+        with patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.telegram_chats.enumerate_telegram_chats", side_effect=[(moved,), (selected,)]), \
+             patch("floatingbar.telegram_chats._try_uia_select", return_value=False), \
+             patch("floatingbar.telegram_chats._screen_to_client", return_value=(300, 450)), \
+             patch("floatingbar.telegram_chats.winapi.post_click") as post_click:
+            result = select_telegram_chat(chat)
+
+        self.assertEqual(result, selected)
+        post_click.assert_called_once_with(100, 300, 450, expected_pid=200)
+
     def test_select_chat_rejects_large_row_move_before_background_click(self):
         chat = TelegramChatItem(100, 200, "Alice", 100, 200, 300, 260)
         moved = TelegramChatItem(100, 200, "Alice", 200, 260, 400, 320)
