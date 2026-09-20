@@ -135,5 +135,24 @@ class TransactionTests(unittest.TestCase):
         self.assertEqual(completion.resolved_evidence.detail, "target changed")
 
 
+    def test_typed_completion_evidence_cannot_be_downgraded_by_legacy_error(self):
+        typed = __import__("floatingbar.evidence", fromlist=["SubmissionEvidence"]).SubmissionEvidence(
+            state=EvidenceState.VERIFIED,
+            strategy="posted-enter",
+            detail="typed proof",
+            proof_kind="input-acceptance",
+        )
+        completion = SendCompletion.from_result(
+            10,
+            strategy="legacy failure text",
+            error="legacy error",
+            evidence=typed,
+        )
+        self.assertEqual(completion.evidence_state, EvidenceState.VERIFIED)
+        self.assertEqual(completion.strategy, "posted-enter")
+        self.assertEqual(completion.error, "typed proof")
+        self.assertEqual(completion.resolved_evidence, typed)
+
+
 if __name__ == "__main__":
     unittest.main()
