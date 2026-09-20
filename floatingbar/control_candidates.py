@@ -95,16 +95,24 @@ def _candidate_from_element(element, pid: int, top_hwnd: int) -> InputCandidate 
         return None
 
 
-def _candidate_identity(candidate: InputCandidate) -> tuple:
-    """Return content-free UIA identity used to detect conflicting wrappers."""
-    return (
-        int(candidate.pid),
-        str(candidate.control_type),
-        str(candidate.class_name),
-        str(candidate.automation_id),
-        str(candidate.framework_id),
-        candidate.runtime_id,
+def candidate_identity(candidate: InputCandidate) -> tuple:
+    """Return a content-free control identity with runtime ID as the strongest anchor.
+
+    UIA AutomationId can be dynamic or application/context-bearing. When a
+    stable runtime ID exists, it is authoritative and AutomationId churn must
+    not invalidate an otherwise stable control. Without a runtime ID,
+    AutomationId remains a session-only fallback discriminator.
+    """
+    base = (
+        int(getattr(candidate, "pid", 0)),
+        str(getattr(candidate, "control_type", "")),
+        str(getattr(candidate, "class_name", "")),
+        str(getattr(candidate, "framework_id", "")),
     )
+    runtime_id = getattr(candidate, "runtime_id", None)
+    if runtime_id is not None:
+        return base + ("runtime", runtime_id)
+    return base + ("automation", str(getattr(candidate, "automation_id", "")))
 
 
 def enumerate_input_candidates(top_hwnd: int) -> tuple[InputCandidate, ...]:
@@ -138,7 +146,7 @@ def enumerate_input_candidates(top_hwnd: int) -> tuple[InputCandidate, ...]:
         if existing is None:
             unique[hwnd] = candidate
             continue
-        if _candidate_identity(existing) != _candidate_identity(candidate):
+        if candidate_identity(existing) != candidate_identity(candidate):
             ambiguous.add(hwnd)
             unique.pop(hwnd, None)
     return tuple(unique.values())
@@ -175,4 +183,10 @@ def best_input_candidate(
     return max(candidates, key=lambda item: candidate_score(item, max_bottom=max_bottom))
 
 
-__all__ = ["InputCandidate", "enumerate_input_candidates", "best_input_candidate", "candidate_score"]
+__all__ = [
+    "InputCandidate",
+    "candidate_identity",
+    "enumerate_input_candidates",
+    "best_input_candidate",
+    "candidate_score",
+]
