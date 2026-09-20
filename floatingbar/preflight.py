@@ -104,7 +104,10 @@ def _context_transition_stable(
         return True
     if initial.process_name and final.process_name != initial.process_name:
         return False
-    if initial.title_fp and final.title_fp != initial.title_fp:
+    initial_chat_anchor = bool(
+        initial.chat_runtime_id or initial.chat_name_fp or initial.chat_structure_fp
+    )
+    if initial.title_fp and not initial_chat_anchor and final.title_fp != initial.title_fp:
         return False
     if initial.chat_runtime_id and final.chat_runtime_id != initial.chat_runtime_id:
         return False

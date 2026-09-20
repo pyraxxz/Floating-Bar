@@ -180,6 +180,7 @@ class WindowContext:
             or self.compose_runtime_id
             or self.chat_runtime_id
             or self.chat_name_fp
+            or self.chat_structure_fp
         )
 
     def matches(self) -> bool:
@@ -197,7 +198,10 @@ class WindowContext:
                 return False
             if self.process_name and _process_basename(self.pid) != self.process_name:
                 return False
-            if self.title_fp:
+            chat_anchor_available = bool(
+                self.chat_runtime_id or self.chat_name_fp or self.chat_structure_fp
+            )
+            if self.title_fp and not chat_anchor_available:
                 if title_fingerprint(winapi.get_window_title(self.hwnd)) != self.title_fp:
                     return False
             if self.compose_runtime_id:

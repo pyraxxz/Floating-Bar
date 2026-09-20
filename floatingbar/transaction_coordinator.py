@@ -135,6 +135,10 @@ class SendTransactionCoordinator:
                 f"context_guard={preflight.context_guard_available}"
             )
             if not preflight.ready:
+                trace.trace(
+                    "transaction preflight blocked: "
+                    f"codes={','.join(getattr(preflight, 'reason_codes', ()) or ()) or 'unknown'}"
+                )
                 reason = "; ".join(preflight.reasons)
                 raise TransactionRejected(
                     reason or f"{self.policy.target_label} send preflight blocked the send.",

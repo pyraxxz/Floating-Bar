@@ -27,6 +27,23 @@ class ContextSafetyBatchTests(unittest.TestCase):
         ):
             self.assertFalse(context.matches())
 
+    def test_context_match_prefers_selected_chat_anchor_over_title_drift(self):
+        context = WindowContext(
+            100,
+            200,
+            title_fingerprint("Chat A - Telegram"),
+            chat_runtime_id=(7, 8, 9),
+            chat_name_fp=title_fingerprint("Chat A"),
+        )
+        with patch("floatingbar.context.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.context.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.context.winapi.get_window_title", return_value="Chat A - Telegram (updated)"), \
+             patch(
+                 "floatingbar.context._selected_chat_anchor",
+                 return_value=((7, 8, 9), title_fingerprint("Chat A"), ""),
+             ):
+            self.assertTrue(context.matches())
+
     def test_context_matches_fails_closed_when_window_api_raises(self):
         context = WindowContext(100, 200, "", process_name="telegram.exe")
         with patch("floatingbar.context.winapi.get_window_pid", return_value=200), patch(

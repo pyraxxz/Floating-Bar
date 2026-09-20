@@ -202,10 +202,8 @@ def get_window_rect_area(hwnd: int) -> int:
 
 
 def _is_candidate_window(hwnd: int) -> bool:
-    """Top-level, visible, titled, non-toolwindow."""
+    """Top-level, visible, non-toolwindow; a title is not required."""
     if not user32.IsWindowVisible(hwnd):
-        return False
-    if not get_window_title(hwnd):
         return False
     exstyle = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
     return not (exstyle & WS_EX_TOOLWINDOW)
