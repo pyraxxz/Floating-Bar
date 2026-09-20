@@ -4,6 +4,7 @@ from unittest.mock import patch
 from floatingbar.telegram_chats import (
     TelegramChatItem,
     chat_identity_matches,
+    enumerate_telegram_chats,
     select_telegram_chat,
 )
 
@@ -245,6 +246,50 @@ class TelegramChatIdentityAmbiguityTests(unittest.TestCase):
         with patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
              patch("floatingbar.telegram_chats.enumerate_telegram_chats", return_value=(switched,)):
             self.assertFalse(chat_identity_matches(requested))
+
+
+    def test_telegram_catalog_can_return_all_visible_rows_for_revalidation(self):
+        import sys
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+
+        class Rect:
+            left = 10
+            top = 10
+            right = 320
+            bottom = 50
+            def width(self): return self.right - self.left
+            def height(self): return self.bottom - self.top
+
+        item = SimpleNamespace(
+            rectangle=lambda: Rect(),
+            element_info=SimpleNamespace(
+                name="Chat",
+                runtime_id=(1, 1),
+                control_type="ListItem",
+                class_name="Row",
+                framework_id="uia",
+            ),
+            is_selected=lambda: False,
+        )
+        window = Mock()
+        window.rectangle.return_value = SimpleNamespace(
+            left=0,
+            top=0,
+            width=lambda: 500,
+        )
+        window.descendants.return_value = [item]
+        application = Mock()
+        application.return_value.connect.return_value.window.return_value.wrapper_object.return_value = window
+        fake_pywinauto = SimpleNamespace(Application=application)
+
+        with patch.dict(sys.modules, {"pywinauto": fake_pywinauto}), \
+             patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.telegram_chats.winapi.get_process_creation_time", return_value=None), \
+             patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True):
+            rows = enumerate_telegram_chats(100, limit=None)
+
+        self.assertEqual(len(rows), 1)
 
 
 if __name__ == "__main__":
