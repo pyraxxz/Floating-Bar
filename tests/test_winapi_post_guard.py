@@ -5,6 +5,19 @@ from floatingbar import winapi
 
 
 class WinApiPostGuardTests(unittest.TestCase):
+    def test_get_window_pid_retries_transient_zero_result(self):
+        values = iter((0, 0, 200))
+
+        def read_pid(_hwnd, pid_ptr):
+            pid_ptr._obj.value = next(values)
+            return 1
+
+        with patch.object(winapi.user32, "GetWindowThreadProcessId", side_effect=read_pid), \
+             patch.object(winapi.time, "sleep") as sleep:
+            self.assertEqual(winapi.get_window_pid(301), 200)
+
+        self.assertEqual(sleep.call_count, 2)
+
     def test_post_rejects_recycled_hwnd_from_different_process(self):
         with patch.object(winapi.user32, "IsWindow", return_value=True), \
              patch.object(winapi, "get_window_pid", return_value=999), \
