@@ -137,7 +137,7 @@ class SendTransactionCoordinator:
             if not preflight.ready:
                 trace.trace(
                     "transaction preflight blocked: "
-                    f"codes={','.join(getattr(preflight, "reason_codes", ()) or ()) or 'unknown'}"
+                    f"codes={','.join(getattr(preflight, 'reason_codes', ()) or ()) or 'unknown'}"
                 )
                 reason = "; ".join(preflight.reasons)
                 raise TransactionRejected(
