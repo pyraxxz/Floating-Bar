@@ -579,6 +579,7 @@ class BackgroundAppPicker:
         self._cancel_live_refresh()
         self._cancel_action_hide()
         self._hide_actions()
+        self._row_identity_by_widget = {}
         popup = self.window
         self.window = None
         self._hover.leave_popup()
