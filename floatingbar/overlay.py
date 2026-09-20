@@ -247,18 +247,23 @@ class OrbRelayWindow(tk.Tk):
 
         buttons = ui_theme.frame(frame)
         buttons.pack(fill="x")
-        ui_theme.button(
+        open_button = ui_theme.button(
             buttons,
             text="Open release",
             command=lambda: self._open_release_page(release.url, dialog),
             primary=True,
-        ).pack(side="right", padx=(6, 0))
-        ui_theme.button(
+        )
+        open_button.pack(side="right", padx=(6, 0))
+        close_button = ui_theme.button(
             buttons,
             text="Close",
             command=dialog.destroy,
             subtle=True,
-        ).pack(side="right")
+        )
+        close_button.pack(side="right")
+        dialog.bind("<Escape>", lambda _event: dialog.destroy(), add="+")
+        dialog.bind("<Return>", lambda _event: (open_button.invoke(), "break")[1], add="+")
+        close_button.focus_set()
         dialog.geometry("320x120")
 
     @staticmethod
