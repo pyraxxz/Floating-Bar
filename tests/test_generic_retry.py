@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from floatingbar.bound_context_overlay import OrbRelayWindow as BoundContextOverlay
-from floatingbar.transaction import SendCompletion, TargetScope
+from floatingbar.transaction import SendCompletion, SendRequest, TargetScope
 
 
 class GenericRetryTests(unittest.TestCase):
