@@ -117,12 +117,17 @@ def _selected_compat(item) -> bool:
 
 def enumerate_conversations(
     hwnd: int,
-    limit: int = 6,
+    limit: int | None = 6,
     control_types: tuple[str, ...] = ("ListItem", "TreeItem"),
     attention_detector: Optional[AttentionDetector] = None,
 ) -> tuple[ConversationItem, ...]:
-    """Return a short ephemeral catalog of visible left-pane conversation rows."""
-    if not hwnd or limit <= 0:
+    """Return visible left-pane conversation rows, optionally bounded for UI display.
+
+    ``limit=None`` returns every discovered visible row. Internal identity and
+    revalidation paths use the unbounded form so attention-based ordering cannot
+    hide a valid target behind an arbitrary display limit.
+    """
+    if not hwnd or (limit is not None and limit <= 0):
         return ()
     try:
         from pywinauto import Application
@@ -184,7 +189,7 @@ def enumerate_conversations(
                     )
                 )
         rows.sort(key=_row_sort_key)
-        return tuple(rows[:limit])
+        return tuple(rows if limit is None else rows[:limit])
     except Exception:
         return ()
 
@@ -228,7 +233,7 @@ def refresh_conversation(item: ConversationItem) -> ConversationItem:
         current_process_start = winapi.get_process_creation_time(item.pid)
         if not _same_process_instance(item.process_start, current_process_start):
             raise RuntimeError("conversation window process instance changed")
-    current = enumerate_conversations(item.hwnd, limit=32)
+    current = enumerate_conversations(item.hwnd, limit=None)
 
     if item.runtime_id is not None:
         identity_matches = [row for row in current if row.runtime_id == item.runtime_id]
