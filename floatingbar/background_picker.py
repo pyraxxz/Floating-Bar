@@ -442,7 +442,6 @@ class BackgroundAppPicker:
             self._hide_actions()
 
     def _show_actions(self, item: PickerItem, row: tk.Misc) -> None:
-        self._cancel_live_refresh()
         self._cancel_action_hide()
         self._hide_actions()
         self._action_item = item
@@ -514,6 +513,7 @@ class BackgroundAppPicker:
     def hide(self) -> None:
         self._cancel_show()
         self._cancel_hide()
+        self._cancel_live_refresh()
         self._cancel_action_hide()
         self._hide_actions()
         popup = self.window
