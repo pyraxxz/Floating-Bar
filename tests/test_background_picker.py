@@ -1,5 +1,6 @@
 import unittest
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 from floatingbar.background_picker import (
     BackgroundAppPicker,
