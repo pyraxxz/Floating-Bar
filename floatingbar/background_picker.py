@@ -136,6 +136,7 @@ class BackgroundAppPicker:
     HOVER_DELAY_MS = 140
     TRANSITION_GRACE_MS = 220
     ACTION_GRACE_MS = 220
+    LIVE_REFRESH_MS = 700
     WIDTH = 238
     ROW_HEIGHT = 34
     SECTION_HEIGHT = 20
@@ -164,6 +165,8 @@ class BackgroundAppPicker:
         self._action_window: Optional[tk.Toplevel] = None
         self._action_item: Optional[PickerItem] = None
         self._action_hide_job = None
+        self._live_refresh_job = None
+        self._live_snapshot = ()
         self._hover = HoverState()
 
     def bind(self, widget: tk.Misc) -> None:
@@ -280,6 +283,7 @@ class BackgroundAppPicker:
         except Exception:
             recent_items = ()
         items = self._merge_items(pinned_items, recent_items, live_items)
+        self._live_snapshot = self._live_snapshot_for(windows)
         if not items:
             self.hide()
             return
@@ -360,6 +364,7 @@ class BackgroundAppPicker:
             row_buttons,
             on_escape=self.hide,
         )
+        self._schedule_live_refresh()
 
     def _row_enter(self, item: PickerItem, row: tk.Misc) -> None:
         self._cancel_hide()
@@ -370,6 +375,52 @@ class BackgroundAppPicker:
 
     def _row_leave(self, _event=None) -> None:
         self._schedule_action_hide()
+
+    def _cancel_live_refresh(self) -> None:
+        if self._live_refresh_job is not None:
+            try:
+                self.owner.after_cancel(self._live_refresh_job)
+            except Exception:
+                pass
+            self._live_refresh_job = None
+
+    @staticmethod
+    def _live_snapshot_for(windows: Sequence[BackgroundWindow]) -> tuple[tuple, ...]:
+        return tuple(
+            (
+                item.hwnd,
+                item.pid,
+                item.process_start,
+                item.process_name,
+                item.window_class,
+                item.foreground,
+            )
+            for item in windows
+        )
+
+    def _schedule_live_refresh(self) -> None:
+        self._cancel_live_refresh()
+        if self.window is None or not self._hover.owner:
+            return
+        self._live_refresh_job = self.owner.after(
+            self.LIVE_REFRESH_MS,
+            self._refresh_open_picker,
+        )
+
+    def _refresh_open_picker(self) -> None:
+        self._live_refresh_job = None
+        if self.window is None or not self._hover.owner:
+            return
+        try:
+            windows = tuple(self.refresh() or ())
+            snapshot = self._live_snapshot_for(windows)
+        except Exception:
+            self._schedule_live_refresh()
+            return
+        if snapshot != self._live_snapshot:
+            self.show()
+            return
+        self._schedule_live_refresh()
 
     def _cancel_action_hide(self) -> None:
         if self._action_hide_job is not None:
@@ -391,6 +442,7 @@ class BackgroundAppPicker:
             self._hide_actions()
 
     def _show_actions(self, item: PickerItem, row: tk.Misc) -> None:
+        self._cancel_live_refresh()
         self._cancel_action_hide()
         self._hide_actions()
         self._action_item = item
