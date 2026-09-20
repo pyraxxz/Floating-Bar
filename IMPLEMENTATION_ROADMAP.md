@@ -50,6 +50,10 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Session-only recent conversation targets with runtime/structural row revalidation
 - [x] Persistent pinned application/conversation targets with content-free stored identity and live-scope validation, including picker process-instance guards
 - [x] Persistent user-authored quick replies with bounded CRUD storage and draft-only insertion
+- [x] Live background picker refreshes while the picker popup is being browsed, with focused-row identity preserved across catalog changes
+- [x] Background target lifecycle cleanup prevents stale app/chat leases from surviving collapse or a fresh expansion
+- [x] Delayed chat/application selection callbacks carry the freshly confirmed row identity instead of the stale picker snapshot
+- [x] Automated repeated-send lifecycle regression prevents overlapping sends and verifies fresh attempt IDs for subsequent sends
 
 ### Completed grouped milestone — Adapter Architecture
 
@@ -94,6 +98,7 @@ The app should let the user work in the foreground while sending/replying throug
 - [x] Saved quick replies that insert drafts without automatically sending
 - [x] Strong conversation identity is content-free when runtime/structural UI identity exists; visible names remain display-only labels
 - [x] Conversation structural identities exclude UIA AutomationId; legacy persistent pin identities are safely migrated to the sanitized schema
+- [x] Background-picker live refresh remains active across orb → popup hover transitions without stealing the user's focused app selection
 
 ## Phase 3 — Real application adapters
 
