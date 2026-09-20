@@ -83,5 +83,18 @@ class EvidenceTests(unittest.TestCase):
         self.assertTrue(result.retryable)
 
 
+    def test_typed_strategy_evidence_wins_over_legacy_error(self):
+        from floatingbar.evidence import EvidenceStrategy, SubmissionEvidence
+        typed = SubmissionEvidence(
+            state=EvidenceState.VERIFIED,
+            strategy="posted-enter",
+            detail="typed proof",
+            proof_kind="input-acceptance",
+        )
+        strategy = EvidenceStrategy("posted-enter (VERIFIED)", typed)
+        result = from_result(strategy, "legacy error")
+        self.assertEqual(result, typed)
+
+
 if __name__ == "__main__":
     unittest.main()
