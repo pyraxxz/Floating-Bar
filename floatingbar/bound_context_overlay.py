@@ -486,7 +486,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             # Carry the freshly confirmed row forward. The original picker row
             # may have moved while Telegram/another chat app reflowed its list;
             # the selector already returned the identity-safe current row.
-            self._pending_conversation = confirmed or conversation
+            self._pending_conversation = conversation if confirmed is None else confirmed
         except Exception as exc:
             self._pending_conversation = None
             trace.trace(f"background conversation selection failed safely: {exc}")
@@ -555,7 +555,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             confirmed = select_telegram_chat(chat)
             # Keep the exact row returned after Telegram confirmed selection.
             # This avoids handing the later binding stage the stale popup row.
-            self._pending_chat = confirmed or chat
+            self._pending_chat = chat if confirmed is None else confirmed
         except Exception as exc:
             self._pending_chat = None
             trace.trace(f"telegram chat selection failed safely: {exc}")
