@@ -264,6 +264,50 @@ class BackgroundPickerTests(unittest.TestCase):
         picker._refresh_open_picker()
         picker.show.assert_called_once_with()
 
+    def test_live_refresh_rebuilds_when_pointer_is_inside_picker_popup(self):
+        owner = SimpleNamespace(
+            after=lambda _delay, _callback: "refresh-job",
+            after_cancel=lambda _job: None,
+        )
+        picker = BackgroundAppPicker.__new__(BackgroundAppPicker)
+        picker.owner = owner
+        picker.window = object()
+        picker._hover = HoverState(owner=False, popup=True, actions=False)
+        picker._live_refresh_job = None
+        picker._live_snapshot = ((10, 20, 30, "notepad.exe", "Edit", False),)
+        picker.refresh = lambda: [
+            SimpleNamespace(
+                hwnd=11,
+                pid=21,
+                process_name="telegram.exe",
+                process_start=31,
+                window_class="TelegramMainWindow",
+                foreground=False,
+            ),
+        ]
+        picker.show = Mock()
+        picker._schedule_live_refresh = Mock()
+
+        picker._refresh_open_picker()
+
+        picker.show.assert_called_once_with(preserve_popup_hover=True)
+        picker._schedule_live_refresh.assert_not_called()
+
+    def test_live_refresh_schedules_while_pointer_is_inside_picker_popup(self):
+        owner = SimpleNamespace(
+            after=lambda _delay, _callback: "refresh-job",
+            after_cancel=lambda _job: None,
+        )
+        picker = BackgroundAppPicker.__new__(BackgroundAppPicker)
+        picker.owner = owner
+        picker.window = object()
+        picker._hover = HoverState(owner=False, popup=True, actions=False)
+        picker._live_refresh_job = None
+
+        picker._schedule_live_refresh()
+
+        self.assertEqual(picker._live_refresh_job, "refresh-job")
+
     def test_action_hide_timer_is_replaced_when_hover_reenters(self):
         class Owner:
             def __init__(self):
