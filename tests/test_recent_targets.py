@@ -172,6 +172,37 @@ class RecentTargetHistoryTests(unittest.TestCase):
                         ):
                             self.assertFalse(history.application_is_live(target))
 
+    def test_live_applications_returns_validated_app_entries(self):
+        history = RecentTargetHistory()
+        target = history.record_application(
+            hwnd=44,
+            pid=444,
+            process_name="discord.exe",
+            label="Discord",
+            adapter_key="discord",
+            window_class="DiscordMainWindow",
+        )
+
+        class User32:
+            @staticmethod
+            def IsWindow(hwnd):
+                return hwnd == 44
+
+        with patch("floatingbar.recent_targets.winapi.user32", User32()), \
+             patch("floatingbar.recent_targets.winapi.get_window_pid", return_value=444), \
+             patch("floatingbar.recent_targets.winapi.get_process_image_name", return_value=r"C:\discord.exe"), \
+             patch("floatingbar.recent_targets.winapi.get_window_class_name", return_value="DiscordMainWindow"), \
+             patch("floatingbar.recent_targets.winapi.get_process_creation_time", return_value=target.process_start):
+            with patch(
+                "floatingbar.recent_targets.actionable_adapter_for_process",
+                return_value=SimpleNamespace(
+                    implemented=True,
+                    supports_background_type=True,
+                    key="discord",
+                ),
+            ):
+                self.assertEqual(history.live_applications(), (target,))
+
     def test_live_applications_discards_only_stale_app_entries(self):
         history = RecentTargetHistory()
         live = history.record_application(
