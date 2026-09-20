@@ -252,5 +252,68 @@ class TransactionCoordinatorTests(unittest.TestCase):
         target.release.assert_not_called()
 
 
+    def test_custom_preparation_policy_keeps_coordinator_target_agnostic(self):
+        target = self._target()
+        context = Mock()
+        context.hwnd = 700
+        preflight = self._preflight(context=context)
+        policy = Mock()
+        policy.target_label = "Example App"
+        policy.requires_context = True
+        policy.preflight.return_value = preflight
+        policy.capture_context.return_value = context
+        policy.context_matches.return_value = True
+
+        coordinator = SendTransactionCoordinator(target, policy=policy)
+        prepared = coordinator.prepare(
+            text="hello",
+            attempt_id=15,
+            preferred_hwnd=700,
+            restore_hwnd=321,
+        )
+
+        self.assertEqual(prepared.attempt.target, TargetScope(700, 900))
+        policy.preflight.assert_called_once_with(target, preferred_hwnd=700)
+        policy.capture_context.assert_not_called()
+        policy.context_matches.assert_called_once_with(context)
+
+    def test_policy_can_declare_context_optional(self):
+        target = self._target()
+        preflight = self._preflight(context=None)
+        policy = Mock()
+        policy.target_label = "Headless Target"
+        policy.requires_context = False
+        policy.preflight.return_value = preflight
+        policy.capture_context.return_value = None
+
+        coordinator = SendTransactionCoordinator(target, policy=policy)
+        prepared = coordinator.prepare(
+            text="hello",
+            attempt_id=16,
+            preferred_hwnd=700,
+            restore_hwnd=0,
+        )
+
+        self.assertIsNone(prepared.attempt.context)
+        policy.capture_context.assert_called_once_with(700)
+        policy.context_matches.assert_not_called()
+
+    def test_required_context_policy_rejects_missing_capture(self):
+        target = self._target()
+        preflight = self._preflight(context=None)
+        policy = Mock()
+        policy.target_label = "Example App"
+        policy.requires_context = True
+        policy.preflight.return_value = preflight
+        policy.capture_context.return_value = None
+
+        coordinator = SendTransactionCoordinator(target, policy=policy)
+        with self.assertRaises(TransactionRejected) as raised:
+            coordinator.prepare("hello", 17, preferred_hwnd=700)
+
+        self.assertIn("identity", str(raised.exception).lower())
+        target.release.assert_called_once_with()
+
+
 if __name__ == "__main__":
     unittest.main()
