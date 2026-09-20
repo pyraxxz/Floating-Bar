@@ -12,6 +12,7 @@ import json
 import os
 import tempfile
 import tkinter as tk
+from tkinter import messagebox
 from typing import Callable, Optional
 
 from . import ui_theme
@@ -158,7 +159,7 @@ class QuickReplyStore:
 
 
 class QuickReplyManager(tk.Toplevel):
-    """Small CRUD editor for locally saved quick replies."""
+    """CRUD editor for locally saved quick replies with keyboard-friendly UX."""
 
     def __init__(
         self,
@@ -179,56 +180,218 @@ class QuickReplyManager(tk.Toplevel):
         ui_theme.style_popup(self)
         self.protocol("WM_DELETE_WINDOW", self.destroy)
 
-        frame = ui_theme.frame(self, padx=16, pady=16)
+        frame = ui_theme.frame(self, padx=18, pady=16)
         frame.pack(fill="both", expand=True)
+        frame.columnconfigure(0, weight=1)
+        frame.columnconfigure(1, weight=2)
+        frame.rowconfigure(2, weight=1)
+
+        ui_theme.label(
+            frame,
+            text="Quick replies",
+            fg=ui_theme.TEXT_STRONG,
+            font=ui_theme.FONT_TITLE,
+        ).grid(row=0, column=0, columnspan=2, sticky="ew")
+        ui_theme.label(
+            frame,
+            text="Save phrases you use often. Only replies you explicitly save are stored locally.",
+            muted=True,
+            wraplength=620,
+            justify="left",
+        ).grid(row=1, column=0, columnspan=2, sticky="ew", pady=(4, 12))
+
+        list_frame = ui_theme.frame(
+            frame,
+            bg=ui_theme.SURFACE_ELEVATED,
+            highlightthickness=1,
+            highlightbackground=ui_theme.BORDER,
+            padx=6,
+            pady=6,
+        )
+        list_frame.grid(row=2, column=0, sticky="nsew", padx=(0, 12))
+        list_frame.rowconfigure(1, weight=1)
+        list_frame.columnconfigure(0, weight=1)
+
+        ui_theme.label(
+            list_frame,
+            text="Saved",
+            muted=True,
+            bold=True,
+            small=True,
+        ).grid(row=0, column=0, sticky="ew", padx=3, pady=(0, 4))
 
         self.listbox = tk.Listbox(
-            frame,
+            list_frame,
             width=28,
-            height=9,
+            height=11,
             exportselection=False,
+            activestyle="none",
             bg=ui_theme.SURFACE_ELEVATED,
             fg=ui_theme.TEXT,
             selectbackground=ui_theme.ACCENT_DIM,
             selectforeground=ui_theme.TEXT_STRONG,
             relief="flat",
             bd=0,
+            highlightthickness=0,
+            font=ui_theme.FONT_BODY,
         )
-        self.listbox.grid(row=0, column=0, rowspan=5, sticky="nsew", padx=(0, 10))
+        self.listbox.grid(row=1, column=0, sticky="nsew")
+        scrollbar = tk.Scrollbar(
+            list_frame,
+            orient="vertical",
+            command=self.listbox.yview,
+            bg=ui_theme.SURFACE_ELEVATED,
+            troughcolor=ui_theme.SURFACE,
+            activebackground=ui_theme.SURFACE_HOVER,
+            bd=0,
+            highlightthickness=0,
+            width=10,
+        )
+        scrollbar.grid(row=1, column=1, sticky="ns", padx=(4, 0))
+        self.listbox.configure(yscrollcommand=scrollbar.set)
         self.listbox.bind("<<ListboxSelect>>", self._selected)
+        self.listbox.bind("<Return>", lambda _event: (self._use(), "break")[1], add="+")
+        self.listbox.bind("<Delete>", lambda _event: (self._delete(), "break")[1], add="+")
 
-        tk.Label(
-            frame, text="Label", bg=ui_theme.SURFACE, fg=ui_theme.TEXT_MUTED, anchor="w",
-            font=ui_theme.FONT_SMALL_BOLD,
-        ).grid(row=0, column=1, sticky="ew")
+        detail_frame = ui_theme.frame(frame)
+        detail_frame.grid(row=2, column=1, sticky="nsew")
+        detail_frame.columnconfigure(0, weight=1)
+        detail_frame.rowconfigure(4, weight=1)
+
+        ui_theme.label(
+            detail_frame,
+            text="Edit reply",
+            muted=True,
+            bold=True,
+            small=True,
+        ).grid(row=0, column=0, sticky="ew")
+
+        ui_theme.label(
+            detail_frame,
+            text="Label",
+            fg=ui_theme.TEXT,
+            bold=True,
+            small=True,
+        ).grid(row=1, column=0, sticky="ew", pady=(8, 1))
         self.label_entry = tk.Entry(
-            frame, bg=ui_theme.SURFACE_ELEVATED, fg=ui_theme.TEXT, insertbackground=ui_theme.TEXT_STRONG,
-            relief="flat", bd=0,
+            detail_frame,
+            bg=ui_theme.SURFACE_ELEVATED,
+            fg=ui_theme.TEXT,
+            insertbackground=ui_theme.TEXT_STRONG,
+            relief="flat",
+            bd=0,
+            highlightthickness=1,
+            highlightbackground=ui_theme.BORDER,
+            highlightcolor=ui_theme.ACCENT,
+            font=ui_theme.FONT_BODY,
         )
-        self.label_entry.grid(row=1, column=1, sticky="ew", pady=(2, 8))
+        self.label_entry.grid(row=2, column=0, sticky="ew", pady=(2, 8))
 
-        tk.Label(
-            frame, text="Reply", bg=ui_theme.SURFACE, fg=ui_theme.TEXT_MUTED, anchor="w",
-            font=ui_theme.FONT_SMALL_BOLD,
-        ).grid(row=2, column=1, sticky="ew")
+        ui_theme.label(
+            detail_frame,
+            text="Reply",
+            fg=ui_theme.TEXT,
+            bold=True,
+            small=True,
+        ).grid(row=3, column=0, sticky="ew")
         self.text = tk.Text(
-            frame, width=36, height=7, wrap="word",
-            bg=ui_theme.SURFACE_ELEVATED, fg=ui_theme.TEXT, insertbackground=ui_theme.TEXT_STRONG,
-            relief="flat", bd=0,
+            detail_frame,
+            width=40,
+            height=8,
+            wrap="word",
+            undo=True,
+            bg=ui_theme.SURFACE_ELEVATED,
+            fg=ui_theme.TEXT,
+            insertbackground=ui_theme.TEXT_STRONG,
+            relief="flat",
+            bd=0,
+            highlightthickness=1,
+            highlightbackground=ui_theme.BORDER,
+            highlightcolor=ui_theme.ACCENT,
+            font=ui_theme.FONT_BODY,
         )
-        self.text.grid(row=3, column=1, sticky="nsew", pady=(2, 8))
+        self.text.grid(row=4, column=0, sticky="nsew", pady=(2, 8))
 
-        buttons = ui_theme.frame(frame)
-        buttons.grid(row=4, column=1, sticky="ew")
+        self._status = ui_theme.label(
+            detail_frame,
+            text="",
+            muted=True,
+            small=True,
+            wraplength=420,
+        )
+        self._status.grid(row=5, column=0, sticky="ew", pady=(0, 8))
+
+        buttons = ui_theme.frame(detail_frame)
+        buttons.grid(row=6, column=0, sticky="ew")
         for index in range(4):
             buttons.columnconfigure(index, weight=1)
-        ui_theme.button(buttons, text="New", command=self._new, subtle=True).grid(row=0, column=0, sticky="ew", padx=2)
-        ui_theme.button(buttons, text="Save", command=self._save, primary=True).grid(row=0, column=1, sticky="ew", padx=2)
-        ui_theme.button(buttons, text="Use", command=self._use, subtle=True).grid(row=0, column=2, sticky="ew", padx=2)
-        ui_theme.button(buttons, text="Delete", command=self._delete, subtle=True).grid(row=0, column=3, sticky="ew", padx=2)
+
+        ui_theme.button(
+            buttons,
+            text="New",
+            command=self._new,
+            subtle=True,
+        ).grid(row=0, column=0, sticky="ew", padx=(0, 3))
+        ui_theme.button(
+            buttons,
+            text="Save",
+            command=self._save,
+            primary=True,
+        ).grid(row=0, column=1, sticky="ew", padx=3)
+        ui_theme.button(
+            buttons,
+            text="Use",
+            command=self._use,
+            subtle=True,
+        ).grid(row=0, column=2, sticky="ew", padx=3)
+        ui_theme.button(
+            buttons,
+            text="Delete",
+            command=self._delete,
+            subtle=True,
+        ).grid(row=0, column=3, sticky="ew", padx=(3, 0))
+
+        ui_theme.label(
+            detail_frame,
+            text="Ctrl+N new  ·  Ctrl+S save  ·  Ctrl+Enter use  ·  Esc close",
+            dim=True,
+            small=True,
+        ).grid(row=7, column=0, sticky="ew", pady=(8, 0))
+
+        self.bind("<Control-n>", lambda _event: (self._new(), "break")[1], add="+")
+        self.bind("<Control-s>", lambda _event: (self._save(), "break")[1], add="+")
+        self.bind("<Control-Return>", lambda _event: (self._use(), "break")[1], add="+")
+        self.bind("<Escape>", lambda _event: self.destroy(), add="+")
 
         self._refresh_list()
-        self.geometry("660x300")
+        self.geometry("760x405")
+        self.update_idletasks()
+        self._center_on_parent(parent)
+
+    def _center_on_parent(self, parent: tk.Misc) -> None:
+        try:
+            x = parent.winfo_rootx() + max(
+                8,
+                (parent.winfo_width() - self.winfo_width()) // 2,
+            )
+            y = parent.winfo_rooty() + max(
+                8,
+                (parent.winfo_height() - self.winfo_height()) // 2,
+            )
+            self.geometry(f"+{x}+{y}")
+        except (tk.TclError, AttributeError):
+            pass
+
+    def _set_status(self, message: str) -> None:
+        self._status.config(text=message)
+
+    def _refresh_count(self) -> None:
+        count = len(self.store.items())
+        self._set_status(
+            f"{count} saved · {self.store.limit} maximum"
+            if count
+            else "No saved replies yet. Choose New to create one."
+        )
 
     def _refresh_list(self, select_id: Optional[str] = None) -> None:
         self.listbox.delete(0, "end")
@@ -238,6 +401,7 @@ class QuickReplyManager(tk.Toplevel):
             self.listbox.insert("end", reply.label)
             if reply.id == select_id:
                 selected_index = index
+
         if selected_index is not None:
             self.listbox.selection_set(selected_index)
             self.listbox.see(selected_index)
@@ -245,6 +409,12 @@ class QuickReplyManager(tk.Toplevel):
         elif items and self._active_id is None:
             self.listbox.selection_set(0)
             self._load_reply(items[0])
+        self._refresh_count()
+
+        if items:
+            self.listbox.focus_set()
+        else:
+            self.label_entry.focus_set()
 
     def _load_reply(self, reply: QuickReply) -> None:
         self._active_id = reply.id
@@ -259,12 +429,15 @@ class QuickReplyManager(tk.Toplevel):
             return
         reply = self.store.items()[selection[0]]
         self._load_reply(reply)
+        self._set_status("Selected. Edit the fields or press Enter to use it.")
 
     def _new(self) -> None:
         self._active_id = None
+        self.listbox.selection_clear(0, "end")
         self.label_entry.delete(0, "end")
         self.text.delete("1.0", "end")
         self.label_entry.focus_set()
+        self._set_status("New reply. Add a short label and the text you want to reuse.")
 
     def _save(self) -> None:
         try:
@@ -273,21 +446,38 @@ class QuickReplyManager(tk.Toplevel):
                 self.text.get("1.0", "end-1c"),
                 self._active_id,
             )
-        except ValueError:
+        except ValueError as exc:
+            reason = str(exc)
+            if "required" in reason:
+                self._set_status("Add both a label and reply text before saving.")
+            elif "too long" in reason:
+                self._set_status("The reply is too long. Keep it under 4,000 characters.")
+            else:
+                self._set_status("That quick reply could not be saved.")
             return
         self._active_id = reply.id
         self.on_change()
         self._refresh_list(select_id=reply.id)
-
+        self._set_status("Saved locally.")
+        
     def _delete(self) -> None:
         if not self._active_id:
+            self._set_status("Select a saved reply before deleting.")
+            return
+        if not messagebox.askyesno(
+            "Delete quick reply",
+            "Delete the selected quick reply?",
+            parent=self,
+        ):
             return
         if not self.store.delete(self._active_id):
+            self._set_status("The selected reply is no longer available.")
             return
         self._active_id = None
         self.on_change()
         self._new()
         self._refresh_list()
+        self._set_status("Deleted.")
 
     def _use(self) -> None:
         selection = self.store.get(self._active_id) if self._active_id else None
@@ -295,9 +485,11 @@ class QuickReplyManager(tk.Toplevel):
             selected = self.listbox.curselection()
             if selected:
                 selection = self.store.items()[selected[0]]
-        if selection is not None:
-            self.on_use(selection)
-            self.destroy()
+        if selection is None:
+            self._set_status("Select a reply before using it.")
+            return
+        self.on_use(selection)
+        self.destroy()
 
 
 __all__ = ["QuickReply", "QuickReplyManager", "QuickReplyStore"]
