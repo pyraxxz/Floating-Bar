@@ -14,6 +14,7 @@ from .adapter_submit import submit_background_target, validate_submission_mode
 from .control_candidates import (
     InputCandidate,
     best_input_candidate,
+    candidate_identity,
     enumerate_input_candidates,
 )
 from .evidence import EvidenceStrategy, SubmissionEvidence, from_result
@@ -215,15 +216,8 @@ class BackgroundTypingTarget:
 
     @staticmethod
     def _candidate_identity(candidate: InputCandidate) -> tuple:
-        """Return a stable, content-free identity for one discovered control."""
-        return (
-            int(candidate.pid),
-            str(getattr(candidate, "control_type", "")),
-            str(getattr(candidate, "class_name", "")),
-            str(getattr(candidate, "automation_id", "")),
-            str(getattr(candidate, "framework_id", "")),
-            getattr(candidate, "runtime_id", None),
-        )
+        """Return the shared stable, content-free identity for one control."""
+        return candidate_identity(candidate)
 
     def _pin_candidate(self, candidate: InputCandidate) -> InputCandidate:
         scope = self._scope
