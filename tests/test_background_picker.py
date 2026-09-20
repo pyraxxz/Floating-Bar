@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 from floatingbar.background_picker import (
     BackgroundAppPicker,
+    empty_state_copy,
     HoverState,
     PickerItem,
     action_for_item,
@@ -11,6 +12,24 @@ from floatingbar.background_picker import (
 
 
 class BackgroundPickerTests(unittest.TestCase):
+    def test_empty_state_copy_is_content_free_and_recoverable(self):
+        self.assertEqual(
+            empty_state_copy(),
+            (
+                "No safe background apps",
+                "Open an app that accepts typing, then hover the orb again.",
+            ),
+        )
+        self.assertEqual(
+            empty_state_copy(True),
+            (
+                "Background apps unavailable",
+                "The background app list could not be read safely. You can try again.",
+            ),
+        )
+        self.assertNotIn("window", empty_state_copy(True)[1].lower())
+        self.assertNotIn("message", empty_state_copy(True)[1].lower())
+
     def test_hover_state_stays_open_across_owner_to_popup_transition(self):
         state = HoverState()
         state.enter_owner()
