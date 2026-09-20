@@ -16,7 +16,7 @@ Established behavior:
 
 ## Background application architecture
 
-The production picker is now process-first and title-free. Supported processes resolve through `app_adapters.AppAdapterSpec`, which supplies the user-facing application label, available action, target mode, submission mode, and verification policy. Unknown applications remain discovery-only instead of being treated as safe background targets.
+The production picker is now process-first and title-free. Supported processes resolve through `app_adapters.AppAdapterSpec`, which supplies the user-facing application label, available action, target mode, submission mode, and verification policy. Unknown applications may enter the same conservative generic Type path; structural input discovery remains the final readiness gate, and ambiguous or unsupported controls fail closed.
 
 Supported chat adapters expose a short structural conversation picker. Conversation rows are discovered from visible UI Automation `ListItem`/`TreeItem` structure and their accessible names. Message bodies, previews, and input values are never read. The picker keeps the current conversation visible when UIA selection state exposes it. When UI Automation provides a runtime ID, that structural identity is carried through revalidation; name/geometry matching is only a guarded fallback for builds where runtime IDs are unavailable.
 

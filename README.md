@@ -26,6 +26,8 @@ The current implementation includes:
 * an on-demand release update check that uses public version metadata only;
 * a Settings-controlled summon hotkey with a bounded set of safe combinations;
 * a first-run mini-tutorial and content-free background-target feedback;
+* a live background-app picker that refreshes while you browse and preserves focused-app identity across changes;
+* stale background-target cleanup across collapse/fresh expansion plus explicit retry preservation;
 * machine-readable Windows smoke-test tooling and a 33-case declarative desktop smoke matrix.
 
 Pins and quick replies are intentionally separate from background-app discovery: no HWND/PID/runtime identifiers are persisted for pins, and quick-reply text is stored only because the user explicitly saved it.
