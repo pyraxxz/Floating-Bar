@@ -1,18 +1,65 @@
 """Prepare one guarded background-send transaction.
 
-This module owns orchestration only: read-only preflight, exact target lease
-binding, context adoption, scope validation, and immutable SendAttempt
-construction. It deliberately does not inject text, touch focus, or update UI.
+The coordinator owns sequencing and exact target binding. Target-specific
+preflight/context rules live behind a preparation policy so the transaction
+layer does not need to know Telegram, chat, or terminal UI details.
 """
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Protocol
 
 from . import trace
 from .context import capture
 from .preflight import PreflightResult, run as run_preflight
 from .target_contract import BackgroundTarget
 from .transaction import SendAttempt, SendRequest, TargetScope
+
+
+class TransactionPreparationPolicy(Protocol):
+    """Target-specific preparation contract used by the generic coordinator."""
+
+    target_label: str
+    requires_context: bool
+
+    def preflight(
+        self,
+        target: BackgroundTarget,
+        preferred_hwnd: int = 0,
+    ) -> PreflightResult:
+        """Run the target's read-only preparation gate."""
+
+    def capture_context(self, hwnd: int) -> object | None:
+        """Capture any non-content context guard needed after preflight."""
+
+    def context_matches(self, context: object) -> bool:
+        """Return whether the prepared context is still stable."""
+
+
+@dataclass(frozen=True)
+class TelegramTransactionPreparationPolicy:
+    """Preserve today's Telegram preparation semantics behind the policy seam."""
+
+    target_label: str = "Telegram"
+    requires_context: bool = True
+
+    def preflight(
+        self,
+        target: BackgroundTarget,
+        preferred_hwnd: int = 0,
+    ) -> PreflightResult:
+        return run_preflight(target, preferred_hwnd=preferred_hwnd)
+
+    def capture_context(self, hwnd: int) -> object | None:
+        try:
+            return capture(hwnd)
+        except Exception:
+            return None
+
+    def context_matches(self, context: object) -> bool:
+        try:
+            return bool(context is not None and context.matches())
+        except Exception:
+            return False
 
 
 class TransactionRejected(Exception):
@@ -34,17 +81,20 @@ class PreparedTransaction:
 class SendTransactionCoordinator:
     """Turn a requested send into one exact, context-guarded transaction."""
 
-    def __init__(self, target: BackgroundTarget):
+    def __init__(
+        self,
+        target: BackgroundTarget,
+        policy: TransactionPreparationPolicy | None = None,
+    ):
         self.target = target
+        self.policy = policy or TelegramTransactionPreparationPolicy()
 
     def _release_after_rejection(self) -> None:
-        """Release a partially acquired target lease, when the target supports it."""
-        release = getattr(self.target, "release", None)
-        if callable(release):
-            try:
-                release()
-            except Exception as exc:
-                trace.trace_exception("transaction: lease release after rejection failed", exc)
+        """Release a partially acquired target lease through the formal contract."""
+        try:
+            self.target.release()
+        except Exception as exc:
+            trace.trace_exception("transaction: lease release after rejection failed", exc)
 
     def prepare_request(
         self,
@@ -75,7 +125,7 @@ class SendTransactionCoordinator:
             raise TransactionRejected("The send text is empty.")
 
         try:
-            preflight = run_preflight(
+            preflight = self.policy.preflight(
                 self.target,
                 preferred_hwnd=preferred_hwnd,
             )
@@ -87,13 +137,13 @@ class SendTransactionCoordinator:
             if not preflight.ready:
                 reason = "; ".join(preflight.reasons)
                 raise TransactionRejected(
-                    reason or "Telegram send preflight blocked the send.",
+                    reason or f"{self.policy.target_label} send preflight blocked the send.",
                     preflight=preflight,
                 )
 
             if preferred_hwnd and preflight.hwnd != preferred_hwnd:
                 raise TransactionRejected(
-                    "The preferred Telegram window disappeared or was replaced; "
+                    f"The preferred {self.policy.target_label} window disappeared or was replaced; "
                     "the send was stopped instead of retargeting another window.",
                     preflight=preflight,
                 )
@@ -101,7 +151,7 @@ class SendTransactionCoordinator:
             selected = self.target.select_for_send(preferred_hwnd=preflight.hwnd)
             if selected != preflight.hwnd:
                 raise TransactionRejected(
-                    "Telegram's preflight target could not be bound safely.",
+                    f"{self.policy.target_label}'s preflight target could not be bound safely.",
                     preflight=preflight,
                 )
 
@@ -115,18 +165,25 @@ class SendTransactionCoordinator:
 
             context = preflight.context
             if context is None:
-                try:
-                    context = capture(preflight.hwnd)
-                except Exception:
-                    context = None
-            if context is None or context.hwnd != preflight.hwnd:
+                context = self.policy.capture_context(preflight.hwnd)
+            if context is not None:
+                context_hwnd = getattr(context, "hwnd", preflight.hwnd)
+                if context_hwnd != preflight.hwnd:
+                    raise TransactionRejected(
+                        f"{self.policy.target_label} target identity could not be safely captured; "
+                        "the send was stopped.",
+                        preflight=preflight,
+                    )
+                if not self.policy.context_matches(context):
+                    raise TransactionRejected(
+                        f"The {self.policy.target_label} target or conversation changed "
+                        "while the message was being prepared.",
+                        preflight=preflight,
+                    )
+            elif self.policy.requires_context:
                 raise TransactionRejected(
-                    "Telegram target identity could not be safely captured; the send was stopped.",
-                    preflight=preflight,
-                )
-            if not context.matches():
-                raise TransactionRejected(
-                    "The Telegram conversation or target window changed while the message was being prepared.",
+                    f"{self.policy.target_label} target identity could not be safely captured; "
+                    "the send was stopped.",
                     preflight=preflight,
                 )
 
@@ -136,8 +193,8 @@ class SendTransactionCoordinator:
             # authorize a transaction against a changed live target.
             if self.target.scope() != target_scope:
                 raise TransactionRejected(
-                    "Telegram's target changed while the transaction context was being validated; "
-                    "the send was stopped instead of retargeting.",
+                    f"{self.policy.target_label}'s target changed while the transaction context "
+                    "was being validated; the send was stopped instead of retargeting.",
                     preflight=preflight,
                 )
 
@@ -169,5 +226,7 @@ class SendTransactionCoordinator:
 __all__ = [
     "PreparedTransaction",
     "SendTransactionCoordinator",
+    "TelegramTransactionPreparationPolicy",
+    "TransactionPreparationPolicy",
     "TransactionRejected",
 ]

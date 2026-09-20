@@ -235,7 +235,7 @@ Current phase. Finish automated edge cases, keep the Windows build green, and va
 
 ### Phase B — Separate target interface
 
-The first target-contract layer is now implemented in `floatingbar.target_contract.BackgroundTarget`, with `BoundTelegramTarget` providing the transaction lease around Telegram. The next cleanup is to move more coordinator behavior from inheritance into composition without changing proven Telegram behavior.
+The first target-contract layer is now implemented in `floatingbar.target_contract.BackgroundTarget`, with `BoundTelegramTarget` providing the transaction lease around Telegram. Transaction sequencing is now separated from target-specific preparation through `TransactionPreparationPolicy`; Telegram keeps its existing preflight/context rules while the coordinator remains reusable for future background targets. Further cleanup can move more proven behavior from inheritance into composition without changing Telegram behavior.
 
 The stable abstraction boundary should cover only behavior already proven in Telegram: exact target selection, compose location, content-free audit, Send evidence, and submission/recovery capabilities.
 

@@ -17,19 +17,25 @@ smallest proven operations shared by a background target.
 ## Decision
 
 Introduce `floatingbar.target_contract.BackgroundTarget` as a structural
-protocol with three operations:
+protocol with four operations:
 
 - `select_for_send(preferred_hwnd=0) -> int`
 - `scope() -> TargetScope`
 - `is_available() -> bool`
+- `release() -> None` for deterministic transaction-lease cleanup
+
+The protocol is the contract for a **bound transaction target**, not the raw
+Telegram discovery object. `BoundTelegramTarget` is the current production
+implementation; its `release()` operation clears the active lease and any
+session-only chat confirmation.
 
 `TargetScope` is an immutable tuple-compatible `(HWND, PID)` value. Returning a
 named immutable value preserves existing tuple-unpacking callers while making
 target identity explicit to new transaction code.
 
-The existing `TelegramTarget` remains the concrete Telegram implementation and
-now satisfies the contract at runtime. No generic UI automation framework is
-introduced yet.
+The existing `TelegramTarget` remains the concrete discovery/interaction
+implementation underneath the bound facade. No generic UI automation framework
+is introduced yet.
 
 ## Consequences
 
@@ -45,6 +51,8 @@ introduced yet.
 
 - Some existing code still calls Telegram-specific methods directly.
 - The contract does not yet express compose discovery or submission evidence.
+- The transaction coordinator still needs a target-specific preparation policy
+  for preflight/context rules.
 - The adapter boundary is therefore transitional, not the final architecture.
 
 ## Follow-up

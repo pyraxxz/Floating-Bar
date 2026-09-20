@@ -1,5 +1,6 @@
 import unittest
 
+from floatingbar.bound_target import BoundTelegramTarget
 from floatingbar.generic_target import BackgroundTypingTarget
 from floatingbar.target import TelegramTarget
 from floatingbar.target_contract import BackgroundTarget
@@ -7,9 +8,13 @@ from floatingbar.transaction import TargetScope
 
 
 class TargetContractTests(unittest.TestCase):
-    def test_telegram_target_matches_background_target_contract(self):
-        target = TelegramTarget()
+    def test_bound_telegram_target_matches_background_target_contract(self):
+        target = BoundTelegramTarget(TelegramTarget())
         self.assertIsInstance(target, BackgroundTarget)
+
+    def test_background_target_contract_requires_explicit_release(self):
+        target = BoundTelegramTarget(TelegramTarget())
+        self.assertTrue(callable(target.release))
 
     def test_generic_background_target_matches_background_target_contract(self):
         target = BackgroundTypingTarget(123, 456)
