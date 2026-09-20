@@ -168,5 +168,57 @@ class BackgroundPickerTests(unittest.TestCase):
         self.assertFalse(merged[1].pinned)
 
 
+    def test_action_hide_timer_is_replaced_when_hover_reenters(self):
+        class Owner:
+            def __init__(self):
+                self.scheduled = []
+                self.cancelled = []
+
+            def after(self, delay, callback):
+                token = f"job-{len(self.scheduled) + 1}"
+                self.scheduled.append((token, delay, callback))
+                return token
+
+            def after_cancel(self, token):
+                self.cancelled.append(token)
+
+        owner = Owner()
+        picker = BackgroundAppPicker.__new__(BackgroundAppPicker)
+        picker.owner = owner
+        picker._action_hide_job = None
+
+        picker._schedule_action_hide()
+        first = picker._action_hide_job
+        picker._schedule_action_hide()
+        second = picker._action_hide_job
+
+        self.assertNotEqual(first, second)
+        self.assertEqual(owner.cancelled, [first])
+        self.assertEqual(second, "job-2")
+
+    def test_hide_actions_cancels_pending_action_hide_timer(self):
+        class Owner:
+            def __init__(self):
+                self.cancelled = []
+
+            def after_cancel(self, token):
+                self.cancelled.append(token)
+
+        owner = Owner()
+        picker = BackgroundAppPicker.__new__(BackgroundAppPicker)
+        picker.owner = owner
+        picker._action_hide_job = "job-17"
+        picker._action_window = None
+        picker._action_item = PickerItem(10, 20, "Slack", True, False, "slack.exe", "slack")
+        picker._hover = HoverState(actions=True)
+
+        picker._hide_actions()
+
+        self.assertEqual(owner.cancelled, ["job-17"])
+        self.assertIsNone(picker._action_hide_job)
+        self.assertIsNone(picker._action_item)
+        self.assertFalse(picker._hover.actions)
+
+
 if __name__ == "__main__":
     unittest.main()
