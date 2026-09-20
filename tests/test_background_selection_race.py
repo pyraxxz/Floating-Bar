@@ -199,6 +199,9 @@ class SelectionRaceTests(unittest.TestCase):
         with patch("floatingbar.bound_context_overlay.actionable_adapter_for_process", return_value=Mock(key="discord")):
             window._finish_conversation_selection(window._selection_generation_value())
         window._background_typer.release.assert_called_once()
+        window._show_feedback.assert_called_once_with(
+            "The selected conversation could not expose a safe background typing control."
+        )
 
     def test_failed_telegram_finish_releases_target_lease(self):
         window = self._window()
