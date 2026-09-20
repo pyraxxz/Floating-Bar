@@ -100,7 +100,10 @@ class EvidenceStrategy(str):
 def from_result(strategy: Optional[str], error: Optional[str] = None) -> SubmissionEvidence:
     """Convert a legacy injector result into structured evidence."""
     typed = getattr(strategy, "submission_evidence", None)
-    if isinstance(typed, SubmissionEvidence) and not error:
+    if isinstance(typed, SubmissionEvidence):
+        # A strategy may carry producer-owned typed evidence while a legacy
+        # caller still supplies an error string. Never let that compatibility
+        # field reinterpret the producer's structured result.
         return typed
 
     if error:

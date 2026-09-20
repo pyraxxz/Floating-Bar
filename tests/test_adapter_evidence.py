@@ -110,5 +110,23 @@ class AdapterEvidenceTests(unittest.TestCase):
         self.assertEqual(evidence.detail, "send failed")
 
 
+    def test_typed_submission_evidence_wins_over_conflicting_error(self):
+        spec = adapter_for_process("telegram.exe")
+        typed = SubmissionEvidence(
+            state=EvidenceState.VERIFIED,
+            strategy="posted-enter",
+            detail="typed proof",
+            proof_kind="input-acceptance",
+        )
+        evidence = evidence_for_adapter(
+            spec,
+            strategy="posted-enter (VERIFIED)",
+            error="legacy error",
+            submission_evidence=typed,
+        )
+        self.assertEqual(evidence, typed)
+        self.assertTrue(evidence.confirmed)
+
+
 if __name__ == "__main__":
     unittest.main()

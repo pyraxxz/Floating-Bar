@@ -145,16 +145,21 @@ class SendCompletion:
                     strategy = legacy_strategy
                 if error is None:
                     error = legacy_error
-        if error:
-            resolved = from_result(strategy, error)
-        elif isinstance(evidence, SubmissionEvidence):
+        if isinstance(evidence, SubmissionEvidence):
+            # Typed producer evidence is authoritative. Legacy strategy/error
+            # fields remain compatibility inputs, but cannot downgrade or
+            # reinterpret a concrete evidence result.
             resolved = evidence
+            resolved_strategy = evidence.strategy or strategy
+            resolved_detail = evidence.detail
         else:
             resolved = from_result(strategy, error)
+            resolved_strategy = strategy or resolved.strategy
+            resolved_detail = error or resolved.detail
         return cls(
             attempt_id=attempt_id,
-            strategy=strategy or resolved.strategy,
-            error=error or resolved.detail,
+            strategy=resolved_strategy,
+            error=resolved_detail,
             evidence_state=resolved.state,
             evidence=resolved,
         )
