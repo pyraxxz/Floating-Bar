@@ -1,9 +1,10 @@
+import queue
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from floatingbar.bound_context_overlay import OrbRelayWindow as BoundContextOverlay
-from floatingbar.transaction import SendCompletion, TargetScope
+from floatingbar.transaction import SendCompletion, SendRequest, TargetScope
 
 
 class GenericRetryTests(unittest.TestCase):
@@ -31,6 +32,29 @@ class GenericRetryTests(unittest.TestCase):
         window._sending = False
         window._work_hwnd = 0
         return window
+
+    def test_generic_send_exception_uses_content_free_user_error(self):
+        window = self._window()
+        window._result_q = queue.Queue()
+        window._generic_attempt_id = 21
+        request = SendRequest(
+            attempt_id=21,
+            text="hello",
+            restore_hwnd=410,
+        )
+        window._background_typer.pin_best_input.side_effect = RuntimeError(
+            "UIA control contained secret message content"
+        )
+        with patch(
+            "floatingbar.bound_context_overlay.actionable_adapter_for_process",
+            return_value=Mock(key="discord", implemented=True, supports_background_type=True),
+        ):
+            window._send_worker_request(request)
+
+        completion = window._result_q.get_nowait()
+        self.assertEqual(completion.error, "Background send failed safely.")
+        self.assertNotIn("secret message content", completion.error)
+        window._background_typer.clear_pinned_input.assert_called_once_with()
 
     def test_failed_generic_send_keeps_exact_scope_and_adapter_for_retry(self):
         window = self._window()

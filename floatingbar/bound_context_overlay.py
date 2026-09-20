@@ -494,7 +494,9 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             except Exception:
                 pass
             trace.trace(f"conversation target bind failed safely: {exc}")
-            self._show_feedback(str(exc) if str(exc) else "The selected conversation has no safe background typing control yet.")
+            self._show_feedback(
+                "The selected conversation could not expose a safe background typing control."
+            )
 
     def _select_telegram_chat(self, chat: TelegramChatItem) -> None:
         if self._sending:
@@ -601,7 +603,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             self._result_q.put(
                 SendCompletion.from_result(
                     attempt_id=request.attempt_id,
-                    error=str(exc),
+                    error="Background send failed safely.",
                 )
             )
 
