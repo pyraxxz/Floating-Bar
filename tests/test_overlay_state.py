@@ -161,6 +161,56 @@ class OverlayStateTests(unittest.TestCase):
         self.assertEqual(window._retry_target_hwnd, 0)
         window._set_retry_menu_enabled.assert_called_once_with(False)
 
+    def test_repeated_sends_get_distinct_attempts_and_block_overlap(self):
+        window = OrbRelayWindow.__new__(OrbRelayWindow)
+        window._sending = False
+        window._attempt_seq = 0
+        window._active_attempt_id = 0
+        window._active_request = None
+        window._active_send_text = ""
+        window._work_hwnd = 321
+        window._retry_draft = None
+        window._retry_target_hwnd = 0
+        window.entry = Mock()
+        window.entry.get.side_effect = ["first", "second"]
+        window._reset_idle = Mock()
+        window._refresh_entry_hint = Mock()
+        window._collapse = Mock()
+        window._blink_sending = Mock()
+        window._hide_feedback = Mock()
+        window._set_retry_menu_enabled = Mock()
+
+        worker = Mock()
+        with patch("floatingbar.overlay.threading.Thread", return_value=worker) as thread_factory:
+            first_result = window._on_enter_key()
+            blocked_result = window._on_enter_key()
+
+            self.assertEqual(first_result, "break")
+            self.assertEqual(blocked_result, "break")
+            self.assertTrue(window._sending)
+            self.assertEqual(window._attempt_seq, 1)
+            self.assertEqual(window._active_attempt_id, 1)
+            self.assertEqual(window._active_request.attempt_id, 1)
+            self.assertEqual(window._active_request.text, "first")
+            thread_factory.assert_called_once()
+            worker.start.assert_called_once_with()
+
+            # Model the first worker completion boundary before allowing the
+            # next user send.
+            window._sending = False
+            window._active_request = None
+            window._active_attempt_id = 0
+
+            second_result = window._on_enter_key()
+
+        self.assertEqual(second_result, "break")
+        self.assertEqual(window._attempt_seq, 2)
+        self.assertEqual(window._active_attempt_id, 2)
+        self.assertEqual(window._active_request.attempt_id, 2)
+        self.assertEqual(window._active_request.text, "second")
+        self.assertEqual(thread_factory.call_count, 2)
+        self.assertEqual(worker.start.call_count, 2)
+
     def test_retry_failed_draft_prefers_original_target_over_current_foreground(self):
         window = OrbRelayWindow.__new__(OrbRelayWindow)
         window._sending = False
