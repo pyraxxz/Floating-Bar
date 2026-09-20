@@ -269,7 +269,7 @@ class RecentTargetHistory:
                 return None
             from .conversation_rows import enumerate_conversations
 
-            rows = enumerate_conversations(target.scope.hwnd, limit=32)
+            rows = enumerate_conversations(target.scope.hwnd, limit=None)
             if target.runtime_id is not None:
                 matches = [row for row in rows if row.runtime_id == target.runtime_id]
                 if len(matches) == 1:
