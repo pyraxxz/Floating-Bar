@@ -22,6 +22,48 @@ class ThemeTests(unittest.TestCase):
         self.assertEqual(ui_theme.next_focus_index(99, 3, -1), 2)
         self.assertEqual(ui_theme.next_focus_index(0, 0, 1), -1)
 
+    def test_picker_navigation_supports_home_end_and_escape(self):
+        class FakeRow:
+            def __init__(self):
+                self.focused = False
+                self.bindings = {}
+
+            def focus_set(self):
+                self.focused = True
+
+            def bind(self, event, callback, add=None):
+                self.bindings[event] = callback
+
+        class FakeWindow:
+            def __init__(self, rows):
+                self.rows = rows
+                self.bindings = {}
+                self.current = None
+
+            def focus_get(self):
+                return self.current
+
+            def bind(self, event, callback, add=None):
+                self.bindings[event] = callback
+
+        rows = [FakeRow(), FakeRow(), FakeRow()]
+        window = FakeWindow(rows)
+        escaped = []
+        ui_theme.bind_picker_navigation(window, rows, on_escape=lambda: escaped.append(True))
+
+        self.assertTrue(rows[0].focused)
+        rows[0].focused = False
+        window.current = rows[0]
+        window.bindings["<End>"](None)
+        self.assertTrue(rows[2].focused)
+
+        rows[2].focused = False
+        window.bindings["<Home>"](None)
+        self.assertTrue(rows[0].focused)
+
+        window.bindings["<Escape>"](None)
+        self.assertEqual(escaped, [True])
+
     def test_place_popup_near_prefers_left_when_right_side_is_offscreen(self):
         class FakeOwner:
             def winfo_rootx(self): return 900
