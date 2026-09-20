@@ -230,6 +230,50 @@ class BackgroundPickerTests(unittest.TestCase):
         self.assertFalse(merged[1].pinned)
 
 
+    def test_live_snapshot_ignores_enumeration_order_but_tracks_meaningful_changes(self):
+        first = [
+            SimpleNamespace(
+                hwnd=12,
+                pid=20,
+                process_start=200,
+                process_name="telegram.exe",
+                window_class="TelegramMainWindow",
+                area=50000,
+                foreground=False,
+            ),
+            SimpleNamespace(
+                hwnd=11,
+                pid=19,
+                process_start=190,
+                process_name="slack.exe",
+                window_class="SlackMainWindow",
+                area=60000,
+                foreground=False,
+            ),
+        ]
+        reordered = list(reversed(first))
+        self.assertEqual(
+            BackgroundAppPicker._live_snapshot_for(first),
+            BackgroundAppPicker._live_snapshot_for(reordered),
+        )
+
+        resized = [
+            SimpleNamespace(
+                hwnd=12,
+                pid=20,
+                process_start=200,
+                process_name="telegram.exe",
+                window_class="TelegramMainWindow",
+                area=50001,
+                foreground=False,
+            ),
+            first[1],
+        ]
+        self.assertNotEqual(
+            BackgroundAppPicker._live_snapshot_for(first),
+            BackgroundAppPicker._live_snapshot_for(resized),
+        )
+
     def test_live_refresh_rebuilds_picker_when_new_app_appears(self):
         owner = SimpleNamespace(
             after=lambda _delay, _callback: "refresh-job",
