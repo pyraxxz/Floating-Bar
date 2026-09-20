@@ -279,9 +279,16 @@ class BackgroundAppPicker:
 
         return tuple(merged)
 
-    def show(self) -> None:
+    def show(self, *, preserve_popup_hover: bool = False) -> None:
         self._show_job = None
-        if not self._hover.owner:
+        preserve_popup_hover = bool(
+            preserve_popup_hover
+            and self.window is not None
+            and self._hover.popup
+            and not self._hover.owner
+            and not self._hover.actions
+        )
+        if not self._hover.owner and not preserve_popup_hover:
             return
         try:
             windows = tuple(self.refresh() or ())
@@ -302,8 +309,12 @@ class BackgroundAppPicker:
             self.hide()
             return
 
+        was_popup_hovered = preserve_popup_hover
         self.hide()
-        self._hover.enter_owner()
+        if was_popup_hovered:
+            self._hover.enter_popup()
+        else:
+            self._hover.enter_owner()
         popup = tk.Toplevel(self.owner)
         self.window = popup
         popup.overrideredirect(True)
@@ -414,7 +425,7 @@ class BackgroundAppPicker:
 
     def _schedule_live_refresh(self) -> None:
         self._cancel_live_refresh()
-        if self.window is None or not self._hover.owner:
+        if self.window is None or not (self._hover.owner or self._hover.popup):
             return
         self._live_refresh_job = self.owner.after(
             self.LIVE_REFRESH_MS,
@@ -423,7 +434,7 @@ class BackgroundAppPicker:
 
     def _refresh_open_picker(self) -> None:
         self._live_refresh_job = None
-        if self.window is None or not self._hover.owner:
+        if self.window is None or not (self._hover.owner or self._hover.popup):
             return
         try:
             windows = tuple(self.refresh() or ())
@@ -432,7 +443,10 @@ class BackgroundAppPicker:
             self._schedule_live_refresh()
             return
         if snapshot != self._live_snapshot and not self._hover.actions:
-            self.show()
+            if self._hover.popup and not self._hover.owner:
+                self.show(preserve_popup_hover=True)
+            else:
+                self.show()
             return
         self._schedule_live_refresh()
 
