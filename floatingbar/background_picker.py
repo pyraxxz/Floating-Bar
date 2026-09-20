@@ -261,13 +261,71 @@ class BackgroundAppPicker:
                     break
         return tuple(merged)
 
+    def _show_empty_state(self, *, error: bool = False) -> None:
+        self.hide()
+        popup = tk.Toplevel(self.owner)
+        self.window = popup
+        popup.overrideredirect(True)
+        popup.attributes("-topmost", True)
+        ui_theme.style_popup(popup)
+        height = 124
+        x, y = ui_theme.place_popup_near(self.owner, popup, self.WIDTH, height)
+        popup.geometry(f"{self.WIDTH}x{height}+{x}+{y}")
+        popup.bind("<Enter>", self._popup_enter, add="+")
+        popup.bind("<Leave>", self._popup_leave, add="+")
+        frame = ui_theme.frame(popup, padx=12, pady=10)
+        frame.pack(fill="both", expand=True)
+        title = "Background apps unavailable" if error else "No safe background apps"
+        detail = (
+            "The background app list could not be read safely. You can try again."
+            if error
+            else "Open an app that accepts typing, then hover the orb again."
+        )
+        ui_theme.label(
+            frame,
+            text=title,
+            fg=ui_theme.TEXT_STRONG,
+            bold=True,
+        ).pack(fill="x")
+        ui_theme.label(
+            frame,
+            text=detail,
+            muted=True,
+            small=True,
+            wraplength=200,
+            justify="left",
+        ).pack(fill="x", pady=(3, 8))
+        actions = ui_theme.frame(frame, bg=ui_theme.SURFACE)
+        actions.pack(fill="x")
+        refresh = ui_theme.button(
+            actions,
+            text="Scan again",
+            command=self.show,
+            primary=True,
+        )
+        refresh.pack(side="right", padx=(4, 0))
+        close = ui_theme.button(
+            actions,
+            text="Dismiss",
+            command=self.hide,
+            subtle=True,
+        )
+        close.pack(side="right")
+        ui_theme.bind_picker_navigation(
+            popup,
+            [refresh, close],
+            on_escape=self.hide,
+        )
+
     def show(self) -> None:
         self._show_job = None
         if not self._hover.owner:
             return
+        refresh_failed = False
         try:
             windows = tuple(self.refresh() or ())
         except Exception:
+            refresh_failed = True
             windows = ()
         live_items = to_picker_items(windows)
         try:
@@ -280,7 +338,7 @@ class BackgroundAppPicker:
             recent_items = ()
         items = self._merge_items(pinned_items, recent_items, live_items)
         if not items:
-            self.hide()
+            self._show_empty_state(error=refresh_failed)
             return
 
         self.hide()
