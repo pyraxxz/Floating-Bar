@@ -104,14 +104,15 @@ def candidate_identity(candidate: InputCandidate) -> tuple:
     AutomationId remains a session-only fallback discriminator.
     """
     base = (
-        int(candidate.pid),
-        str(candidate.control_type),
-        str(candidate.class_name),
-        str(candidate.framework_id),
+        int(getattr(candidate, "pid", 0)),
+        str(getattr(candidate, "control_type", "")),
+        str(getattr(candidate, "class_name", "")),
+        str(getattr(candidate, "framework_id", "")),
     )
-    if candidate.runtime_id is not None:
-        return base + ("runtime", candidate.runtime_id)
-    return base + ("automation", str(candidate.automation_id))
+    runtime_id = getattr(candidate, "runtime_id", None)
+    if runtime_id is not None:
+        return base + ("runtime", runtime_id)
+    return base + ("automation", str(getattr(candidate, "automation_id", "")))
 
 
 def enumerate_input_candidates(top_hwnd: int) -> tuple[InputCandidate, ...]:
