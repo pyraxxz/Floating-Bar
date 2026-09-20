@@ -258,9 +258,17 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
         ) else None
         evidence = completion.resolved_evidence
         try:
-            super()._send_finished(completion)
             if not is_current:
+                super()._send_finished(completion)
                 return
+
+            if lifecycle is not None and lifecycle.state is TransactionState.SENDING:
+                lifecycle.complete_from_evidence(evidence.state)
+                trace.trace(
+                    f"transaction: attempt={completion.attempt_id} "
+                    f"state={lifecycle.state.value}"
+                )
+
             trace.trace(
                 f"stage=verification adapter=telegram state={evidence.state.value} "
                 f"confirmed={'yes' if evidence.confirmed else 'no'}"
@@ -270,23 +278,23 @@ class OrbRelayWindow(_RecoveryOrbRelayWindow):
                     evidence.detail or "Send was blocked before submission.",
                     config.ERROR_COLOR,
                 )
-            if lifecycle is not None and lifecycle.state is TransactionState.SENDING:
-                lifecycle.complete_from_evidence(evidence.state)
-                trace.trace(
-                    f"transaction: attempt={completion.attempt_id} "
-                    f"state={lifecycle.state.value}"
-                )
+
+            # Keep the established UI completion behavior, but never let a
+            # completion-handler exception strand the attempt lifecycle.
+            super()._send_finished(completion)
+
             if self._retry_draft and context is not None:
                 self._retry_context = context
             elif not self._retry_draft:
                 self._retry_context = None
                 self._attempt_context = None
                 self.injector.set_window_context(None)
-            self._active_transaction = None
-            self._active_lifecycle = None
         finally:
-            if is_current and callable(release):
-                release()
+            if is_current:
+                self._active_transaction = None
+                self._active_lifecycle = None
+                if callable(release):
+                    release()
 
 
 __all__ = ["OrbRelayWindow"]
