@@ -158,6 +158,67 @@ class BackgroundPickerTests(unittest.TestCase):
         item = PickerItem(10, 20, "Calculator", False, False, "calculator.exe")
         self.assertEqual(action_for_item(item), "No safe input")
 
+    def test_live_apps_reserve_space_when_history_would_crowd_picker(self):
+        pinned = tuple(
+            PickerItem(
+                index,
+                100 + index,
+                f"Pinned {index}",
+                True,
+                False,
+                "demo.exe",
+                "demo",
+                False,
+                True,
+            )
+            for index in range(1, 4)
+        )
+        recent = tuple(
+            PickerItem(
+                10 + index,
+                200 + index,
+                f"Recent {index}",
+                True,
+                False,
+                "demo.exe",
+                "demo",
+                True,
+                False,
+            )
+            for index in range(1, 3)
+        )
+        live = tuple(
+            PickerItem(
+                20 + index,
+                300 + index,
+                label,
+                True,
+                False,
+                process,
+                key,
+            )
+            for index, (label, process, key) in enumerate(
+                (
+                    ("Telegram", "telegram.exe", "telegram"),
+                    ("Slack", "slack.exe", "slack"),
+                    ("Terminal", "wt.exe", "terminal"),
+                    ("Notepad", "notepad.exe", "generic:notepad"),
+                ),
+                start=1,
+            )
+        )
+
+        merged = BackgroundAppPicker._merge_items(pinned, recent, live)
+
+        self.assertEqual(
+            [item.label for item in merged],
+            ["Pinned 1", "Pinned 2", "Pinned 3", "Telegram", "Slack", "Terminal"],
+        )
+        self.assertEqual(
+            len([item for item in merged if item.label in {"Telegram", "Slack", "Terminal", "Notepad"}]),
+            3,
+        )
+
     def test_recent_items_are_shown_after_pinned_items_and_duplicates_are_removed(self):
         pinned = PickerItem(10, 20, "Telegram", True, False, "telegram.exe", "telegram", False, True)
         recent = PickerItem(10, 20, "Telegram", True, False, "telegram.exe", "telegram", True, False)
