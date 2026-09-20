@@ -133,6 +133,15 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             on_change=self._refresh_quick_reply_menu,
         )
 
+    def _uncertain_feedback_message(self) -> str:
+        """Name the selected adapter without exposing window/chat content."""
+        spec = actionable_adapter_for_process(
+            getattr(self, "_background_process_name", "")
+        )
+        if spec is not None and spec.label:
+            return f"{spec.label} did not confirm the send. Verify the target before retrying."
+        return super()._uncertain_feedback_message()
+
     def _show_bar(self):
         super()._show_bar()
         spec = actionable_adapter_for_process(getattr(self, "_background_process_name", ""))
