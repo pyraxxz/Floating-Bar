@@ -4,6 +4,7 @@ from unittest.mock import patch
 from floatingbar.control_candidates import (
     InputCandidate,
     best_input_candidate,
+    candidate_identity,
     candidate_score,
     _candidate_from_element,
     enumerate_input_candidates,
@@ -96,6 +97,29 @@ class ControlCandidateTests(unittest.TestCase):
              patch("floatingbar.generic_target.enumerate_input_candidates", return_value=(candidate,)):
             self.assertEqual(target.scope(), TargetScope(100, 200))
             self.assertEqual(target.input_candidates(), (candidate,))
+
+
+    def test_runtime_id_is_stronger_than_automation_id(self):
+        first = InputCandidate(
+            301, 200, "RichEdit", "Edit", 0, 0, 400, 40, True, True, True,
+            automation_id="composer-a", framework_id="uia", runtime_id=(1, 2, 3),
+        )
+        relabeled = InputCandidate(
+            301, 200, "RichEdit", "Edit", 0, 0, 400, 40, True, True, True,
+            automation_id="composer-b", framework_id="uia", runtime_id=(1, 2, 3),
+        )
+        self.assertEqual(candidate_identity(first), candidate_identity(relabeled))
+
+    def test_automation_id_is_only_a_fallback_without_runtime_id(self):
+        first = InputCandidate(
+            301, 200, "RichEdit", "Edit", 0, 0, 400, 40, True, True, True,
+            automation_id="composer-a", framework_id="uia",
+        )
+        other = InputCandidate(
+            301, 200, "RichEdit", "Edit", 0, 0, 400, 40, True, True, True,
+            automation_id="composer-b", framework_id="uia",
+        )
+        self.assertNotEqual(candidate_identity(first), candidate_identity(other))
 
 
 if __name__ == "__main__":
