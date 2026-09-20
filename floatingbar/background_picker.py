@@ -69,6 +69,18 @@ class HoverState:
         self.actions = False
 
 
+def empty_state_copy(error: bool = False) -> tuple[str, str]:
+    if error:
+        return (
+            "Background apps unavailable",
+            "The background app list could not be read safely. You can try again.",
+        )
+    return (
+        "No safe background apps",
+        "Open an app that accepts typing, then hover the orb again.",
+    )
+
+
 def _base_label(item: BackgroundWindow) -> tuple[str, bool]:
     """Return a title-free app label and whether it has an actionable adapter."""
     spec = actionable_adapter_for_process(item.process_name)
@@ -275,12 +287,7 @@ class BackgroundAppPicker:
         popup.bind("<Leave>", self._popup_leave, add="+")
         frame = ui_theme.frame(popup, padx=12, pady=10)
         frame.pack(fill="both", expand=True)
-        title = "Background apps unavailable" if error else "No safe background apps"
-        detail = (
-            "The background app list could not be read safely. You can try again."
-            if error
-            else "Open an app that accepts typing, then hover the orb again."
-        )
+        title, detail = empty_state_copy(error)
         ui_theme.label(
             frame,
             text=title,
