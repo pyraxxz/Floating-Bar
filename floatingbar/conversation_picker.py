@@ -179,18 +179,75 @@ class ConversationPicker:
 
     def show(self) -> None:
         """Refresh the ephemeral catalog and open it at the first page."""
+        refresh_failed = False
         try:
             live = tuple(self.refresh() or ())
             pinned = tuple(self.pinned() or ())
             recent = tuple(self.recent() or ())
             catalog, recent_keys, pinned_keys = self._merge_catalog(pinned, recent, live)
         except Exception:
-            return
+            refresh_failed = True
+            catalog, recent_keys, pinned_keys = (), set(), set()
         self._catalog = catalog
         self._recent_keys = recent_keys
         self._pinned_keys = pinned_keys
         self._offset = 0
+        if not catalog:
+            self._show_empty_state(error=refresh_failed)
+            return
         self._show_page()
+
+    def _show_empty_state(self, *, error: bool = False) -> None:
+        self.hide()
+        popup = tk.Toplevel(self.owner)
+        self.window = popup
+        popup.overrideredirect(True)
+        popup.attributes("-topmost", True)
+        ui_theme.style_popup(popup)
+        height = 142
+        x, y = ui_theme.place_popup_near(self.owner, popup, self.WIDTH, height)
+        popup.geometry(f"{self.WIDTH}x{height}+{x}+{y}")
+        frame = ui_theme.frame(popup, padx=12, pady=10)
+        frame.pack(fill="both", expand=True)
+        ui_theme.label(
+            frame,
+            text=f"{self.title} unavailable" if error else f"No safe {self.title.lower()} found",
+            fg=ui_theme.TEXT_STRONG,
+            bold=True,
+        ).pack(fill="x")
+        ui_theme.label(
+            frame,
+            text=(
+                "The conversation list could not be read safely. You can try again."
+                if error
+                else "No safe conversation rows are available right now."
+            ),
+            muted=True,
+            small=True,
+            wraplength=270,
+            justify="left",
+        ).pack(fill="x", pady=(3, 10))
+        actions = ui_theme.frame(frame, bg=ui_theme.SURFACE)
+        actions.pack(fill="x")
+        refresh = ui_theme.button(
+            actions,
+            text="Refresh",
+            command=self.show,
+            primary=True,
+        )
+        refresh.pack(side="right", padx=(4, 0))
+        close = ui_theme.button(
+            actions,
+            text="Dismiss",
+            command=self.hide,
+            subtle=True,
+        )
+        close.pack(side="right")
+        ui_theme.bind_picker_navigation(
+            popup,
+            [refresh, close],
+            on_escape=self.hide,
+        )
 
     def _show_page(self) -> None:
         self.hide()
