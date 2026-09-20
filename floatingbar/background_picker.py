@@ -443,17 +443,23 @@ class BackgroundAppPicker:
 
     @staticmethod
     def _live_snapshot_for(windows: Sequence[BackgroundWindow]) -> tuple[tuple, ...]:
-        return tuple(
+        # Enumeration order is not itself a stable change signal. Normalize
+        # by exact window/process identity while retaining meaningful layout
+        # signals that affect picker ordering or target validity.
+        snapshot = [
             (
                 item.hwnd,
                 item.pid,
                 item.process_start,
                 item.process_name,
                 item.window_class,
+                getattr(item, "area", 0),
                 item.foreground,
             )
             for item in windows
-        )
+        ]
+        snapshot.sort(key=lambda item: (item[0], item[1], item[2] or 0))
+        return tuple(snapshot)
 
     def _schedule_live_refresh(self) -> None:
         self._cancel_live_refresh()
