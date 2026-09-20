@@ -5,6 +5,14 @@ from floatingbar.background_windows import BackgroundWindow, enumerate_backgroun
 
 
 class BackgroundWindowCatalogTests(unittest.TestCase):
+    def test_candidate_window_does_not_require_a_title(self):
+        from floatingbar import winapi
+
+        with patch("floatingbar.winapi.user32.IsWindowVisible", return_value=True), \
+             patch("floatingbar.winapi.user32.GetWindowLongW", return_value=0), \
+             patch("floatingbar.winapi.get_window_title", return_value=""):
+            self.assertTrue(winapi._is_candidate_window(100))
+
     def test_catalog_excludes_requested_hwnds_and_minimized_windows_by_default(self):
         windows = [100, 200, 300]
 
