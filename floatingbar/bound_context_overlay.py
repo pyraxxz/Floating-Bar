@@ -281,7 +281,7 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         try:
             live = tuple(enumerate_conversations(
                 self._work_hwnd,
-                limit=ConversationPicker.CATALOG_LIMIT,
+                limit=None,
             ) or ())
         except Exception:
             return ()

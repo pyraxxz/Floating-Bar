@@ -118,9 +118,14 @@ def _row_sort_key(row: TelegramChatItem) -> tuple[int, int, int, int, str]:
     )
 
 
-def enumerate_telegram_chats(hwnd: int, limit: int = 6) -> tuple[TelegramChatItem, ...]:
-    """Return up to ``limit`` visible left-pane Telegram chat rows."""
-    if not hwnd or limit <= 0:
+def enumerate_telegram_chats(hwnd: int, limit: int | None = 6) -> tuple[TelegramChatItem, ...]:
+    """Return visible left-pane Telegram chat rows, optionally bounded for UI display.
+
+    ``limit=None`` returns every discovered visible row. Internal identity and
+    revalidation paths use the unbounded form so attention-based ordering cannot
+    hide a valid target behind an arbitrary display limit.
+    """
+    if not hwnd or (limit is not None and limit <= 0):
         return ()
     try:
         pid = winapi.get_window_pid(hwnd)
@@ -178,7 +183,7 @@ def enumerate_telegram_chats(hwnd: int, limit: int = 6) -> tuple[TelegramChatIte
                 )
             )
         rows.sort(key=_row_sort_key)
-        return tuple(rows[:limit])
+        return tuple(rows if limit is None else rows[:limit])
     except Exception:
         return ()
 
@@ -222,7 +227,7 @@ def _refresh_selected_row(chat: TelegramChatItem) -> TelegramChatItem:
         current_process_start = winapi.get_process_creation_time(chat.pid)
         if not _same_process_instance(chat.process_start, current_process_start):
             raise RuntimeError("Telegram chat window process instance changed")
-    current_rows = enumerate_telegram_chats(chat.hwnd, limit=24)
+    current_rows = enumerate_telegram_chats(chat.hwnd, limit=None)
 
     if chat.runtime_id is not None:
         identity_matches = [row for row in current_rows if row.runtime_id == chat.runtime_id]
@@ -317,7 +322,7 @@ def chat_identity_matches(chat: TelegramChatItem) -> bool:
             current_process_start = None
         if not _same_process_instance(chat.process_start, current_process_start):
             return False
-    current_rows = enumerate_telegram_chats(chat.hwnd, limit=32)
+    current_rows = enumerate_telegram_chats(chat.hwnd, limit=None)
     if chat.runtime_id is not None:
         matches = [row for row in current_rows if row.runtime_id == chat.runtime_id]
         if len(matches) == 1:

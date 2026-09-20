@@ -227,8 +227,8 @@ class TelegramChatPickerTests(unittest.TestCase):
         self.assertEqual(result, selected)
         self.assertEqual(confirmed_telegram_chat_for_scope(100, 200), selected)
         enumerate_rows.assert_has_calls([
-            unittest.mock.call(100, limit=24),
-            unittest.mock.call(100, limit=24),
+            unittest.mock.call(100, limit=None),
+            unittest.mock.call(100, limit=None),
         ])
         self.assertEqual(enumerate_rows.call_count, 2)
         to_client.assert_called_once_with(100, 210, 240)
@@ -319,6 +319,21 @@ class TelegramChatPickerTests(unittest.TestCase):
         picker.hide()
         self.assertIsNone(picker.window)
         stale_popup.destroy.assert_called_once()
+
+
+    def test_chat_identity_revalidation_requests_unbounded_rows(self):
+        chat = TelegramChatItem(
+            100, 200, "Alice", 10, 100, 310, 150, True,
+            runtime_id=(1, 2, 3),
+        )
+        same = TelegramChatItem(
+            100, 200, "Alice", 10, 100, 310, 150, True,
+            runtime_id=(1, 2, 3),
+        )
+        with patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.telegram_chats.enumerate_telegram_chats", return_value=(same,)) as enumerate_rows:
+            self.assertTrue(chat_identity_matches(chat))
+        enumerate_rows.assert_called_once_with(100, limit=None)
 
 
 if __name__ == "__main__":
