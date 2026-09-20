@@ -93,7 +93,17 @@ def _selected(item) -> bool:
     try:
         return bool(item.iface_selection_item.CurrentIsSelected)
     except Exception:
-        return False
+        pass
+    # Some UIA list providers expose selection only on the parent provider,
+    # not on each ListItem. Compare runtime identity without reading content.
+    try:
+        parent = item.parent()
+        for selected in parent.get_selection():
+            if _runtime_id(selected) == _runtime_id(item):
+                return True
+    except Exception:
+        pass
+    return False
 
 
 def _row_attention(item) -> ConversationAttention:
