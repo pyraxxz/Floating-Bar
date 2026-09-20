@@ -51,9 +51,9 @@ def evidence_for_adapter(
     parsing remains available for compatibility, but callers that have a
     structured producer result do not need to recover evidence from text.
     """
-    if error:
-        raw = from_result(strategy, error)
-    elif isinstance(submission_evidence, SubmissionEvidence):
+    if isinstance(submission_evidence, SubmissionEvidence):
+        # Structured producer evidence is authoritative; legacy strategy/error
+        # inputs cannot downgrade or reinterpret it.
         raw = submission_evidence
     else:
         raw = from_result(strategy, error)
