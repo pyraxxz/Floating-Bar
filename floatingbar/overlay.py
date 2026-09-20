@@ -470,6 +470,10 @@ class OrbRelayWindow(tk.Tk):
         )
         self._blink_job = self.after(280, lambda: self._blink_sending(not on))
 
+    def _uncertain_feedback_message(self) -> str:
+        """Return a target-neutral explanation for an unverified send."""
+        return "The send was not confirmed. Verify the target before retrying."
+
     def _show_feedback(self, message: str, color: str = None) -> None:
         self._feedback_message = message
         self._feedback_color = color or config.ERROR_COLOR
@@ -785,7 +789,7 @@ class OrbRelayWindow(tk.Tk):
             self._set_retry_menu_enabled(False)
             self._flash_orb(config.ORB_COLOR_UNVERIFIED)
             self._show_feedback(
-                "Telegram did not confirm the send. Verify it before retrying.",
+                self._uncertain_feedback_message(),
                 config.ORB_COLOR_UNVERIFIED,
             )
         else:
