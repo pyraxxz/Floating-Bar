@@ -168,6 +168,7 @@ class BackgroundAppPicker:
         self._action_hide_job = None
         self._live_refresh_job = None
         self._live_snapshot = ()
+        self._row_identity_by_widget = {}
         self._hover = HoverState()
 
     def bind(self, widget: tk.Misc) -> None:
@@ -279,9 +280,38 @@ class BackgroundAppPicker:
 
         return tuple(merged)
 
-    def show(self) -> None:
+    @staticmethod
+    def _item_identity_key(item: PickerItem) -> tuple:
+        """Return a stable live-window identity that survives picker reordering."""
+        return (
+            int(item.hwnd or 0),
+            int(item.pid or 0),
+            item.process_start,
+        )
+
+    def _focused_row_identity(self) -> Optional[tuple]:
+        """Return the focused picker row identity without relying on row text."""
+        try:
+            focused = self.owner.focus_get()
+        except Exception:
+            return None
+        return self._row_identity_by_widget.get(focused)
+
+    def show(
+        self,
+        *,
+        preserve_popup_hover: bool = False,
+        preserve_focus_key: Optional[tuple] = None,
+    ) -> None:
         self._show_job = None
-        if not self._hover.owner:
+        preserve_popup_hover = bool(
+            preserve_popup_hover
+            and self.window is not None
+            and self._hover.popup
+            and not self._hover.owner
+            and not self._hover.actions
+        )
+        if not self._hover.owner and not preserve_popup_hover:
             return
         try:
             windows = tuple(self.refresh() or ())
@@ -302,8 +332,12 @@ class BackgroundAppPicker:
             self.hide()
             return
 
+        was_popup_hovered = preserve_popup_hover
         self.hide()
-        self._hover.enter_owner()
+        if was_popup_hovered:
+            self._hover.enter_popup()
+        else:
+            self._hover.enter_owner()
         popup = tk.Toplevel(self.owner)
         self.window = popup
         popup.overrideredirect(True)
@@ -363,6 +397,7 @@ class BackgroundAppPicker:
                 command=lambda selected=item: self._selected(selected),
             )
             button.pack(fill="x", ipady=5)
+            self._row_identity_by_widget[button] = self._item_identity_key(item)
             if item.actionable:
                 row_buttons.append(button)
                 button.bind(
@@ -378,6 +413,14 @@ class BackgroundAppPicker:
             row_buttons,
             on_escape=self.hide,
         )
+        if preserve_focus_key is not None:
+            for row in row_buttons:
+                if self._row_identity_by_widget.get(row) == preserve_focus_key:
+                    try:
+                        row.focus_set()
+                    except Exception:
+                        pass
+                    break
         self._schedule_live_refresh()
 
     def _row_enter(self, item: PickerItem, row: tk.Misc) -> None:
@@ -414,7 +457,7 @@ class BackgroundAppPicker:
 
     def _schedule_live_refresh(self) -> None:
         self._cancel_live_refresh()
-        if self.window is None or not self._hover.owner:
+        if self.window is None or not (self._hover.owner or self._hover.popup):
             return
         self._live_refresh_job = self.owner.after(
             self.LIVE_REFRESH_MS,
@@ -423,7 +466,7 @@ class BackgroundAppPicker:
 
     def _refresh_open_picker(self) -> None:
         self._live_refresh_job = None
-        if self.window is None or not self._hover.owner:
+        if self.window is None or not (self._hover.owner or self._hover.popup):
             return
         try:
             windows = tuple(self.refresh() or ())
@@ -432,7 +475,13 @@ class BackgroundAppPicker:
             self._schedule_live_refresh()
             return
         if snapshot != self._live_snapshot and not self._hover.actions:
-            self.show()
+            focus_key = self._focused_row_identity()
+            kwargs = {}
+            if self._hover.popup and not self._hover.owner:
+                kwargs["preserve_popup_hover"] = True
+            if focus_key is not None:
+                kwargs["preserve_focus_key"] = focus_key
+            self.show(**kwargs)
             return
         self._schedule_live_refresh()
 
@@ -530,6 +579,7 @@ class BackgroundAppPicker:
         self._cancel_live_refresh()
         self._cancel_action_hide()
         self._hide_actions()
+        self._row_identity_by_widget = {}
         popup = self.window
         self.window = None
         self._hover.leave_popup()
