@@ -393,6 +393,24 @@ class BackgroundTypingTargetTests(unittest.TestCase):
             self.target.send("   ")
 
 
+    def test_pinned_child_allows_automation_id_change_when_runtime_identity_is_stable(self):
+        original = InputCandidate(
+            301, 200, "RichEdit", "Edit", 0, 0, 400, 30, False, True, True,
+            automation_id="composer", framework_id="uia", runtime_id=(1, 2, 3),
+        )
+        relabeled = InputCandidate(
+            301, 200, "RichEdit", "Edit", 0, 0, 700, 44, False, True, True,
+            automation_id="composer-renamed", framework_id="uia", runtime_id=(1, 2, 3),
+        )
+        with patch("floatingbar.generic_target.winapi.user32.IsWindow", return_value=True),              patch("floatingbar.generic_target.winapi.user32.IsWindowVisible", return_value=True),              patch("floatingbar.generic_target.winapi.get_window_pid", return_value=200),              patch.object(self.target, "input_candidates", side_effect=[(original,), (relabeled,)]),              patch("floatingbar.generic_target.winapi.post_text") as post_text,              patch("floatingbar.generic_target.winapi.post_enter") as post_enter:
+            self.target.pin_best_input()
+            result = self.target.send("hello")
+
+        self.assertEqual(result, "posted-enter (unverified)")
+        post_text.assert_called_once_with(301, "hello", expected_pid=200, expected_process_start=None)
+        post_enter.assert_called_once_with(301, target=301, expected_pid=200, expected_process_start=None)
+
+
 class CandidateScoringTests(unittest.TestCase):
     def test_focused_candidate_beats_unfocused_large_candidate(self):
         focused = InputCandidate(10, 20, "Edit", "Edit", 0, 500, 300, 540, True, True, True)
