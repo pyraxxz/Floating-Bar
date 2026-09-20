@@ -243,8 +243,6 @@ def refresh_conversation(item: ConversationItem) -> ConversationItem:
             fresh = identity_matches[0]
             if item.control_identity is not None and fresh.control_identity != item.control_identity:
                 raise RuntimeError("conversation row control identity changed")
-            if abs(fresh.left - item.left) + abs(fresh.top - item.top) > 24:
-                raise RuntimeError("conversation row moved before selection")
             return fresh
         if item.control_identity is None:
             raise RuntimeError("conversation row runtime identity disappeared")
@@ -260,10 +258,7 @@ def refresh_conversation(item: ConversationItem) -> ConversationItem:
                 if row.container_identity == item.container_identity
             ]
         if len(structural_matches) == 1:
-            fresh = structural_matches[0]
-            if abs(fresh.left - item.left) + abs(fresh.top - item.top) > 24:
-                raise RuntimeError("conversation row moved before selection")
-            return fresh
+            return structural_matches[0]
         if len(structural_matches) > 1:
             raise RuntimeError("conversation row structural identity is ambiguous")
         raise RuntimeError("conversation row structural identity disappeared")
@@ -274,10 +269,7 @@ def refresh_conversation(item: ConversationItem) -> ConversationItem:
             if row.container_identity == item.container_identity
         ]
         if len(structural_matches) == 1:
-            fresh = structural_matches[0]
-            if abs(fresh.left - item.left) + abs(fresh.top - item.top) > 24:
-                raise RuntimeError("conversation row moved before selection")
-            return fresh
+            return structural_matches[0]
         if len(structural_matches) > 1:
             raise RuntimeError("conversation row container identity is ambiguous")
         raise RuntimeError("conversation row container identity disappeared")
