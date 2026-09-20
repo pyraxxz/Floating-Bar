@@ -412,5 +412,39 @@ class ConversationRowTests(unittest.TestCase):
                 _refresh_row(item)
 
 
+    def test_refresh_row_requests_unbounded_catalog(self):
+        item = ConversationItem(
+            123, 200, "Alice", 20, 100, 420, 160,
+            False, (9, 9), ("ListItem", "row", "uia"),
+        )
+        fresh = ConversationItem(
+            123, 200, "Alice", 20, 100, 420, 160,
+            True, (9, 9), ("ListItem", "row", "uia"),
+        )
+        with patch("floatingbar.conversation_rows.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.conversation_rows.enumerate_conversations", return_value=(fresh,)) as enumerate_rows:
+            from floatingbar.conversation_rows import _refresh_row
+            self.assertEqual(_refresh_row(item), fresh)
+        enumerate_rows.assert_called_once_with(123, limit=None)
+
+    def test_conversation_catalog_can_return_all_visible_rows_for_revalidation(self):
+        window = Mock()
+        window.rectangle.return_value = _Rect(0, 0, 1000, 900)
+        rows = [
+            _Item(
+                _Rect(20, 100 + (index * 70), 420, 160 + (index * 70)),
+                f"Chat {index}",
+            )
+            for index in range(8)
+        ]
+        window.descendants.side_effect = [rows, []]
+        with self._app_patch(window), \
+             patch("floatingbar.conversation_rows.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.conversation_rows.winapi.user32.IsWindow", return_value=True):
+            result = enumerate_conversations(123, limit=None)
+
+        self.assertEqual(len(result), 8)
+
+
 if __name__ == "__main__":
     unittest.main()
