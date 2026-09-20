@@ -31,6 +31,19 @@ class ConversationPickerRow:
         return ""
 
 
+def empty_state_copy(title: str, error: bool = False) -> tuple[str, str]:
+    safe_title = str(title or "Conversations").strip() or "Conversations"
+    if error:
+        return (
+            f"{safe_title} unavailable",
+            "The conversation list could not be read safely. You can try again.",
+        )
+    return (
+        f"No safe {safe_title.lower()} found",
+        "No safe conversation rows are available right now.",
+    )
+
+
 def conversation_picker_identity(item: ConversationItem) -> tuple[object, ...]:
     """Return the strongest available content-free row identity."""
     scope = (item.hwnd, item.pid)
@@ -209,19 +222,16 @@ class ConversationPicker:
         popup.geometry(f"{self.WIDTH}x{height}+{x}+{y}")
         frame = ui_theme.frame(popup, padx=12, pady=10)
         frame.pack(fill="both", expand=True)
+        title, detail = empty_state_copy(self.title, error)
         ui_theme.label(
             frame,
-            text=f"{self.title} unavailable" if error else f"No safe {self.title.lower()} found",
+            text=title,
             fg=ui_theme.TEXT_STRONG,
             bold=True,
         ).pack(fill="x")
         ui_theme.label(
             frame,
-            text=(
-                "The conversation list could not be read safely. You can try again."
-                if error
-                else "No safe conversation rows are available right now."
-            ),
+            text=detail,
             muted=True,
             small=True,
             wraplength=270,
