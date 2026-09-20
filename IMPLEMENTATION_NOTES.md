@@ -222,3 +222,13 @@ Typed submission evidence now carries a content-free `proof_kind`. The current c
 ## Content-free UI identity hardening
 
 Conversation and Telegram row identities now use a shared structural helper that records only control type, class, framework, bounded ancestor structure, runtime IDs, and geometry. UIA AutomationId is excluded because it may carry user-facing or context-bearing strings. Persistent conversation pins use schema v5; older pin files are loaded without legacy structural/container identities and rewritten in the sanitized format.
+
+## Generic control identity hardening
+
+Generic background input pins now use a centralized content-free control identity.
+When UI Automation exposes a runtime ID, that runtime ID is the authoritative
+session anchor and AutomationId churn cannot invalidate an otherwise stable
+control. AutomationId remains a session-only fallback discriminator when no
+runtime ID is available. The same identity rule is used for UIA wrapper
+deduplication and send-time pinned-control revalidation.
+
