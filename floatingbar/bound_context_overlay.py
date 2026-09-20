@@ -133,6 +133,15 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             on_change=self._refresh_quick_reply_menu,
         )
 
+    def _expand(self) -> None:
+        """Open a fresh foreground compose context unless a send is in flight."""
+        if not self._sending and self._state != "bar":
+            self._clear_background_binding(
+                reset_retry=False,
+                advance_generation=True,
+            )
+        super()._expand()
+
     def _uncertain_feedback_message(self) -> str:
         """Name the selected adapter without exposing window/chat content."""
         spec = actionable_adapter_for_process(
@@ -330,6 +339,51 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             window_class=window_class,
         )
 
+    def _clear_background_binding(
+        self,
+        *,
+        reset_retry: bool = False,
+        advance_generation: bool = True,
+    ) -> None:
+        """Release the active background target and clear its routing metadata.
+
+        Collapsing the bar is a UI reset, not a target-retention boundary. A
+        later expansion must start from the new foreground context rather than
+        silently inheriting the previously selected background app.
+        """
+        if advance_generation:
+            self._advance_selection_generation()
+        self._pending_chat = None
+        self._pending_conversation = None
+        try:
+            self._background_typer.release()
+        except Exception:
+            pass
+        try:
+            self.target.release()
+        except Exception:
+            pass
+        self._background_process_name = ""
+        self._background_adapter_key = ""
+        self._background_window_class = ""
+        self._work_hwnd = 0
+        self._generic_attempt_id = 0
+        self._attempt_context = None
+        try:
+            self.injector.set_window_context(None)
+        except Exception:
+            pass
+        if reset_retry:
+            self._retry_draft = None
+            self._retry_target_hwnd = 0
+            self._retry_context = None
+            self._generic_retry_scope = None
+            self._generic_retry_process_name = ""
+            self._generic_retry_adapter_key = ""
+            self._generic_retry_window_class = ""
+            self._generic_retry_process_start = None
+            self._set_retry_menu_enabled(False)
+
     def _select_background_window(self, item: PickerItem) -> None:
         """Choose an actionable process/window without foregrounding it."""
         if not item.actionable or not item.hwnd or not item.pid:
@@ -338,19 +392,10 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         if spec is None or not spec.implemented or not spec.supports_background_type:
             return
         self._advance_selection_generation()
-        self._background_typer.release()
-        self._generic_retry_scope = None
-        self._generic_retry_process_name = ""
-        self._generic_retry_adapter_key = ""
-        self._generic_retry_window_class = ""
-        self._generic_retry_process_start = None
-        self._pending_chat = None
-        self._pending_conversation = None
-        self._background_process_name = ""
-        self._background_adapter_key = ""
-        self._background_window_class = ""
-        self._work_hwnd = 0
-        self._generic_attempt_id = 0
+        self._clear_background_binding(
+            reset_retry=True,
+            advance_generation=False,
+        )
         self._update_status()
         try:
             if winapi.user32.IsWindow(item.hwnd) and winapi.get_window_pid(item.hwnd) != item.pid:
@@ -436,9 +481,12 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         if self._sending:
             return
         token = self._advance_selection_generation()
-        self._pending_conversation = conversation
         try:
-            select_conversation(conversation)
+            confirmed = select_conversation(conversation)
+            # Carry the freshly confirmed row forward. The original picker row
+            # may have moved while Telegram/another chat app reflowed its list;
+            # the selector already returned the identity-safe current row.
+            self._pending_conversation = conversation if confirmed is None else confirmed
         except Exception as exc:
             self._pending_conversation = None
             trace.trace(f"background conversation selection failed safely: {exc}")
@@ -502,10 +550,12 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         if self._sending:
             return
         token = self._advance_selection_generation()
-        self._pending_chat = chat
         try:
             self.target.release()
-            select_telegram_chat(chat)
+            confirmed = select_telegram_chat(chat)
+            # Keep the exact row returned after Telegram confirmed selection.
+            # This avoids handing the later binding stage the stale popup row.
+            self._pending_chat = chat if confirmed is None else confirmed
         except Exception as exc:
             self._pending_chat = None
             trace.trace(f"telegram chat selection failed safely: {exc}")
@@ -670,10 +720,28 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
         self._show_bar()
         self._set_retry_menu_enabled(True)
 
+    def _collapse(self) -> None:
+        """Collapse the bar and discard the active background routing lease."""
+        if self._state == "orb" or self._sending:
+            return super()._collapse()
+        self._clear_background_binding(reset_retry=False, advance_generation=True)
+        super()._collapse()
+
     def _send_finished(self, completion):
-        """Use base UI handling for generic attempts, without Telegram release."""
+        """Use app-specific completion handling without retaining stale routing state."""
         if completion.attempt_id != getattr(self, "_generic_attempt_id", 0):
-            return super()._send_finished(completion)
+            is_current_telegram = (
+                completion.attempt_id == getattr(self, "_active_attempt_id", 0)
+                and self._background_adapter_key == "telegram"
+            )
+            try:
+                return super()._send_finished(completion)
+            finally:
+                if is_current_telegram:
+                    self._clear_background_binding(
+                        reset_retry=False,
+                        advance_generation=False,
+                    )
         retry_scope = None
         retry_process_name = self._background_process_name
         retry_adapter_key = self._background_adapter_key

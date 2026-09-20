@@ -189,6 +189,175 @@ class SelectionRaceTests(unittest.TestCase):
         window.target.select_for_send.assert_not_called()
         window.target.release.assert_not_called()
 
+    def test_fresh_expand_clears_half_selected_background_context(self):
+        window = self._window()
+        window._state = "orb"
+        window._background_process_name = "discord.exe"
+        window._background_adapter_key = "discord"
+        window._background_window_class = "DiscordMainWindow"
+        window._work_hwnd = 456
+        window._background_typer.release = Mock()
+        window.target.release = Mock()
+        window.injector = Mock()
+        window._retry_draft = "retry this"
+        window._retry_target_hwnd = 456
+        window._retry_context = Mock()
+        window._generic_retry_scope = TargetScope(456, 789)
+        window._generic_retry_process_name = "discord.exe"
+        window._generic_retry_adapter_key = "discord"
+        window._set_retry_menu_enabled = Mock()
+
+        with patch(
+            "floatingbar.bound_context_overlay._ContextOrbRelayWindow._expand"
+        ) as parent_expand:
+            window._expand()
+
+        self.assertEqual(window._background_process_name, "")
+        self.assertEqual(window._background_adapter_key, "")
+        self.assertEqual(window._background_window_class, "")
+        self.assertEqual(window._work_hwnd, 0)
+        self.assertEqual(window._retry_draft, "retry this")
+        self.assertEqual(window._retry_target_hwnd, 456)
+        self.assertIsNotNone(window._retry_context)
+        self.assertEqual(window._generic_retry_scope, TargetScope(456, 789))
+        window._background_typer.release.assert_called_once_with()
+        window.target.release.assert_called_once_with()
+        window.injector.set_window_context.assert_called_once_with(None)
+        parent_expand.assert_called_once_with()
+
+    def test_conversation_selection_handoff_uses_confirmed_row(self):
+        window = self._window()
+        original = Mock(hwnd=123, pid=200, name="Original", process_start=10)
+        confirmed = Mock(hwnd=123, pid=200, name="Confirmed", process_start=10)
+        window.after = lambda _delay, callback: None
+
+        with patch(
+            "floatingbar.bound_context_overlay.select_conversation",
+            return_value=confirmed,
+        ):
+            window._select_conversation(original)
+
+        self.assertIs(window._pending_conversation, confirmed)
+
+    def test_telegram_selection_handoff_uses_confirmed_row(self):
+        window = self._window()
+        original = Mock(hwnd=123, pid=200, name="Original", process_start=10)
+        confirmed = Mock(hwnd=123, pid=200, name="Confirmed", process_start=10)
+        window.after = lambda _delay, callback: None
+
+        with patch(
+            "floatingbar.bound_context_overlay.select_telegram_chat",
+            return_value=confirmed,
+        ):
+            window._select_telegram_chat(original)
+
+        self.assertIs(window._pending_chat, confirmed)
+
+    def test_collapse_clears_active_background_routing(self):
+        window = self._window()
+        window._state = "bar"
+        window._hide_feedback = Mock()
+        window._show_orb = Mock()
+        window._background_typer.release = Mock()
+        window.target.release = Mock()
+        window.injector = Mock()
+        window._attempt_context = Mock()
+        window._retry_draft = None
+        window._retry_target_hwnd = 0
+
+        window._collapse()
+
+        self.assertEqual(window._background_process_name, "")
+        self.assertEqual(window._background_adapter_key, "")
+        self.assertEqual(window._background_window_class, "")
+        self.assertEqual(window._work_hwnd, 0)
+        self.assertIsNone(window._pending_chat)
+        self.assertIsNone(window._pending_conversation)
+        self.assertIsNone(window._attempt_context)
+        window._background_typer.release.assert_called_once_with()
+        window.target.release.assert_called_once_with()
+        window.injector.set_window_context.assert_called_once_with(None)
+        window._show_orb.assert_called_once_with()
+
+    def test_collapse_preserves_an_explicit_retry_draft(self):
+        window = self._window()
+        window._state = "bar"
+        window._hide_feedback = Mock()
+        window._show_orb = Mock()
+        window._background_typer.release = Mock()
+        window.target.release = Mock()
+        window.injector = Mock()
+        window._retry_draft = "retry this"
+        window._retry_target_hwnd = 456
+        window._retry_context = Mock()
+        window._generic_retry_scope = TargetScope(456, 789)
+
+        window._collapse()
+
+        self.assertEqual(window._retry_draft, "retry this")
+        self.assertEqual(window._retry_target_hwnd, 456)
+        self.assertIsNotNone(window._retry_context)
+        self.assertEqual(window._generic_retry_scope, TargetScope(456, 789))
+
+    def test_reset_background_binding_can_discard_retry_state_for_new_selection(self):
+        window = self._window()
+        window._background_typer.release = Mock()
+        window.target.release = Mock()
+        window.injector = Mock()
+        window._set_retry_menu_enabled = Mock()
+        window._retry_draft = "old draft"
+        window._retry_target_hwnd = 456
+        window._retry_context = Mock()
+        window._generic_retry_scope = TargetScope(456, 789)
+        window._generic_retry_process_name = "discord.exe"
+        window._generic_retry_adapter_key = "discord"
+        window._generic_retry_window_class = "DiscordMainWindow"
+        window._generic_retry_process_start = 123
+
+        window._clear_background_binding(reset_retry=True)
+
+        self.assertIsNone(window._retry_draft)
+        self.assertEqual(window._retry_target_hwnd, 0)
+        self.assertIsNone(window._retry_context)
+        self.assertIsNone(window._generic_retry_scope)
+        self.assertEqual(window._generic_retry_process_name, "")
+        self.assertEqual(window._generic_retry_adapter_key, "")
+        self.assertEqual(window._generic_retry_window_class, "")
+        self.assertIsNone(window._generic_retry_process_start)
+        window._set_retry_menu_enabled.assert_called_once_with(False)
+
+    def test_telegram_completion_clears_stale_background_routing(self):
+        window = OrbRelayWindow.__new__(OrbRelayWindow)
+        window._generic_attempt_id = 0
+        window._active_attempt_id = 42
+        window._background_adapter_key = "telegram"
+        window._background_process_name = "telegram.exe"
+        window._background_window_class = "TelegramMainWindow"
+        window._work_hwnd = 123
+        window._background_typer = Mock()
+        window.target = Mock()
+        window.injector = Mock()
+        window._pending_chat = Mock()
+        window._pending_conversation = None
+        window._attempt_context = Mock()
+        window._selection_generation = 3
+        completion = Mock(attempt_id=42)
+
+        with patch(
+            "floatingbar.bound_context_overlay._ContextOrbRelayWindow._send_finished"
+        ):
+            window._send_finished(completion)
+
+        self.assertEqual(window._background_adapter_key, "")
+        self.assertEqual(window._background_process_name, "")
+        self.assertEqual(window._background_window_class, "")
+        self.assertEqual(window._work_hwnd, 0)
+        self.assertIsNone(window._pending_chat)
+        self.assertIsNone(window._attempt_context)
+        window.target.release.assert_called_once_with()
+        window._background_typer.release.assert_called_once_with()
+        window.injector.set_window_context.assert_called_once_with(None)
+
     def test_failed_conversation_finish_releases_target_lease(self):
         window = self._window()
         window._background_process_name = "discord.exe"
@@ -218,7 +387,10 @@ class SelectionRaceTests(unittest.TestCase):
         callbacks = []
         window.after = lambda _delay, callback: callbacks.append(callback)
 
-        with patch("floatingbar.bound_context_overlay.select_conversation"):
+        with patch(
+            "floatingbar.bound_context_overlay.select_conversation",
+            side_effect=lambda item: item,
+        ):
             window._select_conversation(older)
             first = callbacks.pop()
             window._select_conversation(newer)
@@ -237,8 +409,10 @@ class SelectionRaceTests(unittest.TestCase):
         newer = Mock(hwnd=123, pid=200, name="Newer", process_start=222)
         callbacks = []
         window.after = lambda _delay, callback: callbacks.append(callback)
-        with patch("floatingbar.bound_context_overlay.select_telegram_chat"), \
-             patch("floatingbar.bound_context_overlay.capture", return_value=Mock()):
+        with patch(
+            "floatingbar.bound_context_overlay.select_telegram_chat",
+            side_effect=lambda item: item,
+        ), patch("floatingbar.bound_context_overlay.capture", return_value=Mock()):
             window._select_telegram_chat(older)
             first = callbacks.pop()
             window._select_telegram_chat(newer)
