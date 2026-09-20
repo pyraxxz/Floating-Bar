@@ -14,7 +14,7 @@ The production boundary also includes exact HWND/PID target binding, read-only p
 
 The newer generic background-input layer now has dedicated structural composer/terminal targets, exact control pinning with identity revalidation, minimized-window support for background selection, and an adapter evidence policy that prevents unsupported generic paths from claiming verified sends.
 
-Submission evidence is producer-owned end to end: Telegram and generic background targets retain typed `SubmissionEvidence`, while a string-compatible evidence carrier preserves the legacy worker/UI strategy API. Adapter policy consumes the typed result when present, so a human-readable strategy string can no longer override a trusted `SUBMITTED`, `UNAVAILABLE`, `FAILED`, or `BLOCKED` result.
+Submission evidence is producer-owned end to end: Telegram and generic background targets retain typed `SubmissionEvidence`, while a string-compatible evidence carrier preserves the legacy worker/UI strategy API. Adapter policy consumes the typed result when present, and compatibility strategy/error fields can no longer override an explicitly supplied typed result. This keeps `SUBMITTED`, `UNAVAILABLE`, `FAILED`, and `BLOCKED` evidence authoritative across the worker/UI boundary.
 Verification evidence also carries a bounded `proof_kind`. Current concrete chat and terminal contracts use `input-acceptance`; this records exactly what the structural verification proves and leaves semantic delivery/execution as separate future proof scopes rather than silently conflating them.
 
 
