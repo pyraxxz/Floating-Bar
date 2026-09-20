@@ -133,6 +133,15 @@ class OrbRelayWindow(_ContextOrbRelayWindow):
             on_change=self._refresh_quick_reply_menu,
         )
 
+    def _expand(self) -> None:
+        """Open a fresh foreground compose context unless a send is in flight."""
+        if not self._sending and self._state != "bar":
+            self._clear_background_binding(
+                reset_retry=False,
+                advance_generation=True,
+            )
+        super()._expand()
+
     def _uncertain_feedback_message(self) -> str:
         """Name the selected adapter without exposing window/chat content."""
         spec = actionable_adapter_for_process(
