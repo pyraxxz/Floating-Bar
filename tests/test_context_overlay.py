@@ -49,6 +49,26 @@ class ContextOverlayTests(unittest.TestCase):
         self.assertIn("_background_picker", BoundContextOverlay.__init__.__code__.co_names)
         self.assertIn("_generic_attempt_id", BoundContextOverlay._send_finished.__code__.co_names)
 
+    def test_uncertain_feedback_is_target_neutral_in_base_overlay(self):
+        window = OrbRelayWindow.__new__(OrbRelayWindow)
+        self.assertEqual(
+            window._uncertain_feedback_message(),
+            "The send was not confirmed. Verify the target before retrying.",
+        )
+
+    def test_uncertain_feedback_names_selected_adapter_without_ui_content(self):
+        window = BoundContextOverlay.__new__(BoundContextOverlay)
+        window._background_process_name = "wt.exe"
+        adapter = Mock(label="Windows Terminal")
+        with patch(
+            "floatingbar.bound_context_overlay.actionable_adapter_for_process",
+            return_value=adapter,
+        ):
+            self.assertEqual(
+                window._uncertain_feedback_message(),
+                "Windows Terminal did not confirm the send. Verify the target before retrying.",
+            )
+
     def test_expand_preserves_failed_draft_target_context(self):
         window = self._window()
         retry_context = Mock()
