@@ -189,6 +189,42 @@ class SelectionRaceTests(unittest.TestCase):
         window.target.select_for_send.assert_not_called()
         window.target.release.assert_not_called()
 
+    def test_fresh_expand_clears_half_selected_background_context(self):
+        window = self._window()
+        window._state = "orb"
+        window._background_process_name = "discord.exe"
+        window._background_adapter_key = "discord"
+        window._background_window_class = "DiscordMainWindow"
+        window._work_hwnd = 456
+        window._background_typer.release = Mock()
+        window.target.release = Mock()
+        window.injector = Mock()
+        window._retry_draft = "retry this"
+        window._retry_target_hwnd = 456
+        window._retry_context = Mock()
+        window._generic_retry_scope = TargetScope(456, 789)
+        window._generic_retry_process_name = "discord.exe"
+        window._generic_retry_adapter_key = "discord"
+        window._set_retry_menu_enabled = Mock()
+
+        with patch(
+            "floatingbar.bound_context_overlay._ContextOrbRelayWindow._expand"
+        ) as parent_expand:
+            window._expand()
+
+        self.assertEqual(window._background_process_name, "")
+        self.assertEqual(window._background_adapter_key, "")
+        self.assertEqual(window._background_window_class, "")
+        self.assertEqual(window._work_hwnd, 0)
+        self.assertEqual(window._retry_draft, "retry this")
+        self.assertEqual(window._retry_target_hwnd, 456)
+        self.assertIsNotNone(window._retry_context)
+        self.assertEqual(window._generic_retry_scope, TargetScope(456, 789))
+        window._background_typer.release.assert_called_once_with()
+        window.target.release.assert_called_once_with()
+        window.injector.set_window_context.assert_called_once_with(None)
+        parent_expand.assert_called_once_with()
+
     def test_conversation_selection_handoff_uses_confirmed_row(self):
         window = self._window()
         original = Mock(hwnd=123, pid=200, name="Original", process_start=10)
