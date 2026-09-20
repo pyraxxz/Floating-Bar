@@ -308,6 +308,68 @@ class BackgroundPickerTests(unittest.TestCase):
 
         self.assertEqual(picker._live_refresh_job, "refresh-job")
 
+    def test_live_refresh_preserves_focused_app_identity(self):
+        focused_row = object()
+        owner = SimpleNamespace(
+            after=lambda _delay, _callback: "refresh-job",
+            after_cancel=lambda _job: None,
+            focus_get=lambda: focused_row,
+        )
+        picker = BackgroundAppPicker.__new__(BackgroundAppPicker)
+        picker.owner = owner
+        picker.window = object()
+        picker._hover = HoverState(owner=True, popup=False, actions=False)
+        picker._live_refresh_job = None
+        picker._live_snapshot = ((10, 20, 30, "notepad.exe", "Edit", False),)
+        picker._row_identity_by_widget = {focused_row: (10, 20, 30)}
+        picker.refresh = lambda: [
+            SimpleNamespace(
+                hwnd=10,
+                pid=20,
+                process_name="notepad.exe",
+                process_start=30,
+                window_class="Edit",
+                foreground=True,
+            ),
+            SimpleNamespace(
+                hwnd=11,
+                pid=21,
+                process_name="telegram.exe",
+                process_start=31,
+                window_class="TelegramMainWindow",
+                foreground=False,
+            ),
+        ]
+        picker.show = Mock()
+        picker._schedule_live_refresh = Mock()
+
+        picker._refresh_open_picker()
+
+        picker.show.assert_called_once_with(
+            preserve_focus_key=(10, 20, 30),
+        )
+        picker._schedule_live_refresh.assert_not_called()
+
+    def test_hide_clears_live_row_identity_cache(self):
+        owner = SimpleNamespace(
+            after_cancel=lambda _job: None,
+        )
+        picker = BackgroundAppPicker.__new__(BackgroundAppPicker)
+        picker.owner = owner
+        picker.window = None
+        picker._show_job = None
+        picker._hide_job = None
+        picker._live_refresh_job = None
+        picker._action_hide_job = None
+        picker._action_window = None
+        picker._action_item = None
+        picker._row_identity_by_widget = {object(): (10, 20, 30)}
+        picker._hover = HoverState(popup=True)
+
+        picker.hide()
+
+        self.assertEqual(picker._row_identity_by_widget, {})
+
     def test_action_hide_timer_is_replaced_when_hover_reenters(self):
         class Owner:
             def __init__(self):
