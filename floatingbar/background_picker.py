@@ -453,7 +453,7 @@ class BackgroundAppPicker:
                 item.process_start,
                 item.process_name,
                 item.window_class,
-                item.area,
+                getattr(item, "area", 0),
                 item.foreground,
             )
             for item in windows
