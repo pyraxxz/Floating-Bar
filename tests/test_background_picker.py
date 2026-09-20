@@ -219,6 +219,34 @@ class BackgroundPickerTests(unittest.TestCase):
             3,
         )
 
+    def test_duplicate_window_ordinals_follow_stable_identity_not_enumeration_order(self):
+        first_window = SimpleNamespace(
+            hwnd=200,
+            pid=20,
+            process_name="code.exe",
+            process_start=2000,
+            label="code.exe",
+            foreground=False,
+        )
+        second_window = SimpleNamespace(
+            hwnd=100,
+            pid=20,
+            process_name="code.exe",
+            process_start=2000,
+            label="code.exe",
+            foreground=True,
+        )
+
+        original = to_picker_items((first_window, second_window))
+        reordered = to_picker_items((second_window, first_window))
+
+        original_by_hwnd = {item.hwnd: item.label for item in original}
+        reordered_by_hwnd = {item.hwnd: item.label for item in reordered}
+
+        self.assertEqual(original_by_hwnd, reordered_by_hwnd)
+        self.assertEqual(reordered_by_hwnd[100], "VS Code 1")
+        self.assertEqual(reordered_by_hwnd[200], "VS Code 2")
+
     def test_recent_items_are_shown_after_pinned_items_and_duplicates_are_removed(self):
         pinned = PickerItem(10, 20, "Telegram", True, False, "telegram.exe", "telegram", False, True)
         recent = PickerItem(10, 20, "Telegram", True, False, "telegram.exe", "telegram", True, False)

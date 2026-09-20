@@ -10,7 +10,7 @@ from dataclasses import dataclass
 import tkinter as tk
 from typing import Callable, Optional, Sequence
 
-from .app_adapters import actionable_adapter_for_process
+from .app_adapters import adapter_for_process, actionable_adapter_for_process
 from .background_windows import BackgroundWindow
 from . import ui_theme
 
@@ -71,12 +71,16 @@ class HoverState:
 
 def _base_label(item: BackgroundWindow) -> tuple[str, bool]:
     """Return a title-free app label and whether it has an actionable adapter."""
-    spec = actionable_adapter_for_process(item.process_name)
+    known_spec = adapter_for_process(item.process_name)
+    spec = known_spec or actionable_adapter_for_process(item.process_name)
     actionable = bool(spec and spec.implemented and spec.supports_background_type)
-    label = spec.label if spec else _LABELS.get(
-        item.process_name,
-        item.label.removesuffix(".exe").title(),
-    )
+    if known_spec is not None:
+        label = known_spec.label
+    else:
+        label = _LABELS.get(
+            item.process_name,
+            spec.label if spec is not None else item.label.removesuffix(".exe").title(),
+        )
     return label, actionable
 
 
@@ -94,13 +98,42 @@ def to_picker_items(windows: Sequence[BackgroundWindow]) -> tuple[PickerItem, ..
         counts[label] = counts.get(label, 0) + 1
         prepared.append((item, label, actionable))
 
-    seen = {}
+    ordinal_maps = {}
+    for label, count in counts.items():
+        if count <= 1:
+            continue
+        matching = [
+            item
+            for item, item_label, _actionable in prepared
+            if item_label == label
+        ]
+        matching.sort(
+            key=lambda item: (
+                getattr(item, "process_start", None) or 0,
+                int(item.pid or 0),
+                int(item.hwnd or 0),
+            )
+        )
+        ordinal_maps[label] = {
+            (
+                int(item.hwnd or 0),
+                int(item.pid or 0),
+                getattr(item, "process_start", None),
+            ): index + 1
+            for index, item in enumerate(matching)
+        }
+
     items = []
     for item, label, actionable in prepared:
-        seen[label] = seen.get(label, 0) + 1
+        identity = (
+            int(item.hwnd or 0),
+            int(item.pid or 0),
+            getattr(item, "process_start", None),
+        )
+        ordinal = ordinal_maps.get(label, {}).get(identity)
         display_label = (
-            f"{label} {seen[label]}"
-            if counts[label] > 1
+            f"{label} {ordinal}"
+            if ordinal is not None
             else label
         )
         spec = actionable_adapter_for_process(item.process_name)
