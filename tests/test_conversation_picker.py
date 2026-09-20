@@ -3,6 +3,7 @@ import unittest
 from floatingbar.conversation_attention import AttentionState, ConversationAttention
 from floatingbar.conversation_picker import (
     ConversationPicker,
+    empty_state_copy,
     conversation_picker_identity,
     paginate_conversations,
     to_conversation_picker_rows,
@@ -23,6 +24,30 @@ def _item(number: int) -> ConversationItem:
 
 
 class ConversationPickerRowTests(unittest.TestCase):
+    def test_empty_state_copy_preserves_safe_title_and_recovery(self):
+        self.assertEqual(
+            empty_state_copy("Microsoft Teams"),
+            (
+                "No safe microsoft teams found",
+                "No safe conversation rows are available right now.",
+            ),
+        )
+        self.assertEqual(
+            empty_state_copy("Microsoft Teams", True),
+            (
+                "Microsoft Teams unavailable",
+                "The conversation list could not be read safely. You can try again.",
+            ),
+        )
+        self.assertEqual(
+            empty_state_copy("  "),
+            (
+                "No safe conversations found",
+                "No safe conversation rows are available right now.",
+            ),
+        )
+
+
     def test_unread_row_gets_attention_label(self):
         item = ConversationItem(
             100,
