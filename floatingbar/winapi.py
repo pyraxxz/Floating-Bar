@@ -11,6 +11,7 @@ Only what this app needs:
 
 import ctypes
 import sys
+import time
 
 if sys.platform != "win32":
     raise ImportError("floatingbar is Windows-only")
@@ -39,6 +40,13 @@ SW_RESTORE = 9
 
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 ERROR_ALREADY_EXISTS = 183
+
+# GetWindowThreadProcessId can briefly report no PID while a GUI window is
+# being recreated. A tiny bounded retry avoids treating that transient state
+# as a target-process replacement while still failing closed when the window
+# really disappears.
+_WINDOW_PID_READ_RETRIES = 3
+_WINDOW_PID_READ_DELAY_S = 0.01
 
 user32.PostMessageW.argtypes = [
     wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM
@@ -132,9 +140,20 @@ def get_window_title(hwnd: int) -> str:
 
 
 def get_window_pid(hwnd: int) -> int:
-    pid = wintypes.DWORD(0)
-    user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-    return pid.value
+    """Return a window's PID, tolerating brief zero-PID GUI transitions."""
+    if not hwnd:
+        return 0
+    for attempt in range(_WINDOW_PID_READ_RETRIES):
+        pid = wintypes.DWORD(0)
+        try:
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        except Exception:
+            pid.value = 0
+        if pid.value:
+            return int(pid.value)
+        if attempt < _WINDOW_PID_READ_RETRIES - 1:
+            time.sleep(_WINDOW_PID_READ_DELAY_S)
+    return 0
 
 def get_window_class_name(hwnd: int) -> str:
     """Return the top-level Win32 class name without reading window content."""
