@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from floatingbar.conversation_attention import AttentionState, ConversationAttention
-from floatingbar.telegram_chat_picker import ChatPickerRow, TelegramChatPicker, to_chat_picker_rows
+from floatingbar.telegram_chat_picker import ChatPickerRow, TelegramChatPicker, empty_state_copy, to_chat_picker_rows
 from floatingbar.telegram_chats import (
     TelegramChatItem,
     chat_identity_matches,
@@ -14,6 +14,24 @@ from floatingbar.telegram_chats import (
 
 
 class TelegramChatPickerTests(unittest.TestCase):
+    def test_empty_state_copy_is_content_free_and_recoverable(self):
+        self.assertEqual(
+            empty_state_copy(),
+            (
+                "No safe chats found",
+                "No safe conversation rows are available right now.",
+            ),
+        )
+        self.assertEqual(
+            empty_state_copy(True),
+            (
+                "Telegram chats unavailable",
+                "The chat list could not be read safely. You can try again.",
+            ),
+        )
+        self.assertNotIn("preview", empty_state_copy(True)[1].lower())
+        self.assertNotIn("message", empty_state_copy(True)[1].lower())
+
     def test_picker_rows_preserve_chat_name_and_selection_without_extra_content(self):
         chat = TelegramChatItem(100, 200, "Alice", 0, 10, 300, 60, True)
         self.assertEqual(
