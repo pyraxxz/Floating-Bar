@@ -387,7 +387,10 @@ class SelectionRaceTests(unittest.TestCase):
         callbacks = []
         window.after = lambda _delay, callback: callbacks.append(callback)
 
-        with patch("floatingbar.bound_context_overlay.select_conversation"):
+        with patch(
+            "floatingbar.bound_context_overlay.select_conversation",
+            side_effect=lambda item: item,
+        ):
             window._select_conversation(older)
             first = callbacks.pop()
             window._select_conversation(newer)
@@ -406,8 +409,10 @@ class SelectionRaceTests(unittest.TestCase):
         newer = Mock(hwnd=123, pid=200, name="Newer", process_start=222)
         callbacks = []
         window.after = lambda _delay, callback: callbacks.append(callback)
-        with patch("floatingbar.bound_context_overlay.select_telegram_chat"), \
-             patch("floatingbar.bound_context_overlay.capture", return_value=Mock()):
+        with patch(
+            "floatingbar.bound_context_overlay.select_telegram_chat",
+            side_effect=lambda item: item,
+        ), patch("floatingbar.bound_context_overlay.capture", return_value=Mock()):
             window._select_telegram_chat(older)
             first = callbacks.pop()
             window._select_telegram_chat(newer)
