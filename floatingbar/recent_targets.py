@@ -195,8 +195,7 @@ class RecentTargetHistory:
             image = ""
         return image.rsplit("\\", 1)[-1].casefold() if image else ""
 
-    @staticmethod
-    def application_is_live(target: RecentTarget) -> bool:
+    def application_is_live(self, target: RecentTarget) -> bool:
         """Revalidate exact HWND/PID plus current adapter/process identity."""
         if target.kind != "application" or not target.valid:
             return False
