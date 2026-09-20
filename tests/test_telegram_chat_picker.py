@@ -77,6 +77,30 @@ class TelegramChatPickerTests(unittest.TestCase):
             result = enumerate_telegram_chats(100, limit=1)
         self.assertEqual(result[0].process_start, 123)
 
+    def test_select_chat_prefers_uia_selection_before_posted_click(self):
+        chat = TelegramChatItem(100, 200, "Alice", 100, 200, 300, 260)
+        refreshed = TelegramChatItem(100, 200, "Alice", 110, 210, 310, 270)
+        selected = TelegramChatItem(100, 200, "Alice", 110, 210, 310, 270, True)
+        wrapper = SimpleNamespace(
+            rectangle=lambda: SimpleNamespace(left=110, top=210),
+            element_info=SimpleNamespace(name="Alice"),
+            select=Mock(),
+            is_selected=Mock(return_value=True),
+        )
+        window = Mock()
+        window.descendants.return_value = [wrapper]
+        with patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
+             patch("floatingbar.telegram_chats.enumerate_telegram_chats", side_effect=[(refreshed,), (selected,)]), \
+             patch("floatingbar.telegram_chats._screen_to_client", return_value=(120, 140)), \
+             patch("floatingbar.telegram_chats.Application") as app_cls, \
+             patch("floatingbar.telegram_chats.winapi.post_click") as post_click:
+            app_cls.return_value.connect.return_value.window.return_value.wrapper_object.return_value = window
+            result = select_telegram_chat(chat)
+        self.assertEqual(result, selected)
+        wrapper.select.assert_called_once_with()
+        post_click.assert_not_called()
+
     def test_select_chat_rejects_same_pid_after_process_restart(self):
         chat = TelegramChatItem(100, 200, "Alice", 0, 10, 300, 60, process_start=123)
         with patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True), \
