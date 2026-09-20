@@ -94,13 +94,42 @@ def to_picker_items(windows: Sequence[BackgroundWindow]) -> tuple[PickerItem, ..
         counts[label] = counts.get(label, 0) + 1
         prepared.append((item, label, actionable))
 
-    seen = {}
+    ordinal_maps = {}
+    for label, count in counts.items():
+        if count <= 1:
+            continue
+        matching = [
+            item
+            for item, item_label, _actionable in prepared
+            if item_label == label
+        ]
+        matching.sort(
+            key=lambda item: (
+                getattr(item, "process_start", None) or 0,
+                int(item.pid or 0),
+                int(item.hwnd or 0),
+            )
+        )
+        ordinal_maps[label] = {
+            (
+                int(item.hwnd or 0),
+                int(item.pid or 0),
+                getattr(item, "process_start", None),
+            ): index + 1
+            for index, item in enumerate(matching)
+        }
+
     items = []
     for item, label, actionable in prepared:
-        seen[label] = seen.get(label, 0) + 1
+        identity = (
+            int(item.hwnd or 0),
+            int(item.pid or 0),
+            getattr(item, "process_start", None),
+        )
+        ordinal = ordinal_maps.get(label, {}).get(identity)
         display_label = (
-            f"{label} {seen[label]}"
-            if counts[label] > 1
+            f"{label} {ordinal}"
+            if ordinal is not None
             else label
         )
         spec = actionable_adapter_for_process(item.process_name)
