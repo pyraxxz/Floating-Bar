@@ -189,6 +189,34 @@ class SelectionRaceTests(unittest.TestCase):
         window.target.select_for_send.assert_not_called()
         window.target.release.assert_not_called()
 
+    def test_conversation_selection_handoff_uses_confirmed_row(self):
+        window = self._window()
+        original = Mock(hwnd=123, pid=200, name="Original", process_start=10)
+        confirmed = Mock(hwnd=123, pid=200, name="Confirmed", process_start=10)
+        window.after = lambda _delay, callback: None
+
+        with patch(
+            "floatingbar.bound_context_overlay.select_conversation",
+            return_value=confirmed,
+        ):
+            window._select_conversation(original)
+
+        self.assertIs(window._pending_conversation, confirmed)
+
+    def test_telegram_selection_handoff_uses_confirmed_row(self):
+        window = self._window()
+        original = Mock(hwnd=123, pid=200, name="Original", process_start=10)
+        confirmed = Mock(hwnd=123, pid=200, name="Confirmed", process_start=10)
+        window.after = lambda _delay, callback: None
+
+        with patch(
+            "floatingbar.bound_context_overlay.select_telegram_chat",
+            return_value=confirmed,
+        ):
+            window._select_telegram_chat(original)
+
+        self.assertIs(window._pending_chat, confirmed)
+
     def test_failed_conversation_finish_releases_target_lease(self):
         window = self._window()
         window._background_process_name = "discord.exe"
