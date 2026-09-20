@@ -395,6 +395,7 @@ class BackgroundAppPicker:
             primary=True,
         )
         action_button.pack(fill="x", padx=4, pady=(4, 2), ipady=4)
+        action_rows = [action_button]
         if self.pin_toggle is not None:
             pin_button = ui_theme.button(
                 popup,
@@ -403,6 +404,12 @@ class BackgroundAppPicker:
                 subtle=True,
             )
             pin_button.pack(fill="x", padx=4, pady=(2, 4), ipady=2)
+            action_rows.append(pin_button)
+        ui_theme.bind_picker_navigation(
+            popup,
+            action_rows,
+            on_escape=self._hide_actions,
+        )
 
     def _toggle_pin(self) -> None:
         item = self._action_item
