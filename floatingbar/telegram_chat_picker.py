@@ -25,6 +25,18 @@ class ChatPickerRow:
         return self.chat.attention.state is AttentionState.UNREAD
 
 
+def empty_state_copy(error: bool = False) -> tuple[str, str]:
+    if error:
+        return (
+            "Telegram chats unavailable",
+            "The chat list could not be read safely. You can try again.",
+        )
+    return (
+        "No safe chats found",
+        "No safe conversation rows are available right now.",
+    )
+
+
 def to_chat_picker_rows(chats: Sequence[TelegramChatItem]) -> tuple[ChatPickerRow, ...]:
     return tuple(
         ChatPickerRow(name=chat.name, selected=chat.selected, chat=chat)
@@ -60,19 +72,16 @@ class TelegramChatPicker:
         popup.geometry(f"{self.WIDTH}x{height}+{x}+{y}")
         frame = ui_theme.frame(popup, padx=12, pady=10)
         frame.pack(fill="both", expand=True)
+        title, detail = empty_state_copy(error)
         ui_theme.label(
             frame,
-            text="Telegram chats unavailable" if error else "No safe chats found",
+            text=title,
             fg=ui_theme.TEXT_STRONG,
             bold=True,
         ).pack(fill="x")
         ui_theme.label(
             frame,
-            text=(
-                "The chat list could not be read safely. You can try again."
-                if error
-                else "No safe conversation rows are available right now."
-            ),
+            text=detail,
             muted=True,
             small=True,
             wraplength=250,
