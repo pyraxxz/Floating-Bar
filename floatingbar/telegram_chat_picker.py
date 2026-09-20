@@ -63,12 +63,16 @@ class TelegramChatPicker:
         popup.attributes("-topmost", True)
         ui_theme.style_popup(popup)
         popup.protocol("WM_DELETE_WINDOW", self.hide)
-        total_height = len(chats) * self.ROW_HEIGHT + 56
+        attention_count = sum(1 for chat in chats if chat.attention.state is AttentionState.UNREAD)
+        total_height = len(chats) * self.ROW_HEIGHT + 98
         x, y = ui_theme.place_popup_near(self.owner, popup, self.WIDTH, total_height)
         popup.geometry(f"{self.WIDTH}x{total_height}+{x}+{y}")
         frame = ui_theme.frame(popup, padx=8, pady=7)
-        ui_theme.label(frame, text="Telegram", muted=True, bold=True, small=True).pack(fill="x", pady=(0, 3))
-        ui_theme.label(frame, text="Choose a chat", muted=True, small=True).pack(fill="x", pady=(0, 1))
+        ui_theme.label(frame, text="Telegram", muted=True, bold=True, small=True).pack(fill="x", pady=(0, 2))
+        summary = f"{len(chats)} chats"
+        if attention_count:
+            summary += f"  ·  {attention_count} unread"
+        ui_theme.label(frame, text=summary, muted=True, small=True).pack(fill="x", pady=(0, 1))
         ui_theme.label(frame, text="↑/↓ move  ·  Enter choose  ·  Esc close", dim=True, small=True).pack(fill="x", pady=(0, 5))
         frame.pack(fill="both", expand=True, padx=4, pady=4)
         row_buttons = []
@@ -90,6 +94,14 @@ class TelegramChatPicker:
             row_buttons.append(button)
 
         ui_theme.bind_picker_navigation(popup, row_buttons, on_escape=self.hide)
+        footer = ui_theme.frame(popup, bg=ui_theme.SURFACE)
+        footer.pack(fill="x", padx=4, pady=(1, 4))
+        ui_theme.button(
+            footer,
+            text="Refresh",
+            command=self.show,
+            subtle=True,
+        ).pack(side="right", padx=2, pady=2)
 
     def _selected(self, chat: TelegramChatItem) -> None:
         self.hide()

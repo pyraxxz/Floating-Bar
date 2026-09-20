@@ -44,7 +44,7 @@ def show(parent: tk.Misc, *, force: bool = False) -> Optional[tk.Toplevel]:
         return None
 
     window = tk.Toplevel(parent)
-    window.title("Floating Bar")
+    window.title("Welcome to Floating Bar")
     window.resizable(False, False)
     window.transient(parent)
     window.attributes("-topmost", True)
@@ -53,17 +53,17 @@ def show(parent: tk.Misc, *, force: bool = False) -> Optional[tk.Toplevel]:
     frame = ui_theme.frame(window, padx=22, pady=18)
     frame.pack(fill="both", expand=True)
 
-    ui_theme.label(frame, text="Floating Bar", fg=ui_theme.TEXT_STRONG, font=("Segoe UI", 15, "bold")).pack(anchor="w")
+    ui_theme.label(frame, text="Welcome to Floating Bar", fg=ui_theme.TEXT_STRONG, font=("Segoe UI", 15, "bold")).pack(fill="x")
     tk.Label(
         frame,
-        text="Send into background apps without switching away from your work.",
+        text="Reply into safe background targets without switching away from the work in front of you.",
         bg=ui_theme.SURFACE, fg=ui_theme.TEXT_MUTED, font=ui_theme.FONT_BODY, wraplength=340, justify="left",
     ).pack(anchor="w", pady=(4, 12))
 
     for step in (
-        "1. Hover the orb to see safe background apps.",
-        "2. Choose an app, then choose Type or Chats.",
-        "3. Enter your text and press Enter to submit.",
+        "1. Hover the orb to find safe background apps.",
+        "2. Choose Type for editing or Chats when conversation selection is available.",
+        "3. Enter your text and press Enter to submit without switching away.",
     ):
         tk.Label(
             frame, text=step, bg=ui_theme.SURFACE, fg=ui_theme.TEXT, font=ui_theme.FONT_BODY,
@@ -72,7 +72,7 @@ def show(parent: tk.Misc, *, force: bool = False) -> Optional[tk.Toplevel]:
 
     tk.Label(
         frame,
-        text="The bar does not read message contents from background apps.",
+        text="Privacy by default: background message bodies are not read. Only quick replies you explicitly save are stored locally.",
         bg=ui_theme.SURFACE, fg=ui_theme.TEXT_DIM, font=ui_theme.FONT_SMALL, wraplength=340, justify="left",
     ).pack(anchor="w", pady=(10, 14))
 
@@ -83,8 +83,12 @@ def show(parent: tk.Misc, *, force: bool = False) -> Optional[tk.Toplevel]:
         except tk.TclError:
             pass
 
+    button = ui_theme.button(frame, text="Got it", command=close, primary=True)
+    button.pack(anchor="e")
+    window.bind("<Return>", lambda _event: (button.invoke(), "break")[1], add="+")
+    window.bind("<Escape>", lambda _event: close(), add="+")
+    button.focus_set()
     window.protocol("WM_DELETE_WINDOW", close)
-    ui_theme.button(frame, text="Got it", command=close, primary=True).pack(anchor="e")
 
     window.grab_set()
     window.update_idletasks()
