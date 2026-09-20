@@ -250,7 +250,6 @@ class TelegramChatIdentityAmbiguityTests(unittest.TestCase):
 
 
     def test_telegram_catalog_can_return_all_visible_rows_for_revalidation(self):
-        import sys
         from types import SimpleNamespace
         from unittest.mock import Mock
 
@@ -285,7 +284,7 @@ class TelegramChatIdentityAmbiguityTests(unittest.TestCase):
         application.return_value.connect.return_value.window.return_value.wrapper_object.return_value = window
         fake_pywinauto = SimpleNamespace(Application=application)
 
-        with patch.dict(sys.modules, {"pywinauto": fake_pywinauto}), \
+        with patch("floatingbar.telegram_chats.Application", application), \
              patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
              patch("floatingbar.telegram_chats.winapi.get_process_creation_time", return_value=None), \
              patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True), \
