@@ -277,6 +277,7 @@ class TelegramChatIdentityAmbiguityTests(unittest.TestCase):
         window.rectangle.return_value = SimpleNamespace(
             left=0,
             top=0,
+            bottom=500,
             width=lambda: 500,
         )
         window.descendants.return_value = [item]
