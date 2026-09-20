@@ -65,6 +65,28 @@ jobs:
       - name: Build Windows executable
         run: pyinstaller --onefile --noconsole --name FloatingBar main.py
 
+
+      - name: Stage test-build package
+        shell: pwsh
+        run: |
+          Copy-Item -LiteralPath installer/Install-FloatingBar.ps1 -Destination dist/Install-FloatingBar.ps1 -Force
+          Copy-Item -LiteralPath installer/Uninstall-FloatingBar.ps1 -Destination dist/Uninstall-FloatingBar.ps1 -Force
+          $hash = (Get-FileHash dist/FloatingBar.exe -Algorithm SHA256).Hash
+          "$hash  FloatingBar.exe" | Out-File dist/FloatingBar.exe.sha256 -Encoding ascii
+
+      - name: Upload Windows test build
+        if: ${{ success() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: FloatingBar-windows-test-${{ github.run_number }}-${{ github.sha }}
+          path: |
+            dist/FloatingBar.exe
+            dist/FloatingBar.exe.sha256
+            dist/Install-FloatingBar.ps1
+            dist/Uninstall-FloatingBar.ps1
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Upload regression output after a failure
         if: ${{ failure() }}
         uses: actions/upload-artifact@v4
