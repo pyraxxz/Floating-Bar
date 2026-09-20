@@ -301,7 +301,7 @@ def _try_uia_select(chat: TelegramChatItem) -> bool:
 
 
 def _refresh_selected_row(chat: TelegramChatItem) -> TelegramChatItem:
-    """Re-read the chat row immediately before clicking to avoid stale geometry."""
+    """Re-read the row immediately before clicking, reusing strong identity if present."""
     if winapi.get_window_pid(chat.hwnd) != chat.pid:
         raise RuntimeError("Telegram chat window process changed")
     if chat.process_start is not None:
@@ -318,8 +318,8 @@ def _refresh_selected_row(chat: TelegramChatItem) -> TelegramChatItem:
             current = identity_matches[0]
             if chat.control_identity is not None and current.control_identity != chat.control_identity:
                 raise RuntimeError("Telegram chat row control identity changed")
-            if abs(current.left - chat.left) + abs(current.top - chat.top) > 24:
-                raise RuntimeError("Telegram chat row moved before selection")
+            # Runtime/control identity is the row identity. Its screen position
+            # may legitimately change when Telegram reorders or relays the list.
             return current
         if chat.control_identity is None:
             raise RuntimeError("Telegram chat row runtime identity disappeared")
@@ -336,10 +336,9 @@ def _refresh_selected_row(chat: TelegramChatItem) -> TelegramChatItem:
                 if row.container_identity == chat.container_identity
             ]
         if len(structural_matches) == 1:
-            current = structural_matches[0]
-            if abs(current.left - chat.left) + abs(current.top - chat.top) > 24:
-                raise RuntimeError("Telegram chat row moved before selection")
-            return current
+            # A unique structural identity is sufficient to recover current
+            # geometry even when the live list has moved by more than 24px.
+            return structural_matches[0]
         if len(structural_matches) > 1:
             raise RuntimeError("Telegram chat row structural identity is ambiguous")
         raise RuntimeError("Telegram chat row structural identity disappeared")
@@ -351,10 +350,7 @@ def _refresh_selected_row(chat: TelegramChatItem) -> TelegramChatItem:
             if row.container_identity == chat.container_identity
         ]
         if len(container_matches) == 1:
-            current = container_matches[0]
-            if abs(current.left - chat.left) + abs(current.top - chat.top) > 24:
-                raise RuntimeError("Telegram chat row moved before selection")
-            return current
+            return container_matches[0]
         if len(container_matches) > 1:
             raise RuntimeError("Telegram chat row container identity is ambiguous")
         raise RuntimeError("Telegram chat row container identity disappeared")
