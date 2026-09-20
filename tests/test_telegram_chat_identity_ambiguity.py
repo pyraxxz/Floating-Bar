@@ -1,3 +1,4 @@
+from floatingbar.conversation_attention import ConversationAttention
 import unittest
 from unittest.mock import patch
 
@@ -286,7 +287,8 @@ class TelegramChatIdentityAmbiguityTests(unittest.TestCase):
         with patch.dict(sys.modules, {"pywinauto": fake_pywinauto}), \
              patch("floatingbar.telegram_chats.winapi.get_window_pid", return_value=200), \
              patch("floatingbar.telegram_chats.winapi.get_process_creation_time", return_value=None), \
-             patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True):
+             patch("floatingbar.telegram_chats.winapi.user32.IsWindow", return_value=True), \
+             patch("floatingbar.telegram_chats._row_attention", return_value=ConversationAttention()):
             rows = enumerate_telegram_chats(100, limit=None)
 
         self.assertEqual(len(rows), 1)
