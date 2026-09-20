@@ -4,7 +4,12 @@ Single-instance guarded; on a second launch the process exits silently.
 """
 
 import sys
-import traceback
+def fatal_crash_message() -> str:
+    """Return a content-free message for the unrecoverable-crash dialog."""
+    return (
+        "Floating Bar encountered an unrecoverable error and must close. "
+        "A content-free exception type was written to the session trace."
+    )
 
 
 def main() -> None:
@@ -41,16 +46,19 @@ def main() -> None:
     hotkey.start()
     try:
         app.run()
-    except Exception:
+    except Exception as exc:
         # Launched via pythonw.exe there is no console — make a fatal
-        # crash visible instead of dying silently. (Per-message failures
-        # never use popups; this is only for unrecoverable startup/loop
-        # crashes.)
-        err = traceback.format_exc()
+        # crash visible instead of dying silently. Never surface the raw
+        # traceback: exception messages can contain UI/application content.
+        try:
+            from floatingbar import trace
+            trace.trace_exception("fatal application crash", exc)
+        except Exception:
+            pass
         try:
             import ctypes
             ctypes.windll.user32.MessageBoxW(
-                0, "Floating Bar crashed:\n\n" + err[-800:], "Floating Bar", 0x10
+                0, fatal_crash_message(), "Floating Bar", 0x10
             )
         except Exception:
             pass
