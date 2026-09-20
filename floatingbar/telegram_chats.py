@@ -219,6 +219,77 @@ def _screen_to_client(hwnd: int, x: int, y: int) -> tuple[int, int]:
     return int(point.x), int(point.y)
 
 
+def _wrapper_matches_chat(item, chat: TelegramChatItem) -> bool:
+    """Match a live UIA ListItem to the captured chat identity."""
+    try:
+        rect = item.rectangle()
+    except Exception:
+        return False
+    runtime_id = _runtime_id(item)
+    if chat.runtime_id is not None:
+        if runtime_id != chat.runtime_id:
+            return False
+        if chat.control_identity is not None:
+            try:
+                if control_identity(item.element_info) != chat.control_identity:
+                    return False
+            except Exception:
+                return False
+        return True
+    if chat.control_identity is not None:
+        try:
+            if control_identity(item.element_info) != chat.control_identity:
+                return False
+            if chat.container_identity is not None:
+                if ancestor_identity(item) != chat.container_identity:
+                    return False
+        except Exception:
+            return False
+        return abs(rect.left - chat.left) + abs(rect.top - chat.top) <= 24
+    if chat.container_identity is not None:
+        try:
+            if ancestor_identity(item) != chat.container_identity:
+                return False
+        except Exception:
+            return False
+        return abs(rect.left - chat.left) + abs(rect.top - chat.top) <= 24
+    try:
+        name = (item.element_info.name or "").strip()
+    except Exception:
+        return False
+    return (
+        name == chat.name
+        and abs(rect.left - chat.left) + abs(rect.top - chat.top) <= 24
+    )
+
+
+def _try_uia_select(chat: TelegramChatItem) -> bool:
+    """Prefer a background UIA selection over posting a mouse message."""
+    try:
+        app = Application(backend="uia").connect(handle=chat.hwnd)
+        window = app.window(handle=chat.hwnd).wrapper_object()
+        for item in window.descendants(control_type="ListItem"):
+            if not _wrapper_matches_chat(item, chat):
+                continue
+            try:
+                item.select()
+            except Exception:
+                try:
+                    item.iface_selection_item.Select()
+                except Exception:
+                    return False
+            try:
+                return bool(item.is_selected())
+            except Exception:
+                try:
+                    return bool(item.iface_selection_item.CurrentIsSelected)
+                except Exception:
+                    return False
+    except Exception:
+        return False
+    return False
+
+
 def _refresh_selected_row(chat: TelegramChatItem) -> TelegramChatItem:
     """Re-read the chat row immediately before clicking to avoid stale geometry."""
     if winapi.get_window_pid(chat.hwnd) != chat.pid:
@@ -384,8 +455,9 @@ def select_telegram_chat(chat: TelegramChatItem) -> TelegramChatItem:
     if not winapi.user32.IsWindow(chat.hwnd):
         raise RuntimeError("Telegram chat window no longer exists")
     current = _refresh_selected_row(chat)
-    client_x, client_y = _screen_to_client(chat.hwnd, *current.center)
-    _post_chat_click(chat.hwnd, client_x, client_y, current)
+    if not _try_uia_select(current):
+        client_x, client_y = _screen_to_client(chat.hwnd, *current.center)
+        _post_chat_click(chat.hwnd, client_x, client_y, current)
     confirmed = _confirm_selected(current)
     _remember_confirmed_chat(confirmed)
     return confirmed
