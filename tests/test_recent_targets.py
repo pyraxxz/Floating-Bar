@@ -587,5 +587,49 @@ class RecentTargetHistoryTests(unittest.TestCase):
             self.assertIsNone(history.match_conversation(target))
 
 
+    def test_recent_conversation_revalidation_uses_unbounded_catalog(self):
+        history = RecentTargetHistory()
+        conversation = SimpleNamespace(
+            hwnd=55,
+            pid=555,
+            name="Project Chat",
+            runtime_id=(1, 2, 3),
+            control_identity=("ListItem", "conversation"),
+            left=10, top=20, right=250, bottom=52,
+        )
+        target = history.record_conversation(
+            conversation,
+            adapter_key="slack",
+            process_name="slack.exe",
+        )
+
+        class User32:
+            @staticmethod
+            def IsWindow(hwnd):
+                return hwnd == 55
+
+        replacement = SimpleNamespace(
+            hwnd=55,
+            pid=555,
+            name="Project Chat renamed",
+            runtime_id=(1, 2, 3),
+            control_identity=("ListItem", "conversation"),
+            left=10, top=20, right=250, bottom=52,
+        )
+        with patch("floatingbar.recent_targets.winapi.user32", User32()), \
+             patch("floatingbar.recent_targets.winapi.get_window_pid", return_value=555), \
+             patch("floatingbar.recent_targets.winapi.get_process_image_name", return_value=r"C:\\slack.exe"), \
+             patch(
+                 "floatingbar.recent_targets.actionable_adapter_for_process",
+                 return_value=SimpleNamespace(implemented=True, key="slack"),
+             ), \
+             patch(
+                 "floatingbar.conversation_rows.enumerate_conversations",
+                 return_value=(replacement,),
+             ) as enumerate_rows:
+            self.assertEqual(history.match_conversation(target), replacement)
+        enumerate_rows.assert_called_once_with(55, limit=None)
+
+
 if __name__ == "__main__":
     unittest.main()
