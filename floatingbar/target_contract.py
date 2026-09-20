@@ -25,5 +25,8 @@ class BackgroundTarget(Protocol):
     def is_available(self) -> bool:
         """Return whether a usable target is currently discoverable."""
 
+    def release(self) -> None:
+        """Release any active transaction binding without retargeting."""
+
 
 __all__ = ["BackgroundTarget"]
