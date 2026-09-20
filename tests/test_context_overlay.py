@@ -284,12 +284,17 @@ class ContextOverlayTests(unittest.TestCase):
         self.assertEqual(lifecycle.state, TransactionState.FAILED)
         window.target.release.assert_called_once_with()
 
-    def test_active_target_lease_releases_when_completion_raises(self):
+    def test_active_target_lease_releases_and_lifecycle_clears_when_completion_raises(self):
         window = self._window()
         window._active_attempt_id = 12
         window._active_transaction = Mock()
         window._active_transaction.attempt_id = 12
         window._active_transaction.context = Mock()
+        lifecycle = TransactionLifecycle(12)
+        lifecycle.begin_prepare()
+        lifecycle.mark_ready()
+        lifecycle.begin_send()
+        window._active_lifecycle = lifecycle
 
         with patch(
             "floatingbar.recovery_overlay.OrbRelayWindow._send_finished",
@@ -303,6 +308,9 @@ class ContextOverlayTests(unittest.TestCase):
                     )
                 )
 
+        self.assertEqual(lifecycle.state, TransactionState.FAILED)
+        self.assertIsNone(window._active_transaction)
+        self.assertIsNone(window._active_lifecycle)
         window.target.release.assert_called_once_with()
 
     def test_stale_completion_never_releases_newer_attempt_lease(self):

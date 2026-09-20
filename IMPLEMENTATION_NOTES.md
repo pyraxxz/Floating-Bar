@@ -232,3 +232,6 @@ control. AutomationId remains a session-only fallback discriminator when no
 runtime ID is available. The same identity rule is used for UIA wrapper
 deduplication and send-time pinned-control revalidation.
 
+## Completion lifecycle cleanup
+
+UI completion failures can occur after a worker result has already reached the transaction boundary. The active attempt lifecycle is now advanced from the typed evidence before UI completion handling, and the active transaction and lifecycle references are cleared in a current-attempt finally block. A completion-handler exception therefore cannot strand a live attempt state or lease, while stale completions remain unable to release a newer target.
