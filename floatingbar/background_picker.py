@@ -417,7 +417,7 @@ class BackgroundAppPicker:
         except Exception:
             self._schedule_live_refresh()
             return
-        if snapshot != self._live_snapshot:
+        if snapshot != self._live_snapshot and not self._hover.actions:
             self.show()
             return
         self._schedule_live_refresh()
