@@ -10,7 +10,7 @@ from dataclasses import dataclass
 import tkinter as tk
 from typing import Callable, Optional, Sequence
 
-from .app_adapters import actionable_adapter_for_process
+from .app_adapters import adapter_for_process, actionable_adapter_for_process
 from .background_windows import BackgroundWindow
 from . import ui_theme
 
@@ -71,12 +71,16 @@ class HoverState:
 
 def _base_label(item: BackgroundWindow) -> tuple[str, bool]:
     """Return a title-free app label and whether it has an actionable adapter."""
-    spec = actionable_adapter_for_process(item.process_name)
+    known_spec = adapter_for_process(item.process_name)
+    spec = known_spec or actionable_adapter_for_process(item.process_name)
     actionable = bool(spec and spec.implemented and spec.supports_background_type)
-    label = spec.label if spec else _LABELS.get(
-        item.process_name,
-        item.label.removesuffix(".exe").title(),
-    )
+    if known_spec is not None:
+        label = known_spec.label
+    else:
+        label = _LABELS.get(
+            item.process_name,
+            spec.label if spec is not None else item.label.removesuffix(".exe").title(),
+        )
     return label, actionable
 
 
