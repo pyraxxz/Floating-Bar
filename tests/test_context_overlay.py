@@ -323,5 +323,22 @@ class ContextOverlayTests(unittest.TestCase):
         window.target.release.assert_not_called()
 
 
+    def test_pinned_conversation_resolution_uses_complete_catalog(self):
+        window = BoundContextOverlay.__new__(BoundContextOverlay)
+        window._background_process_name = "slack.exe"
+        window._background_adapter_key = "slack"
+        window._work_hwnd = 55
+        window._pinned_targets = Mock()
+        window._pinned_targets.items.return_value = ()
+
+        with patch(
+            "floatingbar.bound_context_overlay.enumerate_conversations",
+            return_value=(),
+        ) as enumerate_rows:
+            self.assertEqual(window._pinned_conversation_items(), ())
+
+        enumerate_rows.assert_called_once_with(55, limit=None)
+
+
 if __name__ == "__main__":
     unittest.main()
