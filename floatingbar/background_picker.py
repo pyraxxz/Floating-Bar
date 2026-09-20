@@ -143,6 +143,7 @@ class BackgroundAppPicker:
     MAX_PINNED = 3
     MAX_RECENT = 2
     MAX_VISIBLE = 6
+    MIN_LIVE_VISIBLE = 3
 
     def __init__(
         self,
@@ -234,27 +235,39 @@ class BackgroundAppPicker:
         """Prefer pinned identity, then recent identity, then live discovery."""
         merged = []
         seen = set()
+
+        live = [item for item in live_items if (item.hwnd, item.pid) not in seen]
+        # Put usable targets first so actionable apps remain discoverable.
+        live.sort(key=lambda item: (not item.actionable, not item.foreground))
+        live_capacity = min(
+            BackgroundAppPicker.MIN_LIVE_VISIBLE,
+            len(live),
+        )
+        historical_capacity = max(
+            0,
+            BackgroundAppPicker.MAX_VISIBLE - live_capacity,
+        )
+
+        historical_added = 0
         for items, limit in (
             (pinned_items, BackgroundAppPicker.MAX_PINNED),
             (recent_items, BackgroundAppPicker.MAX_RECENT),
         ):
-            added = 0
             for item in items:
                 key = (item.hwnd, item.pid)
                 if not item.actionable or key in seen:
                     continue
+                if historical_added >= historical_capacity:
+                    break
                 seen.add(key)
                 merged.append(item)
-                added += 1
-                if added >= limit or len(merged) >= BackgroundAppPicker.MAX_VISIBLE:
+                historical_added += 1
+                if len(merged) >= BackgroundAppPicker.MAX_VISIBLE:
                     break
-            if len(merged) >= BackgroundAppPicker.MAX_VISIBLE:
+            if historical_added >= historical_capacity or len(merged) >= BackgroundAppPicker.MAX_VISIBLE:
                 break
+
         if len(merged) < BackgroundAppPicker.MAX_VISIBLE:
-            live = [item for item in live_items if (item.hwnd, item.pid) not in seen]
-            # Put usable targets first so a few unrelated windows cannot crowd
-            # every actionable app out of the small hover menu.
-            live.sort(key=lambda item: (not item.actionable, not item.foreground))
             for item in live:
                 key = (item.hwnd, item.pid)
                 if key in seen:
@@ -263,6 +276,7 @@ class BackgroundAppPicker:
                 merged.append(item)
                 if len(merged) >= BackgroundAppPicker.MAX_VISIBLE:
                     break
+
         return tuple(merged)
 
     def show(self) -> None:
