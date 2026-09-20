@@ -163,6 +163,7 @@ class BackgroundAppPicker:
         self._hide_job = None
         self._action_window: Optional[tk.Toplevel] = None
         self._action_item: Optional[PickerItem] = None
+        self._action_hide_job = None
         self._hover = HoverState()
 
     def bind(self, widget: tk.Misc) -> None:
@@ -362,18 +363,35 @@ class BackgroundAppPicker:
 
     def _row_enter(self, item: PickerItem, row: tk.Misc) -> None:
         self._cancel_hide()
+        self._cancel_action_hide()
         if not item.actionable:
             return
         self._show_actions(item, row)
 
     def _row_leave(self, _event=None) -> None:
-        self.owner.after(self.ACTION_GRACE_MS, self._maybe_hide_actions)
+        self._schedule_action_hide()
+
+    def _cancel_action_hide(self) -> None:
+        if self._action_hide_job is not None:
+            try:
+                self.owner.after_cancel(self._action_hide_job)
+            except Exception:
+                pass
+            self._action_hide_job = None
+
+    def _schedule_action_hide(self) -> None:
+        self._cancel_action_hide()
+        self._action_hide_job = self.owner.after(
+            self.ACTION_GRACE_MS,
+            self._maybe_hide_actions,
+        )
 
     def _maybe_hide_actions(self) -> None:
         if not self._hover.actions:
             self._hide_actions()
 
     def _show_actions(self, item: PickerItem, row: tk.Misc) -> None:
+        self._cancel_action_hide()
         self._hide_actions()
         self._action_item = item
         popup = tk.Toplevel(self.owner)
@@ -426,6 +444,7 @@ class BackgroundAppPicker:
             self._selected(item)
 
     def _hide_actions(self) -> None:
+        self._cancel_action_hide()
         popup = self._action_window
         self._action_window = None
         self._action_item = None
@@ -443,6 +462,7 @@ class BackgroundAppPicker:
     def hide(self) -> None:
         self._cancel_show()
         self._cancel_hide()
+        self._cancel_action_hide()
         self._hide_actions()
         popup = self.window
         self.window = None
