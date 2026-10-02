@@ -3,14 +3,13 @@ name: Publish orb recovery release
 on:
   push:
     branches:
-      - main
+      - release/orb-0.1.21
 
 permissions:
   contents: write
 
 jobs:
   release:
-    if: github.event.head_branch == 'main' && github.event.head_commit.message == 'Publish orb recovery release'
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
