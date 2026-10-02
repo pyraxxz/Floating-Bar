@@ -180,6 +180,29 @@ class TelegramTarget:
 
         return score
 
+    def nested_compose_candidates(self, box):
+        """Return smaller overlapping Edit controls inside the visible compose."""
+        try:
+            window = self._window()
+            base = box.rectangle()
+            edits = window.descendants(control_type="Edit")
+        except Exception:
+            return []
+        base_area = max(1, (base.right - base.left) * (base.bottom - base.top))
+        candidates = []
+        for edit in edits:
+            if edit is box:
+                continue
+            try:
+                r = edit.rectangle()
+                area = max(1, (r.right - r.left) * (r.bottom - r.top))
+                if area < base_area and _nested(base, r):
+                    candidates.append((area, edit))
+            except Exception:
+                continue
+        candidates.sort(key=lambda item: item[0])
+        return [edit for _, edit in candidates]
+
     def remember_compose(self, edit) -> None:
         """Cache the confirmed real compose field for this session."""
         try:
@@ -257,6 +280,44 @@ class TelegramTarget:
         return text_edit, entries
 
     # -- send button ------------------------------------------------------------
+
+    def send_button_control(self, near_box=None):
+        """Return (button, name, client_x, client_y) for a safe Send control."""
+        hwnd = self.hwnd
+        if not hwnd:
+            return None
+        try:
+            window = self._window()
+            wrect = window.rectangle()
+            buttons = window.descendants(control_type="Button")
+        except Exception:
+            return None
+        bands = []
+        if near_box is not None:
+            try:
+                bands.append(near_box.rectangle())
+            except Exception:
+                pass
+        strip_top = max(int(wrect.top), int(wrect.bottom - 0.15 * (wrect.bottom - wrect.top)))
+        bands.append(_Band(wrect.left, strip_top, wrect.right, wrect.bottom))
+        best = None
+        for button in buttons:
+            try:
+                r = button.rectangle()
+                name = button.element_info.name or ""
+            except Exception:
+                continue
+            if not any(self._in_band(r, band) for band in bands):
+                continue
+            lname = name.lower()
+            if any(k in lname for k in ("voice", "record", "mic", "audio")):
+                continue
+            cx = (r.left + r.right) / 2.0
+            cy = (r.top + r.bottom) / 2.0
+            key = (0, 0, 0) if "send" in lname else (1, -cx, cy)
+            if best is None or key < best[0]:
+                best = (key, button, name, int(cx - wrect.left), int(cy - wrect.top))
+        return None if best is None else best[1:]
 
     def send_button_click(self, near_box=None):
         """Locate the Send button and return (name, client_x, client_y).
