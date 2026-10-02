@@ -1,0 +1,72 @@
+name: Publish orb recovery release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: startsWith(github.event.head_commit.message, 'Restore stable orb release version 0.1.21')
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements.txt pyinstaller
+
+      - name: Verify dependencies
+        run: python -m pip check
+
+      - name: Compile Python sources
+        run: python -m compileall -q .
+
+      - name: Run regression tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Build Windows executable
+        run: pyinstaller --onefile --noconsole --name FloatingBar main.py
+
+      - name: Stage installer scripts
+        shell: pwsh
+        run: |
+          Copy-Item installer/Install-FloatingBar.ps1 dist/Install-FloatingBar.ps1 -Force
+          Copy-Item installer/Uninstall-FloatingBar.ps1 dist/Uninstall-FloatingBar.ps1 -Force
+
+      - name: Calculate SHA256
+        id: digest
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash dist/FloatingBar.exe -Algorithm SHA256).Hash
+          "$hash  FloatingBar.exe" | Out-File dist/FloatingBar.exe.sha256 -Encoding ascii
+          "hash=$hash" >> $env:GITHUB_OUTPUT
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v0.1.21
+          target_commitish: ${{ github.sha }}
+          name: Floating Bar v0.1.21 — Stable Orb Recovery
+          body: |
+            Restored the small Floating Bar orb flow that targets the currently open Telegram Desktop chat in the background.
+
+            This release intentionally returns to the compact single-purpose orb:
+            click the orb, type, press Enter, and the message is injected into the currently open Telegram chat without requiring the chat window to be brought to the foreground.
+
+            Windows build tested by the release workflow. SHA256: ${{ steps.digest.outputs.hash }}
+          generate_release_notes: true
+          files: |
+            dist/FloatingBar.exe
+            dist/FloatingBar.exe.sha256
+            dist/Install-FloatingBar.ps1
+            dist/Uninstall-FloatingBar.ps1
