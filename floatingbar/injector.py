@@ -101,13 +101,6 @@ class TelegramInjector:
                 raise TelegramNotFound(
                     "Telegram Desktop doesn't seem to be running."
                 )
-            if winapi.is_minimized(hwnd):
-                trace.trace("telegram is minimized — refusing honestly")
-                raise InjectionFailed(
-                    "Telegram is minimized — text can't reach it. Bring "
-                    "it back to the background (behind your work is "
-                    "fine, just not minimized) and try again."
-                )
             prev_fg = restore_hwnd or winapi.get_foreground_window()
             trace.trace(f"telegram window: hwnd={hwnd} "
                         f"prev_fg={prev_fg}")
