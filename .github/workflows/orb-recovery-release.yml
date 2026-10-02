@@ -39,11 +39,6 @@ jobs:
       - name: Build Windows executable
         run: pyinstaller --onefile --noconsole --name FloatingBar main.py
 
-      - name: Stage installer scripts
-        shell: pwsh
-        run: |
-          Copy-Item installer/Install-FloatingBar.ps1 dist/Install-FloatingBar.ps1 -Force
-          Copy-Item installer/Uninstall-FloatingBar.ps1 dist/Uninstall-FloatingBar.ps1 -Force
 
       - name: Calculate SHA256
         id: digest
@@ -70,5 +65,3 @@ jobs:
           files: |
             dist/FloatingBar.exe
             dist/FloatingBar.exe.sha256
-            dist/Install-FloatingBar.ps1
-            dist/Uninstall-FloatingBar.ps1
