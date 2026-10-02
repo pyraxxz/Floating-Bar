@@ -273,8 +273,12 @@ class TelegramInjector:
 
     def _submit_invisible(self, box, hwnd: int, primary_ctrl: bool,
                           landing: str):
-        """Posted click on the Send button; posted Enter combos only when
-        no button can be located. All invisible."""
+        """Submit without activating Telegram.
+
+        Order: background Enter, alternate Enter, then UIA InvokePattern on
+        the detected Send button. A posted mouse click is deliberately not
+        used in the normal path because Qt may activate the Telegram window.
+        """
         verified = landing == "compose"
         if verified:
             # A working read channel: the compose verifiably holds text,
@@ -310,46 +314,29 @@ class TelegramInjector:
                 )
             return "posted-enter (unverified)"
 
-        button, name, cx, cy = control_info
+        button, name, _cx, _cy = control_info
         if any(k in name.lower() for k in ("voice", "record", "mic", "audio")):
             raise InjectionFailed("Telegram's voice button is the only detected compose control.")
+        before_fg = winapi.get_foreground_window()
         try:
-            invoke = button.iface_invoke
-            invoke.Invoke()
+            button.iface_invoke.Invoke()
             trace.trace(f"UIA Invoke on Send button name={name!r}")
             time.sleep(config.PASTE_SETTLE_MS / 1000.0)
+            current_fg = winapi.get_foreground_window()
+            if current_fg == hwnd and before_fg and before_fg != hwnd:
+                winapi.set_foreground_window(before_fg)
+                trace.trace("foreground restored after UIA Send invocation")
             if not verified or self._value_length(box) == 0:
                 trace.trace("submit verified: UIA Invoke")
                 return "uia-invoke (VERIFIED)" if verified else "uia-invoke (unverified)"
         except Exception as e:
             trace.trace(f"UIA Invoke failed: {e}")
 
-        trace.trace(f"background send-button post at ({cx},{cy}) name={name!r}")
-        if any(k in name.lower() for k in
-               ("voice", "record", "mic", "audio")):
-            trace.trace(f"button scan returned the mic ({name!r}) — "
-                        "refusing to click")
+        if verified and self._value_length(box) > 0:
             raise InjectionFailed(
-                "Telegram's voice button is showing — the compose is "
-                "empty, so the text did not land."
+                "The message is in Telegram's compose box, but the background-safe send controls could not submit it."
             )
-
-        trace.trace(f"posted click on send button at ({cx},{cy}) "
-                    f"name={name!r}")
-        winapi.post_click(hwnd, cx, cy)
-        time.sleep(config.PASTE_SETTLE_MS / 1000.0)
-
-        if verified:
-            length_after = self._value_length(box)
-            trace.trace(f"submit verified: compose value_len={length_after}")
-            if length_after == 0:
-                return "posted-click (VERIFIED)"
-            raise InjectionFailed(
-                "The Send button was clicked but the message is still "
-                "in the compose box. Share trace.log so the click "
-                "coordinates can be tuned for this Telegram build."
-            )
-        return "posted-click (unverified)"
+        return "uia-invoke (unverified)"
 
     @staticmethod
     def _value_length(box) -> int:
