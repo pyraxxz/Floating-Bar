@@ -133,7 +133,23 @@ class TelegramInjector:
                             "foreground restored after non-activating Telegram restore"
                         )
 
-                box = self.target.compose_box()
+                # A just-restored Telegram process may need a brief
+                # accessibility-tree settle before pywinauto can enumerate
+                # the compose edits. Give the minimized case one bounded
+                # retry; ordinary background sends stay single-pass.
+                box = None
+                attempts = 2 if temporarily_restored else 1
+                for attempt in range(attempts):
+                    try:
+                        box = self.target.compose_box()
+                        break
+                    except TelegramNotFound:
+                        if attempt + 1 >= attempts:
+                            raise
+                        trace.trace(
+                            "minimized restore: compose tree not ready — retrying"
+                        )
+                        time.sleep(config.MINIMIZED_RETRY_DELAY_MS / 1000.0)
                 # ---------------- PHASE 1: land the text ----------------
                 landed = self._land_text(box, hwnd, text)
                 trace.trace(f"phase 1 land text: {landed or 'FAILED'}")
