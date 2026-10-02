@@ -48,6 +48,9 @@ POSTED_ENTER_RETRIES = 1       # re-post the Enter once if it didn't take
 FOREGROUND_SETTLE_MS = 120     # focus-steal path: settle after raise
 PASTE_SETTLE_MS = 60           # focus-steal path: settle after paste
 FOREGROUND_RESTORE_MS = 80     # focus-steal path: delay before restore
+MINIMIZED_RESTORE_TIMEOUT_MS = 1200  # wait for quiet Telegram restore
+MINIMIZED_RESTORE_SETTLE_MS = 180    # let Telegram's UI tree settle
+MINIMIZED_RETRY_DELAY_MS = 220       # one bounded UIA discovery retry
 
 # --- Injection ------------------------------------------------------------
 # Settle times for the v0.1.5 mouse-driven flow: pause after clicking the

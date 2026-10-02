@@ -31,11 +31,10 @@ v0.1.6 flow (all invisible — no focus steal, no window raise):
   optimistic. If no button can be located, posted Enter combos are the
   last resort.
 
-  GUARDS — minimized Telegram fails immediately and honestly (text
-  cannot land while minimized; the v0.1.5 trace showed reads freeze
-  too). After every send, if Telegram somehow ended up in the
-  foreground (a posted click side effect), the user's previous
-  foreground window is restored.
+  GUARDS — minimized Telegram is temporarily restored with
+  SW_SHOWNOACTIVATE, without activation, so the same open chat can be
+  used in the background. After the send, Telegram is returned to its
+  original minimized state. Backgrounded Telegram is left untouched.
 
 R10 note: all read-backs are compared against constants and reduced to
 lengths and booleans — never stored, logged, or displayed.
@@ -102,20 +101,55 @@ class TelegramInjector:
                 raise TelegramNotFound(
                     "Telegram Desktop doesn't seem to be running."
                 )
-            if winapi.is_minimized(hwnd):
-                trace.trace("telegram is minimized — refusing honestly")
-                raise InjectionFailed(
-                    "Telegram is minimized — text can't reach it. Bring "
-                    "it back to the background (behind your work is "
-                    "fine, just not minimized) and try again."
-                )
             prev_fg = restore_hwnd or winapi.get_foreground_window()
             trace.trace(f"telegram window: hwnd={hwnd} "
                         f"prev_fg={prev_fg}")
-            box = self.target.compose_box()
+            temporarily_restored = False
             primary_ctrl = config.ENTER_SEND_MODE == "ctrl+enter"
 
             try:
+                if winapi.is_minimized(hwnd):
+                    trace.trace("telegram is minimized — restoring "
+                                "without activation for background send")
+                    if not winapi.restore_without_activation(
+                            hwnd, config.MINIMIZED_RESTORE_TIMEOUT_MS):
+                        raise InjectionFailed(
+                            "Telegram is minimized and could not be "
+                            "restored without activating it."
+                        )
+                    if winapi.is_minimized(hwnd):
+                        raise InjectionFailed(
+                            "Telegram stayed minimized, so the background "
+                            "compose box is not reachable."
+                        )
+                    temporarily_restored = True
+                    time.sleep(
+                        config.MINIMIZED_RESTORE_SETTLE_MS / 1000.0
+                    )
+                    if (prev_fg and
+                            winapi.get_foreground_window() == hwnd):
+                        winapi.set_foreground_window(prev_fg)
+                        trace.trace(
+                            "foreground restored after non-activating Telegram restore"
+                        )
+
+                # A just-restored Telegram process may need a brief
+                # accessibility-tree settle before pywinauto can enumerate
+                # the compose edits. Give the minimized case one bounded
+                # retry; ordinary background sends stay single-pass.
+                box = None
+                attempts = 2 if temporarily_restored else 1
+                for attempt in range(attempts):
+                    try:
+                        box = self.target.compose_box()
+                        break
+                    except TelegramNotFound:
+                        if attempt + 1 >= attempts:
+                            raise
+                        trace.trace(
+                            "minimized restore: compose tree not ready — retrying"
+                        )
+                        time.sleep(config.MINIMIZED_RETRY_DELAY_MS / 1000.0)
                 # ---------------- PHASE 1: land the text ----------------
                 landed = self._land_text(box, hwnd, text)
                 trace.trace(f"phase 1 land text: {landed or 'FAILED'}")
@@ -155,7 +189,20 @@ class TelegramInjector:
                 trace.trace(f"send failed: {e}")
                 raise InjectionFailed(f"Send failed: {e}")
             finally:
-                # If a posted click side effect raised Telegram, put the
+                # Preserve the user's original minimized state as well as
+                # foreground state. The non-activating show/minimize path is
+                # specifically for the minimized case; ordinary background
+                # Telegram is never reshuffled.
+                if temporarily_restored:
+                    try:
+                        if winapi.minimize_without_activation(hwnd):
+                            trace.trace("telegram returned to minimized state")
+                        else:
+                            trace.trace("warning: Telegram could not be returned "
+                                        "to minimized state")
+                    except Exception as e:
+                        trace.trace(f"warning: minimize restore failed: {e}")
+                # If any submission side effect raised Telegram, put the
                 # user's window back — invisibility is the product.
                 self._restore_foreground(hwnd, prev_fg)
 

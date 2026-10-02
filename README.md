@@ -94,10 +94,12 @@ Notes:
   remembered for the rest of the session. Text landing in a
   non-overlapping Edit (e.g. the search field) triggers one retry and
   then an honest failure — never a blind click on the mic button.
-* **Minimized Telegram fails honestly.** Text cannot land while
-  Telegram is minimized (and accessibility reads freeze) — the orb
-  blinks red and says so. Background (behind other windows) is fully
-  supported; minimized is not.
+* **Minimized Telegram is supported too.** When Telegram starts minimized,
+  Floating Bar temporarily restores it with the Windows no-activation show
+  state, performs the same background injection against the currently open
+  chat, then returns Telegram to minimized state. The active foreground
+  application is preserved; an already backgrounded Telegram window is not
+  reshuffled.
 * **A broken ValuePattern is not trusted.** Real-world trace data showed
   a Telegram build whose compose exposes a ValuePattern that never writes
   (SetValue silently no-ops) and always reads back "" — and whose
@@ -207,10 +209,10 @@ python tools/diagnose.py --send "test 123"
   `PROCESS_NAME_RE` / `TITLE_FALLBACK_RE` in `config.py`.
 * **The orb is blue but sending fails** — most likely UIPI: don't run
   Floating Bar (or Telegram) elevated while the other runs normally.
-* **Telegram must not be minimized.** Background (behind other windows)
-  is fine and fully supported — but posted clicks target client
-  coordinates, which are meaningless while a window is minimized. Keep
-  Telegram open on any monitor.
+* **Telegram can be minimized.** The app temporarily restores a minimized
+  Telegram window without activating it, sends to the already-open chat,
+  and returns it to minimized state. If Telegram is visible behind other
+  windows, it is used directly without being raised.
 
 ## Privacy
 

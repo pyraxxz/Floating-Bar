@@ -25,6 +25,15 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt pyinstaller
 
+      - name: Verify dependencies
+        run: python -m pip check
+
+      - name: Compile Python sources
+        run: python -m compileall -q .
+
+      - name: Run regression tests
+        run: python -m unittest discover -s tests -v
+
       - name: Build exe
         run: pyinstaller --onefile --noconsole --name FloatingBar main.py
 
