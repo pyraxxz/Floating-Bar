@@ -1,4 +1,4 @@
-name: Publish orb recovery release
+name: Publish Floating Bar v0.1.23
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   release:
-    if: github.ref == 'refs/heads/main' && github.event.head_commit.message == 'Publish background-safe orb v0.1.22'
+    if: github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'Publish minimized background orb v0.1.23')
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -31,11 +31,14 @@ jobs:
       - name: Compile Python sources
         run: python -m compileall -q .
 
+      - name: Run regression tests
+        run: python -m unittest discover -s tests -v
+
       - name: Verify application package
         shell: pwsh
         run: |
           python -m compileall -q floatingbar
-          python -c "import floatingbar; assert floatingbar.__version__ == '0.1.22'; print('Floating Bar version:', floatingbar.__version__)"
+          python -c "import floatingbar; assert floatingbar.__version__ == '0.1.23'; print('Floating Bar version:', floatingbar.__version__)"
 
       - name: Build Windows executable
         run: pyinstaller --onefile --noconsole --name FloatingBar main.py
@@ -52,14 +55,13 @@ jobs:
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: v0.1.22
+          tag_name: v0.1.23
           target_commitish: ${{ github.sha }}
-          name: Floating Bar v0.1.22 — Stable Orb Recovery
+          name: Floating Bar v0.1.23 — Minimized Background Send
           body: |
-            Restored the small Floating Bar orb flow that targets the currently open Telegram Desktop chat in the background.
+            This release keeps the compact single-purpose orb and extends the background path to minimized Telegram windows.
 
-            This release intentionally returns to the compact single-purpose orb:
-            click the orb, type, press Enter, and the message is injected into the currently open Telegram chat without requiring the chat window to be brought to the foreground.
+            Click the orb, type, press Enter, and the message is injected into the currently open Telegram chat without activating Telegram. When Telegram is minimized, it is temporarily restored with a non-activating Windows show state and returned to minimized state after the send.
 
             Windows build tested by the release workflow. SHA256: ${{ steps.digest.outputs.hash }}
           generate_release_notes: true
