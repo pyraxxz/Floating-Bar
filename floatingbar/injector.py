@@ -31,11 +31,10 @@ v0.1.6 flow (all invisible — no focus steal, no window raise):
   optimistic. If no button can be located, posted Enter combos are the
   last resort.
 
-  GUARDS — minimized Telegram fails immediately and honestly (text
-  cannot land while minimized; the v0.1.5 trace showed reads freeze
-  too). After every send, if Telegram somehow ended up in the
-  foreground (a posted click side effect), the user's previous
-  foreground window is restored.
+  GUARDS — minimized Telegram is temporarily restored with
+  SW_SHOWNOACTIVATE, without activation, so the same open chat can be
+  used in the background. After the send, Telegram is returned to its
+  original minimized state. Backgrounded Telegram is left untouched.
 
 R10 note: all read-backs are compared against constants and reduced to
 lengths and booleans — never stored, logged, or displayed.
