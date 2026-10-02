@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   release:
-    if: github.event.before == 'e45811e921266f6208e04ba697db9290f96f73dd' && github.event.head_branch == 'main'
+    if: github.event.head_branch == 'main' && github.event.head_commit.message == 'Publish orb recovery release'
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
