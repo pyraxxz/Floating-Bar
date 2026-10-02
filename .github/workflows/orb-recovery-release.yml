@@ -3,7 +3,7 @@ name: Publish orb recovery release
 on:
   push:
     branches:
-      - release/orb-0.1.21
+      - release/orb-0.1.22
 
 permissions:
   contents: write
@@ -34,7 +34,7 @@ jobs:
         shell: pwsh
         run: |
           python -m compileall -q floatingbar
-          python -c "import floatingbar; assert floatingbar.__version__ == '0.1.21'; print('Floating Bar version:', floatingbar.__version__)"
+          python -c "import floatingbar; assert floatingbar.__version__ == '0.1.22'; print('Floating Bar version:', floatingbar.__version__)"
 
       - name: Build Windows executable
         run: pyinstaller --onefile --noconsole --name FloatingBar main.py
@@ -51,9 +51,9 @@ jobs:
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: v0.1.21
+          tag_name: v0.1.22
           target_commitish: ${{ github.sha }}
-          name: Floating Bar v0.1.21 — Stable Orb Recovery
+          name: Floating Bar v0.1.22 — Stable Orb Recovery
           body: |
             Restored the small Floating Bar orb flow that targets the currently open Telegram Desktop chat in the background.
 
