@@ -210,19 +210,28 @@ class TelegramInjector:
 
     def _land_text(self, box, hwnd: int, text: str):
         """A (verified ValuePattern) then A2 (posted WM_CHAR)."""
-        if self._try_set_text_value_pattern(box, text):
-            return "A"
-        for candidate in self.target.nested_compose_candidates(box):
-            if self._try_set_text_value_pattern(candidate, text):
-                self.target.remember_compose(candidate)
-                trace.trace("phase 1: nested compose ValuePattern succeeded")
-                return "A-inner"
+        # Telegram/Qt can activate its top-level window when UIA
+        # ValuePattern.SetValue is used, even though UIA itself is nominally
+        # background-safe. The product contract is stricter: Telegram must
+        # never become foreground. Use the proven WM_CHAR route first.
         try:
-            winapi.post_text(hwnd, text)  # no focus steal; empirically lands
+            winapi.post_text(hwnd, text)
+            trace.trace("phase 1: background WM_CHAR text injection")
             return "A2"
         except Exception as e:
             trace.trace(f"WM_CHAR post failed: {e}")
-            return None
+
+        # UIA ValuePattern is retained only as a last-resort compatibility
+        # path. It must never be allowed to become the normal route because
+        # some Qt accessibility implementations activate the window.
+        if self._try_set_text_value_pattern(box, text):
+            return "A-uia"
+        for candidate in self.target.nested_compose_candidates(box):
+            if self._try_set_text_value_pattern(candidate, text):
+                self.target.remember_compose(candidate)
+                trace.trace("phase 1: nested compose ValuePattern fallback succeeded")
+                return "A-inner-uia"
+        return None
 
     def _try_set_text_value_pattern(self, box, text: str) -> bool:
         try:
