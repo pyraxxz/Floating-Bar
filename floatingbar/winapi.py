@@ -17,6 +17,7 @@ Only what this app needs:
 import ctypes
 import sys
 import threading
+import time
 
 if sys.platform != "win32":
     raise ImportError("floatingbar is Windows-only")
@@ -45,6 +46,8 @@ MAPVK_VK_TO_VSC = 0
 GWL_EXSTYLE = -20
 WS_EX_TOOLWINDOW = 0x00000080
 GA_ROOT = 2
+SW_SHOWNOACTIVATE = 4
+SW_SHOWMINNOACTIVE = 7
 SW_RESTORE = 9
 
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
@@ -76,6 +79,8 @@ user32.IsIconic.restype = wintypes.BOOL
 
 user32.ShowWindow.argtypes = [wintypes.HWND, wintypes.INT]
 user32.ShowWindow.restype = wintypes.BOOL
+user32.ShowWindowAsync.argtypes = [wintypes.HWND, wintypes.INT]
+user32.ShowWindowAsync.restype = wintypes.BOOL
 
 user32.GetWindowLongW.argtypes = [wintypes.HWND, wintypes.INT]
 user32.GetWindowLongW.restype = wintypes.LONG
@@ -283,6 +288,45 @@ def post_click(hwnd: int, client_x: int, client_y: int) -> None:
 
 
 def is_minimized(hwnd: int) -> bool:
+    return bool(user32.IsWindow(hwnd) and user32.IsIconic(hwnd))
+
+
+def restore_without_activation(hwnd: int, timeout_ms: int = 1200) -> bool:
+    """Restore a minimized window to its normal size without activating it.
+
+    SW_SHOWNOACTIVATE is specifically defined by Win32 as displaying the
+    window at its most recent size/position without activation. We poll the
+    iconic state because ShowWindowAsync is deliberately asynchronous.
+    """
+    if not hwnd or not user32.IsWindow(hwnd):
+        return False
+    if not user32.IsIconic(hwnd):
+        return True
+    user32.ShowWindowAsync(hwnd, SW_SHOWNOACTIVATE)
+    deadline = time.monotonic() + max(0, timeout_ms) / 1000.0
+    while time.monotonic() < deadline:
+        if not user32.IsWindow(hwnd):
+            return False
+        if not user32.IsIconic(hwnd):
+            return True
+        time.sleep(0.025)
+    return bool(user32.IsWindow(hwnd) and not user32.IsIconic(hwnd))
+
+
+def minimize_without_activation(hwnd: int, timeout_ms: int = 600) -> bool:
+    """Return a temporarily restored window to minimized state without activation."""
+    if not hwnd or not user32.IsWindow(hwnd):
+        return False
+    if user32.IsIconic(hwnd):
+        return True
+    user32.ShowWindowAsync(hwnd, SW_SHOWMINNOACTIVE)
+    deadline = time.monotonic() + max(0, timeout_ms) / 1000.0
+    while time.monotonic() < deadline:
+        if not user32.IsWindow(hwnd):
+            return False
+        if user32.IsIconic(hwnd):
+            return True
+        time.sleep(0.025)
     return bool(user32.IsWindow(hwnd) and user32.IsIconic(hwnd))
 
 
