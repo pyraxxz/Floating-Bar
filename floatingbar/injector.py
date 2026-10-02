@@ -84,7 +84,7 @@ class TelegramInjector:
         # Session-level: once a write-verification fails on this build,
         # never waste another SetValue on it (it also risks focusing
         # side effects on some builds).
-        self._vp_session_bad = False
+        self._vp_failed_rids = set()
 
     # ------------------------------------------------------------------ API
 
@@ -163,9 +163,13 @@ class TelegramInjector:
 
     def _land_text(self, box, hwnd: int, text: str):
         """A (verified ValuePattern) then A2 (posted WM_CHAR)."""
-        if not self._vp_session_bad and \
-                self._try_set_text_value_pattern(box, text):
+        if self._try_set_text_value_pattern(box, text):
             return "A"
+        for candidate in self.target.nested_compose_candidates(box):
+            if self._try_set_text_value_pattern(candidate, text):
+                self.target.remember_compose(candidate)
+                trace.trace("phase 1: nested compose ValuePattern succeeded")
+                return "A-inner"
         try:
             winapi.post_text(hwnd, text)  # no focus steal; empirically lands
             return "A2"
@@ -175,21 +179,28 @@ class TelegramInjector:
 
     def _try_set_text_value_pattern(self, box, text: str) -> bool:
         try:
-            vp = box.iface_value  # raises when the pattern is unsupported
+            rid = tuple(box.element_info.runtime_id)
+        except Exception:
+            rid = None
+        if rid is not None and rid in self._vp_failed_rids:
+            return False
+        try:
+            vp = box.iface_value
         except Exception:
             trace.trace("valuepattern: unsupported by compose box")
             return False
         try:
             vp.SetValue(text)
         except Exception as e:
+            if rid is not None:
+                self._vp_failed_rids.add(rid)
             trace.trace(f"valuepattern SetValue failed: {e}")
             return False
         try:
             ok = vp.CurrentValue == text
-            if not ok:
-                self._vp_session_bad = True
-            trace.trace(f"valuepattern SetValue verified: {ok}"
-                        + ("" if ok else " — disabled for this session"))
+            if not ok and rid is not None:
+                self._vp_failed_rids.add(rid)
+            trace.trace(f"valuepattern SetValue verified: {ok}")
             return ok
         except Exception:
             trace.trace("valuepattern SetValue: unverifiable, trusting")
@@ -278,23 +289,42 @@ class TelegramInjector:
                     "The message text is not in Telegram's compose box."
                 )
 
-        info = self.target.send_button_click(near_box=box)
-        if info is None:
-            trace.trace("send button: no candidate — posting enter combos")
-            winapi.post_enter(hwnd, ctrl=primary_ctrl)
-            time.sleep(config.POSTED_ENTER_WAIT_MS / 1000.0)
-            winapi.post_enter(hwnd, ctrl=not primary_ctrl)
-            time.sleep(config.POSTED_ENTER_WAIT_MS / 1000.0)
+        trace.trace("submit: trying background Enter submission first")
+        winapi.post_enter(hwnd, ctrl=primary_ctrl)
+        time.sleep(config.POSTED_ENTER_WAIT_MS / 1000.0)
+        if verified and self._value_length(box) == 0:
+            trace.trace("submit verified: background Enter")
+            return "posted-enter (VERIFIED)"
+        winapi.post_enter(hwnd, ctrl=not primary_ctrl)
+        time.sleep(config.POSTED_ENTER_WAIT_MS / 1000.0)
+        if verified and self._value_length(box) == 0:
+            trace.trace("submit verified: alternate background Enter")
+            return "posted-enter-alt (VERIFIED)"
+
+        control_info = self.target.send_button_control(near_box=box)
+        if control_info is None:
             if verified and self._value_length(box) > 0:
-                trace.trace("enter combos failed verification")
+                trace.trace("background submit failed: no Send control")
                 raise InjectionFailed(
-                    "Message sits in Telegram's compose box but could "
-                    "not be submitted. Share trace.log so the cascade "
-                    "can be tuned for this Telegram build."
+                    "Message sits in Telegram's compose box but could not be submitted without activating the window."
                 )
             return "posted-enter (unverified)"
 
-        name, cx, cy = info
+        button, name, cx, cy = control_info
+        if any(k in name.lower() for k in ("voice", "record", "mic", "audio")):
+            raise InjectionFailed("Telegram's voice button is the only detected compose control.")
+        try:
+            invoke = button.iface_invoke
+            invoke.Invoke()
+            trace.trace(f"UIA Invoke on Send button name={name!r}")
+            time.sleep(config.PASTE_SETTLE_MS / 1000.0)
+            if not verified or self._value_length(box) == 0:
+                trace.trace("submit verified: UIA Invoke")
+                return "uia-invoke (VERIFIED)" if verified else "uia-invoke (unverified)"
+        except Exception as e:
+            trace.trace(f"UIA Invoke failed: {e}")
+
+        trace.trace(f"background send-button post at ({cx},{cy}) name={name!r}")
         if any(k in name.lower() for k in
                ("voice", "record", "mic", "audio")):
             trace.trace(f"button scan returned the mic ({name!r}) — "
