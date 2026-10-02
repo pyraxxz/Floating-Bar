@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   release:
-    if: startsWith(github.event.head_commit.message, 'Restore stable orb release version 0.1.21')
+    if: github.event.before == 'e45811e921266f6208e04ba697db9290f96f73dd' && github.event.head_branch == 'main'
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
