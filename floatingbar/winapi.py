@@ -248,24 +248,20 @@ def get_focused_hwnd(hwnd: int) -> int:
 
 
 def post_enter(hwnd: int, ctrl: bool = False) -> None:
-    """Post an Enter keypress (optionally Ctrl+Enter) into a window's
-    message queue WITHOUT changing focus or the foreground window.
+    """Submit through Qt's character-message path without synthesizing a
+    keyboard transition.
 
-    Targets the currently focused child HWND (see get_focused_hwnd) and
-    sends the full WM_KEYDOWN -> WM_CHAR -> WM_KEYUP triple: some Qt
-    builds act on the character message, some on the key messages.
-    The WM_CHAR code follows Win32 convention: Enter -> 0x0D (CR),
-    Ctrl+Enter -> 0x0A (LF)."""
+    This is intentionally *not* a WM_KEYDOWN/WM_KEYUP sequence. Telegram
+    Desktop is Qt-based and a synthetic key transition can cause Qt to
+    activate/raise the top-level window even though PostMessage itself does
+    not change the Windows foreground. A posted WM_CHAR is sufficient for
+    Telegram's compose field and, critically, does not create a native
+    keyboard activation/focus transition.
+
+    Enter -> CR (0x0D); Ctrl+Enter -> LF (0x0A)."""
     target = get_focused_hwnd(hwnd) or hwnd
     char_code = 0x0A if ctrl else 0x0D
-    if ctrl:
-        user32.PostMessageW(target, WM_KEYDOWN, VK_CONTROL, _key_lparam(VK_CONTROL, False))
-    user32.PostMessageW(target, WM_KEYDOWN, VK_RETURN, _key_lparam(VK_RETURN, False))
-    user32.PostMessageW(target, WM_CHAR, char_code, _key_lparam(VK_RETURN, False))
-    user32.PostMessageW(target, WM_KEYUP, VK_RETURN, _key_lparam(VK_RETURN, True))
-    if ctrl:
-        user32.PostMessageW(target, WM_KEYUP, VK_CONTROL, _key_lparam(VK_CONTROL, True))
-
+    user32.PostMessageW(target, WM_CHAR, char_code, 0)
 
 def post_text(hwnd: int, text: str) -> None:
     """Post WM_CHAR for every UTF-16 code unit — surrogate-pair safe, so
