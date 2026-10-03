@@ -1,4 +1,4 @@
-name: Publish Floating Bar v0.1.23
+name: Publish Floating Bar v0.1.24
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   release:
-    if: github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'Publish minimized background orb v0.1.23')
+    if: github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'Publish minimized background orb v0.1.24')
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -55,9 +55,9 @@ jobs:
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: v0.1.23
+          tag_name: v0.1.24
           target_commitish: ${{ github.sha }}
-          name: Floating Bar v0.1.23 — Minimized Background Send
+          name: Floating Bar v0.1.24 — Minimized Background Send
           body: |
             This release keeps the compact single-purpose orb and extends the background path to minimized Telegram windows.
 
