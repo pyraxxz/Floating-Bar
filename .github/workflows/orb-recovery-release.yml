@@ -1,4 +1,4 @@
-name: Publish Floating Bar v0.1.24
+name: Publish Floating Bar v0.1.25
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   release:
-    if: github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'Publish minimized background orb v0.1.24')
+    if: github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'Publish minimized background orb v0.1.25')
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -38,7 +38,7 @@ jobs:
         shell: pwsh
         run: |
           python -m compileall -q floatingbar
-          python -c "import floatingbar; assert floatingbar.__version__ == '0.1.24'; print('Floating Bar version:', floatingbar.__version__)"
+          python -c "import floatingbar; assert floatingbar.__version__ == '0.1.25'; print('Floating Bar version:', floatingbar.__version__)"
 
       - name: Build Windows executable
         run: pyinstaller --onefile --noconsole --name FloatingBar main.py
@@ -55,9 +55,9 @@ jobs:
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: v0.1.24
+          tag_name: v0.1.25
           target_commitish: ${{ github.sha }}
-          name: Floating Bar v0.1.24 — Minimized Background Send
+          name: Floating Bar v0.1.25 — Foreground-Locked Background Send
           body: |
             This release keeps the compact single-purpose orb and extends the background path to minimized Telegram windows.
 
