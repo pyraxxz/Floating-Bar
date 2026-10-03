@@ -55,6 +55,47 @@ class MinimizedBackgroundTests(unittest.TestCase):
         restore.assert_not_called()
         minimize.assert_not_called()
 
+    @mock.patch.object(winapi, "unlock_foreground")
+    @mock.patch.object(winapi, "lock_foreground", return_value=True)
+    @mock.patch.object(winapi, "post_click")
+    @mock.patch.object(winapi, "post_enter")
+    @mock.patch.object(winapi, "get_foreground_window", return_value=9999)
+    @mock.patch("floatingbar.injector.time.sleep")
+    def test_send_uses_protected_background_click_not_uia(
+        self, sleep, foreground, post_enter, post_click,
+        lock_foreground, unlock_foreground
+    ):
+        from types import SimpleNamespace
+
+        class Box:
+            def __init__(self):
+                self.iface_value = SimpleNamespace(CurrentValue="hello")
+
+        class Target(_DummyTarget):
+            def __init__(self):
+                super().__init__()
+                self.box = Box()
+
+            def send_button_control(self, near_box=None):
+                return ("Send", "Send", 10, 10)
+
+        target = Target()
+        injector = TelegramInjector(target)
+        injector.target = target
+
+        def click(_hwnd, _x, _y):
+            target.box.iface_value.CurrentValue = ""
+
+        post_click.side_effect = click
+        result = injector._submit_invisible(
+            target.box, target.hwnd, primary_ctrl=False, landing="compose"
+        )
+
+        self.assertEqual(result, "posted-click-protected (VERIFIED)")
+        lock_foreground.assert_called_once_with()
+        unlock_foreground.assert_called_once_with()
+        post_click.assert_called_once_with(1234, 10, 10)
+
 
 if __name__ == "__main__":
     unittest.main()
