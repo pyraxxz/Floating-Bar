@@ -70,3 +70,4 @@ jobs:
             dist/FloatingBar.exe.sha256
 
 # v0.1.25 release trigger
+# protected background-click release
