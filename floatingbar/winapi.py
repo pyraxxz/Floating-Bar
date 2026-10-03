@@ -49,6 +49,8 @@ GA_ROOT = 2
 SW_SHOWNOACTIVATE = 4
 SW_SHOWMINNOACTIVE = 7
 SW_RESTORE = 9
+LSFW_LOCK = 1
+LSFW_UNLOCK = 2
 
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 ERROR_ALREADY_EXISTS = 183
@@ -67,6 +69,9 @@ user32.GetForegroundWindow.restype = wintypes.HWND
 
 user32.SetForegroundWindow.argtypes = [wintypes.HWND]
 user32.SetForegroundWindow.restype = wintypes.BOOL
+
+user32.LockSetForegroundWindow.argtypes = [wintypes.UINT]
+user32.LockSetForegroundWindow.restype = wintypes.BOOL
 
 user32.IsWindow.argtypes = [wintypes.HWND]
 user32.IsWindow.restype = wintypes.BOOL
@@ -332,6 +337,26 @@ def minimize_without_activation(hwnd: int, timeout_ms: int = 600) -> bool:
 
 def get_foreground_window() -> int:
     return user32.GetForegroundWindow() or 0
+
+
+def lock_foreground() -> bool:
+    """Prevent other processes from changing the foreground window.
+
+    The foreground process can use this guard while invoking a background
+    control whose accessibility provider may otherwise activate its window.
+    The lock is deliberately held only for the tiny submission operation.
+    """
+    try:
+        return bool(user32.LockSetForegroundWindow(LSFW_LOCK))
+    except Exception:
+        return False
+
+
+def unlock_foreground() -> None:
+    try:
+        user32.LockSetForegroundWindow(LSFW_UNLOCK)
+    except Exception:
+        pass
 
 
 def set_foreground_window(hwnd: int) -> bool:
