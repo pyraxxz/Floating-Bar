@@ -38,7 +38,7 @@ jobs:
         shell: pwsh
         run: |
           python -m compileall -q floatingbar
-          python -c "import floatingbar; assert floatingbar.__version__ == '0.1.23'; print('Floating Bar version:', floatingbar.__version__)"
+          python -c "import floatingbar; assert floatingbar.__version__ == '0.1.24'; print('Floating Bar version:', floatingbar.__version__)"
 
       - name: Build Windows executable
         run: pyinstaller --onefile --noconsole --name FloatingBar main.py
