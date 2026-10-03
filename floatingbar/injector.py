@@ -373,20 +373,44 @@ class TelegramInjector:
         button, name, _cx, _cy = control_info
         if any(k in name.lower() for k in ("voice", "record", "mic", "audio")):
             raise InjectionFailed("Telegram's voice button is the only detected compose control.")
+        # UIA Invoke is the only remaining submission mechanism for some
+        # Telegram builds, but InvokePattern explicitly means "activate a
+        # control" and Telegram's Qt provider has been observed to activate
+        # the top-level window. Never invoke it unguarded.
         before_fg = winapi.get_foreground_window()
+        locked = winapi.lock_foreground()
+        trace.trace(f"submit: foreground activation guard={'locked' if locked else 'unavailable'}")
+        if not locked:
+            raise InjectionFailed(
+                "Telegram's Send control requires an activation-prone UIA invoke, "
+                "and the foreground could not be locked safely."
+            )
         try:
+            if winapi.get_foreground_window() != before_fg:
+                raise InjectionFailed(
+                    "Foreground changed before protected Telegram submission."
+                )
             button.iface_invoke.Invoke()
-            trace.trace(f"UIA Invoke on Send button name={name!r}")
+            trace.trace(f"protected UIA Invoke on Send button name={name!r}")
             time.sleep(config.PASTE_SETTLE_MS / 1000.0)
             current_fg = winapi.get_foreground_window()
             if current_fg == hwnd and before_fg and before_fg != hwnd:
-                winapi.set_foreground_window(before_fg)
-                trace.trace("foreground restored after UIA Send invocation")
+                raise InjectionFailed(
+                    "Telegram became foreground during protected UIA submission."
+                )
+            if current_fg != before_fg:
+                raise InjectionFailed(
+                    "Foreground changed during protected Telegram submission."
+                )
             if not verified or self._value_length(box) == 0:
-                trace.trace("submit verified: UIA Invoke")
-                return "uia-invoke (VERIFIED)" if verified else "uia-invoke (unverified)"
+                trace.trace("submit verified: protected UIA Invoke")
+                return "uia-invoke-protected (VERIFIED)" if verified else "uia-invoke-protected (unverified)"
+        except InjectionFailed:
+            raise
         except Exception as e:
-            trace.trace(f"UIA Invoke failed: {e}")
+            trace.trace(f"protected UIA Invoke failed: {e}")
+        finally:
+            winapi.unlock_foreground()
 
         if verified and self._value_length(box) > 0:
             raise InjectionFailed(
