@@ -68,3 +68,5 @@ jobs:
           files: |
             dist/FloatingBar.exe
             dist/FloatingBar.exe.sha256
+
+# v0.1.25 release trigger
