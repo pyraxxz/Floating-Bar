@@ -373,42 +373,53 @@ class TelegramInjector:
         button, name, _cx, _cy = control_info
         if any(k in name.lower() for k in ("voice", "record", "mic", "audio")):
             raise InjectionFailed("Telegram's voice button is the only detected compose control.")
-        # UIA Invoke is the only remaining submission mechanism for some
-        # Telegram builds, but InvokePattern explicitly means "activate a
-        # control" and Telegram's Qt provider has been observed to activate
-        # the top-level window. Never invoke it unguarded.
+        # Submit with the original background ControlClick-style route.
+        # The click is delivered with PostMessage to Telegram's window and
+        # never uses UIA Invoke (InvokePattern is explicitly activation
+        # oriented). Lock Windows' foreground-changing API for this tiny
+        # operation so Telegram cannot turn the posted click into a visible
+        # activation.
         before_fg = winapi.get_foreground_window()
         locked = winapi.lock_foreground()
-        trace.trace(f"submit: foreground activation guard={'locked' if locked else 'unavailable'}")
+        trace.trace(
+            f"submit: foreground activation guard="
+            f"{'locked' if locked else 'unavailable'}"
+        )
         if not locked:
             raise InjectionFailed(
-                "Telegram's Send control requires an activation-prone UIA invoke, "
-                "and the foreground could not be locked safely."
+                "Telegram's Send control requires a background click, "
+                "but the foreground could not be locked safely."
             )
         try:
             if winapi.get_foreground_window() != before_fg:
                 raise InjectionFailed(
                     "Foreground changed before protected Telegram submission."
                 )
-            button.iface_invoke.Invoke()
-            trace.trace(f"protected UIA Invoke on Send button name={name!r}")
+            trace.trace(
+                f"protected posted click on Send button at ({_cx},{_cy}) "
+                f"name={name!r}"
+            )
+            winapi.post_click(hwnd, _cx, _cy)
             time.sleep(config.PASTE_SETTLE_MS / 1000.0)
             current_fg = winapi.get_foreground_window()
             if current_fg == hwnd and before_fg and before_fg != hwnd:
                 raise InjectionFailed(
-                    "Telegram became foreground during protected UIA submission."
+                    "Telegram became foreground during protected background click."
                 )
             if current_fg != before_fg:
                 raise InjectionFailed(
                     "Foreground changed during protected Telegram submission."
                 )
             if not verified or self._value_length(box) == 0:
-                trace.trace("submit verified: protected UIA Invoke")
-                return "uia-invoke-protected (VERIFIED)" if verified else "uia-invoke-protected (unverified)"
+                trace.trace("submit verified: protected background click")
+                return (
+                    "posted-click-protected (VERIFIED)"
+                    if verified else "posted-click-protected (unverified)"
+                )
         except InjectionFailed:
             raise
         except Exception as e:
-            trace.trace(f"protected UIA Invoke failed: {e}")
+            trace.trace(f"protected background click failed: {e}")
         finally:
             winapi.unlock_foreground()
 
