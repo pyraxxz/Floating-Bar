@@ -14,6 +14,7 @@ permissions:
 
 jobs:
   build:
+    if: github.ref_type == 'tag' || github.event.head_commit.message == 'Publish v0.1.24'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -41,6 +42,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dist/FloatingBar.exe
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'v0.1.24' }}
+          name: Floating Bar v0.1.24 — Stable Orb Background Send
           generate_release_notes: true
 
       # Safety net: keep the raw exe as a build artifact too
